@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "path": ".",
+    },
+  ],
+  "settings": {
+    "chat.tools.terminal.autoApprove": {
+      "/^C:/Users/css89108/AppData/Local/Programs/Python/Python312/python\\.exe -m pytest -q$/": {
+        "approve": true,
+        "matchCommandLine": true,
+      },
+    },
+  },
+}

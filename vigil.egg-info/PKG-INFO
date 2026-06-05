@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: vigil
+Version: 0.1.0
+Summary: Autonomous CVE Intelligence & Remediation Agent — A GenAI Learning Project
+Requires-Python: >=3.11
+Requires-Dist: openai>=1.30
+Requires-Dist: pydantic>=2.0
+Requires-Dist: httpx>=0.27
+Requires-Dist: rich>=13.0
+Requires-Dist: python-dotenv>=1.0
+Provides-Extra: api
+Requires-Dist: fastapi>=0.111; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.29; extra == "api"
+Requires-Dist: asyncpg>=0.29; extra == "api"
+Provides-Extra: ui
+Requires-Dist: streamlit>=1.35; extra == "ui"
+Requires-Dist: httpx>=0.27; extra == "ui"
+Provides-Extra: full
+Requires-Dist: fastapi>=0.111; extra == "full"
+Requires-Dist: uvicorn[standard]>=0.29; extra == "full"
+Requires-Dist: asyncpg>=0.29; extra == "full"
+Requires-Dist: streamlit>=1.35; extra == "full"
+Requires-Dist: httpx>=0.27; extra == "full"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"

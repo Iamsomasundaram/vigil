@@ -1,0 +1,143 @@
+services:
+
+  # ── Vigil API ──────────────────────────────────────────────────────────────
+  # The FastAPI service that wraps all level scripts.
+  # Levels L0–L2 are available immediately.
+  # L5 will use the `db` service for memory.
+  # L6 will use `redis` for background task scheduling.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigil-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Docker Compose reads .env automatically — no need to hardcode keys here.
+      # The ${VAR} syntax substitutes from your .env file.
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      # Database URL — used from L5 onwards
+      - DATABASE_URL=postgresql://vigil:vigil@db:5432/vigil
+      # Redis URL — used from L6 onwards
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      # Mount source code so --reload picks up changes without rebuilding
+      - ./vigil:/app/vigil
+      - ./levels:/app/levels
+      - ./architectures:/app/architectures
+      - ./data:/app/data
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  # Used from L5 onwards for persistent memory:
+  #   - remediation tracking
+  #   - CVE history
+  #   - asset inventory snapshots
+  #   - agent decision logs
+  db:
+    image: postgres:16-alpine
+    container_name: vigil-db
+    environment:
+      POSTGRES_DB: vigil
+      POSTGRES_USER: vigil
+      POSTGRES_PASSWORD: vigil
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U vigil -d vigil" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # Used from L6 onwards for autonomous operation:
+  #   - background CVE monitoring jobs
+  #   - remediation follow-up scheduling
+  #   - rate limiting LLM calls
+  redis:
+    image: redis:7-alpine
+    container_name: vigil-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Test runner ────────────────────────────────────────────────────────────
+  # Runs the full pytest suite inside the same image used by the API service,
+  # against the Compose-managed PostgreSQL instance. Profile-gated so it does
+  # not start with a normal `docker compose up`.
+  #
+  # Run:
+  #   docker compose --profile test run --rm test
+  #
+  # Notes:
+  #   - OPENAI_API_KEY is intentionally a fake value: every test stubs the
+  #     OpenAI client and the live HTTP tools, so no real API is contacted.
+  #   - pytest + pytest-asyncio are installed at runtime so the production
+  #     image stays slim.
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigil-test
+    profiles: [ "test" ]
+    environment:
+      - OPENAI_API_KEY=fake-key-not-used
+      - DATABASE_URL=postgresql://vigil:vigil@db:5432/vigil
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./tests:/app/tests
+      - ./vigil:/app/vigil
+      - ./levels:/app/levels
+      - ./architectures:/app/architectures
+      - ./pyproject.toml:/app/pyproject.toml
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - "pip install --no-cache-dir pytest pytest-asyncio && pytest tests/ -v"
+
+  # ── Vigil UI ───────────────────────────────────────────────────────────────
+  # Streamlit frontend — one page per level (L0–L6).
+  # Beginners can explore the UI first, then read the matching level/*.py file.
+  # Port 8501 → http://localhost:8501
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    container_name: vigil-ui
+    ports:
+      - "8501:8501"
+    environment:
+      # Point the UI at the API container by its service name, not localhost
+      - VIGIL_API_URL=http://api:8000
+    volumes:
+      # Hot-reload: edit ui/app.py on the host → reflected immediately
+      - ./ui:/app/ui
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,75 @@
+{
+  "_comment": "Sample asset inventory — used from L3 onwards when the system checks YOUR environment",
+  "inventory": [
+    {
+      "asset_id": "APP-001",
+      "name": "Customer Portal",
+      "type": "web_application",
+      "technologies": ["Java 11", "Spring Boot 2.7", "Log4j 2.14.1", "nginx 1.22"],
+      "environment": "production",
+      "criticality": "critical",
+      "owner_team": "platform",
+      "internet_facing": true
+    },
+    {
+      "asset_id": "APP-002",
+      "name": "Internal HR System",
+      "type": "web_application",
+      "technologies": ["Java 8", "Log4j 1.2.17", "Tomcat 9.0"],
+      "environment": "production",
+      "criticality": "high",
+      "owner_team": "hr-engineering",
+      "internet_facing": false
+    },
+    {
+      "asset_id": "SRV-001",
+      "name": "API Gateway",
+      "type": "server",
+      "technologies": ["Ubuntu 22.04", "nginx 1.24", "Python 3.11"],
+      "environment": "production",
+      "criticality": "critical",
+      "owner_team": "infrastructure",
+      "internet_facing": true
+    },
+    {
+      "asset_id": "SRV-002",
+      "name": "CI/CD Build Server",
+      "type": "server",
+      "technologies": ["Ubuntu 20.04", "Jenkins 2.387", "Java 11", "Log4j 2.17.0"],
+      "environment": "internal",
+      "criticality": "medium",
+      "owner_team": "devops",
+      "internet_facing": false
+    },
+    {
+      "asset_id": "SRV-003",
+      "name": "Monitoring Stack",
+      "type": "server",
+      "technologies": ["Ubuntu 22.04", "Elasticsearch 8.9", "Kibana 8.9", "Java 17"],
+      "environment": "internal",
+      "criticality": "medium",
+      "owner_team": "platform",
+      "internet_facing": false
+    },
+    {
+      "asset_id": "DB-001",
+      "name": "Customer Database",
+      "type": "database",
+      "technologies": ["PostgreSQL 15.2", "Ubuntu 22.04"],
+      "environment": "production",
+      "criticality": "critical",
+      "owner_team": "data",
+      "internet_facing": false
+    },
+    {
+      "asset_id": "DB-002",
+      "name": "Analytics Warehouse",
+      "type": "database",
+      "technologies": ["Apache Spark 3.4", "Java 11", "Ubuntu 20.04"],
+      "environment": "internal",
+      "criticality": "high",
+      "owner_team": "data",
+      "internet_facing": false
+    }
+  ]
+}
