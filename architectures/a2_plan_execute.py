@@ -83,6 +83,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -95,6 +96,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich import box
+from vigil.models import ApprovalGate, HumanDecision, PausedRun
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -331,6 +333,129 @@ TOOL_FUNCTIONS: dict[str, Any] = {
     "fetch_epss_score": fetch_epss_score,
     "check_cisa_kev":   check_cisa_kev,
 }
+
+
+# ─── E2: HUMAN-IN-THE-LOOP STATE ───────────────────────────────────────────
+
+_RUNS: dict[str, dict[str, Any]] = {}
+
+
+def _is_high_risk_step(step: PlanStep) -> bool:
+    text = (step.description + " " + step.tool_name).lower()
+    return any(k in text for k in ("critical", "offline", "shutdown", "immediate", "kev"))
+
+
+def _serialize_paused(run: dict[str, Any]) -> PausedRun:
+    return PausedRun(
+        run_id=run["run_id"],
+        cve_id=run["cve_id"],
+        state=run["state"],
+        open_gate=run.get("open_gate"),
+    )
+
+
+def _find_run_by_gate_id(gate_id: str) -> dict[str, Any] | None:
+    for run in _RUNS.values():
+        gate = run.get("open_gate")
+        if gate is not None and gate.gate_id == gate_id:
+            return run
+    return None
+
+
+async def start_gated_run(cve_id: str) -> PausedRun:
+    _reset_usage()
+    plan = await create_plan(cve_id)
+    run_id = str(uuid.uuid4())
+    gate = ApprovalGate(
+        gate_id=str(uuid.uuid4()),
+        run_id=run_id,
+        gate_type="plan",
+        payload=plan.model_dump_json(indent=2),
+        risk="medium",
+    )
+    _RUNS[run_id] = {
+        "run_id": run_id,
+        "cve_id": cve_id,
+        "state": "pending_plan_approval",
+        "open_gate": gate,
+        "plan": plan,
+        "execution_log": [],
+        "report": None,
+        "audit": [],
+    }
+    return _serialize_paused(_RUNS[run_id])
+
+
+def get_gated_run(run_id: str) -> PausedRun | None:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return None
+    return _serialize_paused(run)
+
+
+async def submit_human_decision(decision: HumanDecision) -> PausedRun:
+    run = _find_run_by_gate_id(decision.gate_id)
+    if run is None:
+        raise ValueError("Run or gate not found")
+
+    open_gate: ApprovalGate | None = run.get("open_gate")
+    if open_gate is None or open_gate.gate_id != decision.gate_id:
+        raise ValueError("No matching open gate for this decision")
+
+    run["audit"].append(decision.model_dump())
+
+    if decision.decision == "reject":
+        run["state"] = "aborted"
+        run["open_gate"] = None
+        return _serialize_paused(run)
+
+    if decision.decision == "request_changes":
+        run["state"] = "pending_plan_approval"
+        run["open_gate"] = ApprovalGate(
+            gate_id=str(uuid.uuid4()),
+            run_id=run["run_id"],
+            gate_type="clarification",
+            payload=decision.rationale or "Please provide requested plan changes.",
+            risk="low",
+        )
+        return _serialize_paused(run)
+
+    if open_gate.gate_type == "plan" and decision.decision == "edit" and decision.edited_payload:
+        run["plan"] = InvestigationPlan.model_validate(json.loads(decision.edited_payload))
+
+    # Approve/edit path: either go to action gate or execute.
+    plan: InvestigationPlan = run["plan"]
+    high_risk = next((s for s in plan.steps if s.step_type == "tool_call" and _is_high_risk_step(s)), None)
+    if high_risk and open_gate.gate_type == "plan":
+        run["state"] = "pending_action_approval"
+        run["open_gate"] = ApprovalGate(
+            gate_id=str(uuid.uuid4()),
+            run_id=run["run_id"],
+            gate_type="action",
+            payload=f"Approve high-risk step {high_risk.step}: {high_risk.description}",
+            risk="high",
+        )
+        return _serialize_paused(run)
+
+    run["state"] = "executing"
+    report, execution_log = await execute_plan(run["cve_id"], plan)
+    run["execution_log"] = execution_log
+    run["report"] = report
+    run["open_gate"] = None
+    run["state"] = "done"
+    return _serialize_paused(run)
+
+
+def get_gated_run_details(run_id: str) -> dict[str, Any] | None:
+    run = _RUNS.get(run_id)
+    if run is None:
+        return None
+    return {
+        "run": _serialize_paused(run),
+        "execution_log": list(run.get("execution_log", [])),
+        "report": run.get("report"),
+        "audit": list(run.get("audit", [])),
+    }
 
 
 # ─── PHASE 1: PLANNING ────────────────────────────────────────────────────────

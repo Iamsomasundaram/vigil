@@ -33,10 +33,31 @@ ReDoc UI (auto-generated):    http://localhost:8000/redoc
 
 from __future__ import annotations
 
+import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from vigil.models import (
+    BudgetStatus,
+    Consensus,
+    ContextBudgetReport,
+    CostReport,
+    GuardedVerdict,
+    HumanDecision,
+    InferenceComparison,
+    InferenceResult,
+    InjectionScan,
+    PausedRun,
+    ProviderInfo,
+    RecalledMemory,
+    ResilientVerdict,
+    RoutePolicy,
+    Scorecard,
+    Trace,
+)
 
 
 # ─── LIFESPAN ─────────────────────────────────────────────────────────────────
@@ -101,6 +122,7 @@ class L0Response(BaseModel):
     elapsed_ms:  int
     explanation: str
     token_usage: TokenUsage
+    trace_id: str
 
 class L1Response(BaseModel):
     cve_id:      str
@@ -109,6 +131,7 @@ class L1Response(BaseModel):
     elapsed_ms:  int
     steps:       dict  # 1_summary, 2_risk, 3_remediation
     token_usage: TokenUsage
+    trace_id: str
 
 class L2Response(BaseModel):
     cve_id:        str
@@ -118,6 +141,7 @@ class L2Response(BaseModel):
     agent_reports: dict
     verdict:       dict
     token_usage:   TokenUsage
+    trace_id: str
 
 class L3Response(BaseModel):
     cve_id:      str
@@ -127,6 +151,7 @@ class L3Response(BaseModel):
     routing:     dict
     result:      dict
     token_usage: TokenUsage
+    trace_id: str
 
 class L4Response(BaseModel):
     cve_id:      str
@@ -136,6 +161,94 @@ class L4Response(BaseModel):
     tool_calls:  list
     analysis:    dict
     token_usage: TokenUsage
+    trace_id: str
+
+
+class TextScanRequest(BaseModel):
+    text: str = Field(description="Untrusted text to scan for prompt injection patterns")
+
+
+class R1ScanResponse(BaseModel):
+    scan: InjectionScan
+
+
+class R1Response(BaseModel):
+    cve_id: str
+    level: str
+    concept: str
+    elapsed_ms: int
+    verdict: GuardedVerdict
+    tool_calls: list
+    token_usage: TokenUsage
+    trace_id: str
+
+
+class R2EvaluateRequest(BaseModel):
+    target: str = Field(default="l2", description="Target module to evaluate: l1, l2, l3, or l4")
+    dataset_path: str = Field(default="data/eval/golden_set.json")
+    rubric_path: str = Field(default="data/eval/rubric.md")
+    baseline_path: str = Field(default="data/eval/baseline.json")
+    regression_threshold: float = Field(default=0.05, ge=0.0)
+    update_baseline: bool = False
+
+
+class R3RunRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+    export_path: str | None = None
+
+
+class R4Request(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+    chaos: str = Field(default="", description="Optional chaos config, e.g. epss=timeout,nvd=500")
+
+
+class R4Response(BaseModel):
+    cve_id: str
+    level: str
+    concept: str
+    elapsed_ms: int
+    verdict: ResilientVerdict
+    token_usage: TokenUsage
+    trace_id: str
+
+
+class R5BudgetRequest(BaseModel):
+    request_cap_usd: float = Field(default=0.01, ge=0.0)
+    session_cap_usd: float = Field(default=1.0, ge=0.0)
+    warn_ratio: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class A2StartRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+
+
+class A4CollaborateRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+    mode: str = Field(default="handoff", description="handoff | debate | blackboard")
+    rounds: int = Field(default=2, ge=1, le=5)
+
+class L4bImageRequest(BaseModel):
+    image_url: str = Field(
+        description="Image URL or base64 data URI of an advisory screenshot",
+        examples=["https://example.com/advisory.png"],
+    )
+
+class L4bPdfRequest(BaseModel):
+    content_base64: str = Field(description="Base64-encoded PDF bytes")
+    filename: str = Field(default="advisory.pdf")
+
+class InferenceCompareRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+    task: str = Field(default="default")
+    providers: list[str] = Field(default_factory=lambda: ["openai"])
+
+class L4bResponse(BaseModel):
+    source_type: str
+    concept:     str
+    elapsed_ms:  int
+    extract:     dict
+    token_usage: TokenUsage
+    trace_id:    str
 
 class L5Response(BaseModel):
     cve_id:               str
@@ -145,7 +258,9 @@ class L5Response(BaseModel):
     analysis:             dict
     tool_calls:           list
     prior_history_count:  int
+    context_budget:       ContextBudgetReport
     token_usage:          TokenUsage
+    trace_id: str
 
 class WatchlistEntry(BaseModel):
     cve_id:       str
@@ -184,11 +299,55 @@ def root():
             "L2": "POST /l2/analyse — parallel agents + moderator",
             "L3": "POST /l3/analyse — conditional routing",
             "L4": "POST /l4/analyse — tool use (live NVD + EPSS APIs)",
+            "L4b": "POST /l4b/image · /l4b/pdf — multimodal (vision + document parsing)",
             "L5": "POST /l5/analyse — memory + feedback loop (PostgreSQL)",
             "L6": "POST /l6/monitor/start — autonomous monitoring (kill switch: /l6/monitor/stop)",
         },
         "docs": "/docs",
     }
+
+
+@app.get("/inference/policy", response_model=list[RoutePolicy], tags=["extensions"])
+def inference_policy():
+    """Return configured inference routing/fallback policies."""
+    try:
+        from vigil.inference import get_all_policies
+
+        return get_all_policies()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/inference/providers", response_model=list[ProviderInfo], tags=["extensions"])
+def inference_providers():
+    """List configured inference providers and their capability flags (F3)."""
+    try:
+        from vigil.inference import get_providers
+
+        return get_providers()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/inference/compare", response_model=InferenceComparison, tags=["extensions"])
+async def inference_compare(req: InferenceCompareRequest):
+    """Run the same prompt across providers and compare latency/cost/output (F3)."""
+    try:
+        from vigil.inference import compare_inference
+
+        messages = [
+            {
+                "role": "user",
+                "content": f"In two sentences, summarise the risk of {req.cve_id}.",
+            }
+        ]
+        return await compare_inference(
+            messages=messages,
+            task=req.task,
+            providers=req.providers,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── LEVEL 0 ──────────────────────────────────────────────────────────────────
@@ -216,6 +375,7 @@ def analyse_l0(req: CVERequest):
             "elapsed_ms":  elapsed_ms,
             "explanation": explanation,
             "token_usage": get_usage(),
+            "trace_id": str(uuid.uuid4()),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -253,7 +413,41 @@ def analyse_l1(req: CVERequest):
                 "3_remediation": plan.model_dump(),
             },
             "token_usage": l1_get_usage(),
+            "trace_id": str(uuid.uuid4()),
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/l1/stream", tags=["levels"])
+async def stream_l1(cve_id: str = "CVE-2021-44228"):
+    """E4 demo endpoint: stream a concise CVE summary token-by-token."""
+    try:
+        from openai import AsyncOpenAI
+        from vigil.inference import astream
+
+        client = AsyncOpenAI(timeout=60.0)
+
+        async def _gen():
+            async for token in astream(
+                client=client,
+                task="default",
+                messages=[
+                    {"role": "system", "content": "You are a concise CVE explainer."},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Summarize {cve_id} in 5 bullet points: what it is, who is affected, "
+                            "exploitability, urgency, and immediate action."
+                        ),
+                    },
+                ],
+                temperature=0.1,
+                max_tokens=512,
+            ):
+                yield token
+
+        return StreamingResponse(_gen(), media_type="text/plain")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -287,6 +481,7 @@ async def analyse_l2(req: CVERequest):
             },
             "verdict":     verdict.model_dump(),
             "token_usage": l2_get_usage(),
+            "trace_id": str(uuid.uuid4()),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -319,6 +514,7 @@ async def analyse_l3(req: CVERequest):
             "routing":     routing.model_dump(),
             "result":      result.model_dump(),
             "token_usage": l3_get_usage(),
+            "trace_id": str(uuid.uuid4()),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -351,7 +547,263 @@ async def analyse_l4(req: CVERequest):
             "tool_calls":  tool_log,
             "analysis":    analysis.model_dump(),
             "token_usage": l4_get_usage(),
+            "trace_id":    str(uuid.uuid4()),
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── LEVEL 4b — MULTIMODAL (F2) ──────────────────────────────────────────────
+# Concept: vision + document parsing → structured, grounded extraction
+
+
+@app.post("/l4b/image", response_model=L4bResponse, tags=["levels"])
+async def extract_image_l4b(req: L4bImageRequest):
+    """
+    Level 4b — Multimodal (Vision).
+
+    Sends an advisory image (URL or base64 data URI) to a vision-capable model
+    and extracts a structured `AdvisoryExtract`. Teaches multimodal prompt
+    construction (image_url message parts) and visual grounding.
+    """
+    try:
+        from levels.l4b_multimodal import (
+            extract_from_image,
+            get_usage as l4b_get_usage,
+            _reset_usage,
+        )
+        _reset_usage()
+        start = time.perf_counter()
+
+        extract = await extract_from_image(req.image_url)
+
+        return {
+            "source_type": "image",
+            "concept":     "multimodal vision — structured extraction from an image",
+            "elapsed_ms":  int((time.perf_counter() - start) * 1000),
+            "extract":     extract.model_dump(),
+            "token_usage": l4b_get_usage(),
+            "trace_id":    str(uuid.uuid4()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/l4b/pdf", response_model=L4bResponse, tags=["levels"])
+async def extract_pdf_l4b(req: L4bPdfRequest):
+    """
+    Level 4b — Multimodal (Document parsing).
+
+    Decodes a base64 PDF bulletin, extracts its text, then produces a structured
+    `AdvisoryExtract` grounded in the extracted text.
+    """
+    import base64 as _b64
+    import tempfile
+
+    try:
+        from levels.l4b_multimodal import (
+            extract_from_pdf,
+            get_usage as l4b_get_usage,
+            _reset_usage,
+        )
+        _reset_usage()
+        start = time.perf_counter()
+
+        try:
+            raw = _b64.b64decode(req.content_base64, validate=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="content_base64 is not valid base64")
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(raw)
+            tmp_path = tmp.name
+        try:
+            extract = await extract_from_pdf(tmp_path)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+        return {
+            "source_type": "pdf",
+            "concept":     "document parsing — structured extraction from a PDF",
+            "elapsed_ms":  int((time.perf_counter() - start) * 1000),
+            "extract":     extract.model_dump(),
+            "token_usage": l4b_get_usage(),
+            "trace_id":    str(uuid.uuid4()),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── RELIABILITY R1 ──────────────────────────────────────────────────────────
+# Concept: layered guardrails against prompt injection and unsafe downgrades
+
+
+@app.post("/r1/scan", response_model=R1ScanResponse, tags=["reliability"])
+def scan_r1(req: TextScanRequest):
+    """
+    R1 helper endpoint — scan arbitrary text for prompt-injection indicators.
+    """
+    try:
+        from reliability.r1_guardrails import scan_for_injection
+
+        scan = scan_for_injection(req.text)
+        return {"scan": scan}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/r1/analyse", response_model=R1Response, tags=["reliability"])
+async def analyse_r1(req: CVERequest):
+    """
+    Reliability R1 — Guarded CVE analysis.
+
+    Applies input scanning, data isolation, output validation, tool allow-listing,
+    and policy/approval gates before returning the final verdict.
+    """
+    try:
+        from reliability.r1_guardrails import analyse_cve as analyse_cve_r1, get_usage as r1_get_usage
+
+        start = time.perf_counter()
+        verdict, tool_log = await analyse_cve_r1(req.cve_id)
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        return {
+            "cve_id": req.cve_id,
+            "level": "R1",
+            "concept": "guardrails + prompt-injection defense",
+            "elapsed_ms": elapsed_ms,
+            "verdict": verdict,
+            "tool_calls": tool_log,
+            "token_usage": r1_get_usage(),
+            "trace_id": str(uuid.uuid4()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/r2/evaluate", response_model=Scorecard, tags=["reliability"])
+async def evaluate_r2(req: R2EvaluateRequest):
+    """
+    Reliability R2 — evaluation harness and regression gate.
+
+    Runs deterministic checks, judge scoring, and adversarial checks against a
+    target module (l1-l4) using a golden dataset.
+    """
+    try:
+        from reliability.r2_evaluation import evaluate
+
+        scorecard = await evaluate(
+            target=req.target,
+            dataset_path=req.dataset_path,
+            rubric_path=req.rubric_path,
+            baseline_path=req.baseline_path,
+            regression_threshold=req.regression_threshold,
+            update_baseline=req.update_baseline,
+        )
+        return scorecard
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/r3/trace/run", tags=["reliability"])
+async def run_r3_trace(req: R3RunRequest):
+    """
+    Reliability R3 — run a traced L4 analysis and return trace_id.
+    """
+    try:
+        from reliability.r3_observability import run_traced_l4
+
+        payload, _trace = await run_traced_l4(req.cve_id, export_path=req.export_path)
+        return payload
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/r3/trace/{trace_id}", response_model=Trace, tags=["reliability"])
+def get_r3_trace(trace_id: str, jsonl_path: str | None = None):
+    """
+    Reliability R3 — fetch a trace by correlation id.
+    """
+    try:
+        from reliability.r3_observability import get_trace
+
+        trace = get_trace(trace_id, jsonl_path=jsonl_path)
+        if trace is None:
+            raise HTTPException(status_code=404, detail=f"Trace not found: {trace_id}")
+        return trace
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/r4/health", tags=["reliability"])
+def health_r4():
+    """
+    Reliability R4 — current circuit-breaker state by source.
+    """
+    try:
+        from reliability.r4_resilience import get_circuit_states
+
+        return {"circuits": get_circuit_states()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/r4/analyse", response_model=R4Response, tags=["reliability"])
+async def analyse_r4(req: R4Request):
+    """
+    Reliability R4 — resilient analysis with timeout/retry/circuit/degradation.
+    """
+    try:
+        from reliability.r4_resilience import analyse_cve as analyse_cve_r4, get_usage as r4_get_usage, parse_chaos
+
+        start = time.perf_counter()
+        verdict = await analyse_cve_r4(req.cve_id, chaos=parse_chaos(req.chaos))
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        return {
+            "cve_id": req.cve_id,
+            "level": "R4",
+            "concept": "timeouts + retries + circuit breaker + graceful degradation",
+            "elapsed_ms": elapsed_ms,
+            "verdict": verdict,
+            "token_usage": r4_get_usage(),
+            "trace_id": str(uuid.uuid4()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/r5/budget", response_model=BudgetStatus, tags=["reliability"])
+def set_r5_budget(req: R5BudgetRequest):
+    """
+    Reliability R5 — set request/session budget caps.
+    """
+    try:
+        from reliability.r5_cost_control import set_budget
+
+        return set_budget(
+            request_cap_usd=req.request_cap_usd,
+            session_cap_usd=req.session_cap_usd,
+            warn_ratio=req.warn_ratio,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/r5/report", response_model=CostReport, tags=["reliability"])
+def get_r5_report():
+    """
+    Reliability R5 — aggregated spend/caching report.
+    """
+    try:
+        from reliability.r5_cost_control import get_cost_report
+
+        return get_cost_report()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -383,7 +835,7 @@ async def analyse_l5(req: CVERequest):
         from levels.l5_memory import analyse_cve as analyse_cve_l5, get_usage as l5_get_usage
         start = time.perf_counter()
 
-        analysis, tool_log, history = await analyse_cve_l5(req.cve_id)
+        analysis, tool_log, history, context_budget = await analyse_cve_l5(req.cve_id)
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         return {
@@ -394,7 +846,9 @@ async def analyse_l5(req: CVERequest):
             "analysis":            analysis.model_dump(),
             "tool_calls":          tool_log,
             "prior_history_count": len(history),
+            "context_budget":      context_budget.model_dump(),
             "token_usage":         l5_get_usage(),
+            "trace_id": str(uuid.uuid4()),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -446,6 +900,17 @@ async def history_l5(cve_id: str):
                 for row in history
             ],
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/l5/similar/{cve_id}", response_model=RecalledMemory, tags=["levels"])
+async def similar_l5(cve_id: str, k: int = 5, threshold: float = 0.55):
+    """E1 extension: semantic recall over prior analyses for related incidents."""
+    try:
+        from levels.l5_memory import get_similar_cves
+
+        return await get_similar_cves(cve_id, k=k, threshold=threshold)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -768,6 +1233,58 @@ async def analyse_a2(req: CVERequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/a2/start", response_model=PausedRun, tags=["architectures"])
+async def start_a2(req: A2StartRequest):
+    """E2 extension: create a paused Plan-and-Execute run awaiting human approval."""
+    try:
+        from architectures.a2_plan_execute import start_gated_run
+
+        return await start_gated_run(req.cve_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/a2/runs/{run_id}", tags=["architectures"])
+async def get_a2_run(run_id: str):
+    """Return current HITL run state and any completed artifacts."""
+    try:
+        from architectures.a2_plan_execute import get_gated_run_details
+
+        details = get_gated_run_details(run_id)
+        if details is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+
+        report = details["report"]
+        return {
+            "run": details["run"],
+            "execution_log": details["execution_log"],
+            "report": report.model_dump() if hasattr(report, "model_dump") else report,
+            "audit": details["audit"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/a2/runs/{run_id}/decision", response_model=PausedRun, tags=["architectures"])
+async def decide_a2_run(run_id: str, decision: HumanDecision):
+    """Submit approve/reject/edit/request_changes for the current open gate."""
+    try:
+        from architectures.a2_plan_execute import submit_human_decision
+
+        state = await submit_human_decision(decision)
+        if state.run_id != run_id:
+            raise HTTPException(status_code=400, detail="Decision gate does not belong to run_id")
+        return state
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── ARCHITECTURE 3: Reflection / Self-Critique ───────────────────────────────
 # Concept: draft → adversarial critique → improved revision
 
@@ -854,5 +1371,24 @@ async def analyse_a4(req: CVERequest):
             "report":        report.model_dump(),
             "token_usage":   a4_get_usage(),
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/a4/collaborate", response_model=Consensus, tags=["architectures"])
+async def collaborate_a4(req: A4CollaborateRequest):
+    """E3 extension: run A4 with explicit inter-agent communication mode."""
+    try:
+        from architectures.a4_multi_agent import collaborate
+
+        mode = req.mode.strip().lower()
+        if mode not in {"handoff", "debate", "blackboard"}:
+            raise HTTPException(status_code=400, detail="mode must be handoff|debate|blackboard")
+
+        return await collaborate(req.cve_id, mode=mode, rounds=req.rounds)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

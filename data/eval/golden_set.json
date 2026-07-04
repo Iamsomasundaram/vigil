@@ -1,0 +1,23 @@
+[
+  {
+    "cve_id": "CVE-2021-44228",
+    "expected_severity_band": ["Critical", "High"],
+    "expected_kev": true,
+    "action_required": true,
+    "notes": "Log4Shell should drive urgent remediation."
+  },
+  {
+    "cve_id": "CVE-2023-44487",
+    "expected_severity_band": ["High", "Medium"],
+    "expected_kev": true,
+    "action_required": true,
+    "notes": "HTTP/2 rapid reset has active exploitation pressure."
+  },
+  {
+    "cve_id": "CVE-2014-0160",
+    "expected_severity_band": ["High", "Medium"],
+    "expected_kev": false,
+    "action_required": true,
+    "notes": "Heartbleed remains high impact but old."
+  }
+]

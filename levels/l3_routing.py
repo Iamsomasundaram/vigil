@@ -96,6 +96,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich import box
+from vigil.inference import acomplete_json
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -268,8 +269,10 @@ async def run_router(cve_id: str) -> RoutingDecision:
     decision that maps directly onto a code path. This makes routing
     deterministic once the LLM has decided.
     """
-    response = await client.chat.completions.create(
-        model=MODEL,
+    payload, usage = await acomplete_json(
+        client=client,
+        task="route",
+        schema_model=RoutingDecision,
         messages=[
             {
                 "role": "system",
@@ -293,21 +296,12 @@ async def run_router(cve_id: str) -> RoutingDecision:
                 ),
             },
         ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name":   "RoutingDecision",
-                "strict": True,
-                "schema": _strict_schema(RoutingDecision),
-            },
-        },
-        temperature=0.1,   # Low temperature for consistent routing decisions
+        temperature=0.1,
         max_tokens=512,
     )
-    _track(response)
-    return RoutingDecision.model_validate(
-        json.loads(response.choices[0].message.content)
-    )
+    _usage["prompt_tokens"] += usage.prompt_tokens
+    _usage["completion_tokens"] += usage.completion_tokens
+    return RoutingDecision.model_validate(payload)
 
 
 # ─── TRACK HANDLERS ───────────────────────────────────────────────────────────

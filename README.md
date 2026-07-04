@@ -1,12 +1,14 @@
 # Vigil
+
 ### Autonomous CVE Intelligence & Remediation Agent
-*A GenAI learning project — from a single LLM call to a fully autonomous security agent*
+
+_A GenAI learning project — from a single LLM call to a fully autonomous security agent_
 
 ---
 
 ## What is Vigil?
 
-Vigil solves a real problem: organisations are drowning in CVEs and don't know which ones actually matter to *their* environment, or what to do about them first.
+Vigil solves a real problem: organisations are drowning in CVEs and don't know which ones actually matter to _their_ environment, or what to do about them first.
 
 More importantly, Vigil is a **learning project**. Each level introduces one new AI concept, building on the previous. By the time you reach Level 6, you will have built a genuinely autonomous AI agent from first principles.
 
@@ -14,15 +16,37 @@ More importantly, Vigil is a **learning project**. Each level introduces one new
 
 ## The Learning Path
 
-| Level | File | Concept | What it does |
-|-------|------|---------|--------------|
-| L0 | `levels/l0_single_call.py` | Single LLM call | Explains a CVE in plain English |
-| L1 | `levels/l1_chain.py` | Prompt chaining + structured output | 3-step chain: summarise → assess risk → remediation plan |
-| L2 | `levels/l2_parallel.py` | Parallel agent fan-out | 4 specialist agents run simultaneously, moderator synthesises |
-| L3 | `levels/l3_routing.py` | Conditional routing | System classifies CVE type, activates the right specialist track |
-| L4 | `levels/l4_tools.py` | Real tool use | Queries NVD, EPSS, and your asset inventory |
-| L5 | `levels/l5_memory.py` | Memory + feedback loops | Tracks remediation, follows up, learns from history |
-| L6 | `levels/l6_autonomous.py` | Fully autonomous | Monitors CVE feeds, assigns tickets, verifies fixes — no human needed |
+| Level | File                       | Concept                             | What it does                                                          |
+| ----- | -------------------------- | ----------------------------------- | --------------------------------------------------------------------- |
+| L0    | `levels/l0_single_call.py` | Single LLM call                     | Explains a CVE in plain English                                       |
+| L1    | `levels/l1_chain.py`       | Prompt chaining + structured output | 3-step chain: summarise → assess risk → remediation plan              |
+| L2    | `levels/l2_parallel.py`    | Parallel agent fan-out              | 4 specialist agents run simultaneously, moderator synthesises         |
+| L3    | `levels/l3_routing.py`     | Conditional routing                 | System classifies CVE type, activates the right specialist track      |
+| L4    | `levels/l4_tools.py`       | Real tool use                       | Queries NVD, EPSS, and your asset inventory                           |
+| L5    | `levels/l5_memory.py`      | Memory + feedback loops             | Tracks remediation, follows up, learns from history                   |
+| L6    | `levels/l6_autonomous.py`  | Fully autonomous                    | Monitors CVE feeds, assigns tickets, verifies fixes — no human needed |
+
+---
+
+## Interactive Learning
+
+Prefer to learn by doing? Two hands-on tracks complement the levels above:
+
+- **Notebooks** ([`notebooks/`](notebooks/README.md)) — runnable, offline-friendly
+  notebooks where you change one parameter and watch the effect: tokenization,
+  prompting, and embeddings/RAG. Start with `notebooks/00_setup.ipynb`.
+
+  ```bash
+  pip install -e ".[notebooks]"
+  jupyter lab notebooks/
+  ```
+
+- **Exercises** ([`exercises/`](exercises/README.md)) — short "try it yourself"
+  challenges with a stub to complete, a hidden reference solution, and a grader.
+
+  ```bash
+  pytest exercises/l0_prompting -q   # fails until you complete start.py
+  ```
 
 ---
 
@@ -87,6 +111,7 @@ python levels/l6_autonomous.py --scan CVE-2021-44228
 ```
 
 Try different CVEs to see how the outputs vary:
+
 - `CVE-2021-44228` — Log4Shell (critical, widely known)
 - `CVE-2023-44487` — HTTP/2 Rapid Reset (DDoS)
 - `CVE-2022-22965` — Spring4Shell (RCE)
@@ -118,24 +143,24 @@ vigil/
 
 ## AI Concepts Covered
 
-| Concept | Introduced at |
-|---------|--------------|
-| System prompts & personas | L0 |
-| Temperature & model parameters | L0 |
-| Structured output (Pydantic) | L1 |
-| Prompt chaining | L1 |
-| Context accumulation | L1 |
-| `async`/`await` | L2 |
-| `asyncio.gather()` — parallel execution | L2 |
-| Multi-agent fan-out | L2 |
-| Agent result aggregation | L2 |
-| Conditional routing | L3 |
-| Function / tool calling | L4 |
-| External API integration (NVD, EPSS) | L4 |
-| Persistent memory | L5 |
-| Feedback loops | L5 |
-| Autonomous goal-directed behaviour | L6 |
-| Human-in-the-loop design | L6 |
+| Concept                                 | Introduced at |
+| --------------------------------------- | ------------- |
+| System prompts & personas               | L0            |
+| Temperature & model parameters          | L0            |
+| Structured output (Pydantic)            | L1            |
+| Prompt chaining                         | L1            |
+| Context accumulation                    | L1            |
+| `async`/`await`                         | L2            |
+| `asyncio.gather()` — parallel execution | L2            |
+| Multi-agent fan-out                     | L2            |
+| Agent result aggregation                | L2            |
+| Conditional routing                     | L3            |
+| Function / tool calling                 | L4            |
+| External API integration (NVD, EPSS)    | L4            |
+| Persistent memory                       | L5            |
+| Feedback loops                          | L5            |
+| Autonomous goal-directed behaviour      | L6            |
+| Human-in-the-loop design                | L6            |
 
 ---
 
@@ -151,13 +176,14 @@ L5  ──  Memory           Tracks, loops, follows up
 L6  ──  Autonomous       Sets its own goals, acts without prompting
 ```
 
-The jump from L5 to L6 is where an AI *system* becomes an AI *agent*.
+The jump from L5 to L6 is where an AI _system_ becomes an AI _agent_.
 
 ---
 
 ## Forking This Project
 
 Vigil is intentionally kept simple for learning. Once you understand all 6 levels, fork it and build the enterprise version:
+
 - Add a database (replace SQLite with PostgreSQL)
 - Add a REST API (FastAPI)
 - Add a frontend dashboard

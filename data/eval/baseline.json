@@ -1,0 +1,16 @@
+{
+  "targets": {
+    "l2": {
+      "overall_score": 0.75,
+      "n_cases": 3,
+      "estimated_cost_usd": 0.0,
+      "metrics": []
+    },
+    "l3": {
+      "overall_score": 0.75,
+      "n_cases": 3,
+      "estimated_cost_usd": 0.0,
+      "metrics": []
+    }
+  }
+}

@@ -34,6 +34,7 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 # Copy source code
 COPY vigil/   ./vigil/
 COPY levels/  ./levels/
+COPY reliability/ ./reliability/
 COPY data/    ./data/
 
 # FastAPI on port 8000

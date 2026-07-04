@@ -113,6 +113,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich import box
+from vigil.models import AgentMessage, Consensus
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -611,6 +612,95 @@ async def analyse_cve(
     console.print(f"[dim]  Completed in {elapsed:.1f}s ({len(all_tools)} total tool calls across 3 agents)[/dim]")
 
     return threat, impact, remediation, final, all_tools
+
+
+async def collaborate(
+    cve_id: str,
+    mode: str = "handoff",
+    rounds: int = 2,
+) -> Consensus:
+    threat, impact, remediation, final, _tool_log = await analyse_cve(cve_id)
+    transcript: list[AgentMessage] = []
+
+    if mode == "handoff":
+        transcript.append(
+            AgentMessage(
+                sender="threat_intel",
+                recipient="impact_assessment",
+                round=1,
+                content=threat.threat_summary,
+            )
+        )
+        transcript.append(
+            AgentMessage(
+                sender="impact_assessment",
+                recipient="patch_remediation",
+                round=1,
+                content=impact.impact_summary,
+            )
+        )
+        transcript.append(
+            AgentMessage(
+                sender="patch_remediation",
+                recipient="orchestrator",
+                round=1,
+                content=remediation.remediation_summary,
+            )
+        )
+    elif mode == "debate":
+        for r in range(1, max(1, rounds) + 1):
+            transcript.append(
+                AgentMessage(
+                    sender="threat_intel",
+                    recipient="patch_remediation",
+                    round=r,
+                    content=f"Round {r}: Active exploit={threat.actively_exploited}. Prioritize speed.",
+                )
+            )
+            transcript.append(
+                AgentMessage(
+                    sender="patch_remediation",
+                    recipient="threat_intel",
+                    round=r,
+                    content=f"Round {r}: Patch available={remediation.patch_available}. Balance urgency and safety.",
+                )
+            )
+    elif mode == "blackboard":
+        transcript.append(
+            AgentMessage(
+                sender="threat_intel",
+                recipient="blackboard",
+                round=1,
+                content=f"CVSS {threat.cvss_score} ({threat.cvss_severity}), exploited={threat.actively_exploited}",
+            )
+        )
+        transcript.append(
+            AgentMessage(
+                sender="impact_assessment",
+                recipient="blackboard",
+                round=1,
+                content=f"EPSS {impact.epss_score:.3f}, likely={impact.exploitation_likely}",
+            )
+        )
+        transcript.append(
+            AgentMessage(
+                sender="patch_remediation",
+                recipient="blackboard",
+                round=1,
+                content=f"urgency={remediation.urgency}, patch_available={remediation.patch_available}",
+            )
+        )
+    else:
+        raise ValueError(f"Unknown collaboration mode: {mode}")
+
+    disagreement = bool(threat.actively_exploited and remediation.urgency.lower() in {"medium", "low"})
+    return Consensus(
+        mode=mode,
+        transcript=transcript,
+        rounds_used=max(1, rounds if mode == "debate" else 1),
+        final_verdict=final.risk_verdict,
+        disagreement_noted=disagreement,
+    )
 
 
 # ─── DISPLAY HELPERS ──────────────────────────────────────────────────────────
