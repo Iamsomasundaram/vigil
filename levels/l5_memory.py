@@ -129,9 +129,7 @@ import hashlib
 import json
 import math
 import os
-import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -720,7 +718,6 @@ async def build_budgeted_memory_context(
     # Over budget: keep recent_k verbatim, summarize the rest.
     recent = history[:recent_k]
     older = history[recent_k:]
-    recent_block = "\n\n".join(_format_history_entry(e) for e in recent)
 
     summary_block = ""
     summarized_count = 0
@@ -1043,10 +1040,10 @@ async def analyse_cve(
             if context_budget.was_summarized:
                 console.print(f"[dim]  Older history summarized to fit {context_budget.budget_tokens}-token budget[/dim]")
         else:
-            console.print(f"[dim]  No prior history — first analysis for this CVE[/dim]")
+            console.print("[dim]  No prior history — first analysis for this CVE[/dim]")
 
         # ── Step 2: ANALYSE ────────────────────────────────────────────────
-        console.print(f"[dim]  Running memory-aware tool loop...[/dim]")
+        console.print("[dim]  Running memory-aware tool loop...[/dim]")
         analysis, tool_log = await run_memory_aware_loop(cve_id, memory_context)
 
         # ── Step 3: REMEMBER ───────────────────────────────────────────────
@@ -1061,7 +1058,7 @@ async def analyse_cve(
         row_id = await save_analysis(conn, cve_id, analysis_dict, tool_log)
         summary = _summary_for_embedding(analysis_dict)
         await save_semantic_vector(conn, row_id, cve_id, summary, await embed_text(summary))
-        console.print(f"[dim]  Analysis saved to memory[/dim]")
+        console.print("[dim]  Analysis saved to memory[/dim]")
 
         # Return the corrected model, not the original stale object
         corrected = type(analysis).model_validate(analysis_dict)
@@ -1220,7 +1217,7 @@ if __name__ == "__main__":
         # ── Feedback mode: record outcome without running analysis ─────────
         console.print(f"\n[dim]Recording feedback: {args.cve_id} → {args.feedback}[/dim]")
         asyncio.run(record_feedback(args.cve_id, args.feedback, args.notes))
-        console.print(f"[green]✓ Feedback recorded.[/green] Run again without --feedback to see it used in the next analysis.")
+        console.print("[green]✓ Feedback recorded.[/green] Run again without --feedback to see it used in the next analysis.")
     else:
         # ── Analysis mode: recall → analyse → remember ─────────────────────
         analysis, tool_log, history, context_budget = asyncio.run(analyse_cve(args.cve_id))

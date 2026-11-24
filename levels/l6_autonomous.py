@@ -141,7 +141,6 @@ import argparse
 import asyncio
 import json
 import os
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -883,7 +882,7 @@ if __name__ == "__main__":
                 console.print(f"[yellow]✓ {args.remove} removed from watchlist[/yellow]")
 
             elif args.scan:
-                console.print(f"\n[dim]Running manual scan...[/dim]")
+                console.print("\n[dim]Running manual scan...[/dim]")
                 summary = await scan_all_once()
                 console.print(f"\n[green]Scan complete: {summary['scanned']} CVEs scanned, {summary['alerts_created']} alerts generated[/green]")
 

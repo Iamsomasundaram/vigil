@@ -97,9 +97,11 @@ async def test_llm_judge_stub_and_scorecard_math(tmp_path: Path):
     )
 
     assert scorecard.n_cases == 1
-    assert len(scorecard.metrics) == 3
+    assert len(scorecard.metrics) == 4
     judge_metric = next(m for m in scorecard.metrics if m.metric_type == "llm_judge")
     assert judge_metric.score == 0.8
+    faithfulness = next(m for m in scorecard.metrics if m.metric_type == "faithfulness")
+    assert faithfulness.score == 1.0
     assert scorecard.overall_score > 0.0
 
 

@@ -321,7 +321,7 @@ if __name__ == "__main__":
     cve_id = sys.argv[1] if len(sys.argv) > 1 else "CVE-2021-44228"
 
     console.print()
-    console.print(f"[bold cyan]VIGIL[/bold cyan] [dim]— Level 1: Prompt Chain[/dim]")
+    console.print("[bold cyan]VIGIL[/bold cyan] [dim]— Level 1: Prompt Chain[/dim]")
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}  |  3 chained calls[/dim]\n")
 
     # ── The chain: 3 sequential LLM calls ──────────────────────────────────

@@ -544,7 +544,7 @@ async def analyse_cve(cve_id: str) -> tuple[RoutingDecision, _Base]:
     is important for trust and auditability.
     """
     _reset_usage()
-    console.print(f"\n[dim]  Running router agent...[/dim]")
+    console.print("\n[dim]  Running router agent...[/dim]")
 
     start_router = time.perf_counter()
     routing = await run_router(cve_id)

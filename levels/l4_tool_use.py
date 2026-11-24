@@ -137,6 +137,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 console = Console()
 client  = AsyncOpenAI(timeout=60.0)
 MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+TOOL_SOURCE = os.getenv("VIGIL_TOOL_SOURCE", "inline").lower()
 
 # ─── TOKEN USAGE TRACKING ─────────────────────────────────────────────────────
 _usage: dict = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -224,7 +225,7 @@ class GroundedAnalysis(_Base):
 # KEY POINT: the model never executes tools directly. It asks us to execute
 # them by emitting structured tool_call messages. We remain in control.
 
-TOOLS: list[dict] = [
+INLINE_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
@@ -272,6 +273,51 @@ TOOLS: list[dict] = [
         },
     },
 ]
+
+# Backward-compatible alias used by older docs/tests.
+TOOLS = INLINE_TOOLS
+
+
+def discover_tools(source: str = "inline") -> list[dict]:
+    """Return tool metadata in DiscoveredTool-like shape."""
+    source = (source or "inline").lower()
+    if source != "mcp":
+        out: list[dict] = []
+        for row in INLINE_TOOLS:
+            fn = row["function"]
+            out.append(
+                {
+                    "name": fn["name"],
+                    "description": fn["description"],
+                    "input_schema": fn["parameters"],
+                    "source": "inline",
+                }
+            )
+        return out
+
+    try:
+        from vigil_mcp.vigil_server import list_tools as mcp_list_tools
+
+        return mcp_list_tools()
+    except Exception:
+        # Graceful fallback when MCP deps/server path are unavailable.
+        return discover_tools("inline")
+
+
+def tools_for_openai(source: str = "inline") -> list[dict]:
+    """Convert discovered tools into OpenAI tool schema."""
+    discovered = discover_tools(source)
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": d["name"],
+                "description": d["description"],
+                "parameters": d["input_schema"],
+            },
+        }
+        for d in discovered
+    ]
 
 
 # ─── TOOL IMPLEMENTATIONS ─────────────────────────────────────────────────────
@@ -407,7 +453,7 @@ TOOL_FUNCTIONS: dict[str, Any] = {
 
 # ─── THE TOOL-CALLING LOOP ────────────────────────────────────────────────────
 
-async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
+async def run_tool_loop(cve_id: str, tool_source: str = "inline") -> tuple[GroundedAnalysis, list[dict]]:
     """
     The core of L4: run the LLM in a loop until it stops calling tools.
 
@@ -448,6 +494,7 @@ async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
     ]
 
     tool_call_log: list[dict] = []  # Records every tool call for display
+    openai_tools = tools_for_openai(tool_source)
     iterations   = 0
     max_iterations = 10  # Safety limit — prevents runaway loops
 
@@ -459,7 +506,7 @@ async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
         response = await client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            tools=TOOLS,                          # give the model the tool menu
+            tools=openai_tools,                   # tool menu can come from inline or MCP discovery
             tool_choice="auto",                   # model decides whether to call tools
             # Note: no response_format here — we'll get either tool_calls OR text,
             # not a JSON schema response. We add the schema on the FINAL call.
@@ -479,7 +526,7 @@ async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
             # Execute each tool call in parallel — if the model asks for both
             # NVD and EPSS simultaneously, we fetch both at once.
             tool_results = await asyncio.gather(*[
-                _execute_tool(tc) for tc in message.tool_calls
+                _execute_tool(tc, source=tool_source) for tc in message.tool_calls
             ])
 
             for tool_call, result_str in zip(message.tool_calls, tool_results):
@@ -509,7 +556,7 @@ async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
         # ── No more tool calls: model produced a final response ───────────────
         # At this point the model has all the data it needs.
         # We make one more structured call to get the final GroundedAnalysis.
-        console.print(f"[dim]  Tools complete. Requesting structured final report...[/dim]")
+        console.print("[dim]  Tools complete. Requesting structured final report...[/dim]")
 
         final_response = await client.chat.completions.create(
             model=MODEL,
@@ -544,7 +591,7 @@ async def run_tool_loop(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
     raise RuntimeError(f"Tool loop exceeded {max_iterations} iterations — agent may be stuck")
 
 
-async def _execute_tool(tool_call) -> str:
+async def _execute_tool(tool_call, source: str = "inline") -> str:
     """
     Execute a single tool call and return its result as a string.
 
@@ -554,18 +601,24 @@ async def _execute_tool(tool_call) -> str:
     fn_name   = tool_call.function.name
     arguments = json.loads(tool_call.function.arguments)
 
+    if (source or "inline").lower() == "mcp":
+        try:
+            from vigil_mcp.vigil_server import call_tool as mcp_call_tool
+
+            return await mcp_call_tool(fn_name, arguments)
+        except Exception:
+            # Graceful fallback to inline path if MCP is unavailable.
+            pass
+
     fn = TOOL_FUNCTIONS.get(fn_name)
     if fn is None:
-        # If the model hallucinates a tool name, return a clear error.
-        # The model will read this and understand the tool doesn't exist.
         return json.dumps({"error": f"Unknown tool: {fn_name}"})
-
     return await fn(**arguments)
 
 
 # ─── MAIN PIPELINE ────────────────────────────────────────────────────────────
 
-async def analyse_cve(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
+async def analyse_cve(cve_id: str, tool_source: str | None = None) -> tuple[GroundedAnalysis, list[dict]]:
     """
     Full L4 pipeline: tool-calling loop → grounded structured report.
 
@@ -576,7 +629,8 @@ async def analyse_cve(cve_id: str) -> tuple[GroundedAnalysis, list[dict]]:
     console.print(f"\n[dim]  Starting tool-use loop for {cve_id}...[/dim]")
     start = time.perf_counter()
 
-    analysis, tool_log = await run_tool_loop(cve_id)
+    source = (tool_source or TOOL_SOURCE or "inline").lower()
+    analysis, tool_log = await run_tool_loop(cve_id, tool_source=source)
 
     elapsed = time.perf_counter() - start
     console.print(f"[dim]  Completed in {elapsed:.1f}s ({len(tool_log)} tool calls)[/dim]")
@@ -669,7 +723,7 @@ if __name__ == "__main__":
     console.print()
     console.print(Text("VIGIL", style="bold cyan") + Text(" — Level 4: Tool Use", style="dim"))
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}[/dim]")
-    console.print(f"[dim]Tools: NVD API + EPSS API (live data)[/dim]")
+    console.print("[dim]Tools: NVD API + EPSS API (live data)[/dim]")
 
     analysis, tool_log = asyncio.run(analyse_cve(cve_id))
 

@@ -24,7 +24,7 @@ from rich.console import Console
 from rich.table import Table
 
 from reliability.r1_guardrails import scan_for_injection
-from vigil.models import EvalCase, MetricResult, Scorecard
+from vigil.models import EvalCase, FaithfulnessScore, MetricResult, Scorecard
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -277,6 +277,64 @@ def _adversarial_metric() -> MetricResult:
     )
 
 
+def _faithfulness_for_l4(raw_result: Any) -> FaithfulnessScore:
+    """Compare final L4 verdict fields against the fetched tool data."""
+    if not isinstance(raw_result, tuple) or len(raw_result) != 2:
+        return FaithfulnessScore(grounded_fields=0, total_fields=3, score=0.0, ungrounded=["cvss_score", "epss_score", "patch_available"])
+
+    analysis, tool_log = raw_result
+    analysis_dict = analysis.model_dump() if hasattr(analysis, "model_dump") else dict(analysis)
+
+    nvd = None
+    epss = None
+    for row in tool_log or []:
+        if row.get("tool") == "fetch_nvd_data" and isinstance(row.get("result"), dict):
+            nvd = row["result"]
+        if row.get("tool") == "fetch_epss_score" and isinstance(row.get("result"), dict):
+            epss = row["result"]
+
+    checks: list[tuple[str, bool]] = []
+    if nvd is not None:
+        checks.append(("cvss_score", analysis_dict.get("cvss_score") == nvd.get("cvss_score")))
+        checks.append(("patch_available", bool(analysis_dict.get("patch_available")) == bool(nvd.get("cvss_score") is not None)))
+    if epss is not None:
+        checks.append(("epss_score", float(analysis_dict.get("epss_score", -1)) == float(epss.get("score", -2))))
+
+    if not checks:
+        return FaithfulnessScore(grounded_fields=0, total_fields=3, score=0.0, ungrounded=["cvss_score", "epss_score", "patch_available"])
+
+    grounded = sum(1 for _, ok in checks if ok)
+    total = len(checks)
+    return FaithfulnessScore(
+        grounded_fields=grounded,
+        total_fields=total,
+        score=round(grounded / total if total else 0.0, 4),
+        ungrounded=[name for name, ok in checks if not ok],
+    )
+
+
+def _faithfulness_metric(target: str, raw_results: list[Any]) -> MetricResult:
+    if target != "l4":
+        return MetricResult(
+            name="faithfulness_grounding",
+            metric_type="faithfulness",
+            score=1.0,
+            passed=True,
+            detail="not applicable for non-tool targets",
+        )
+
+    scores = [_faithfulness_for_l4(raw) for raw in raw_results]
+    avg = sum(s.score for s in scores) / len(scores) if scores else 0.0
+    mismatches = sum(len(s.ungrounded) for s in scores)
+    return MetricResult(
+        name="faithfulness_grounding",
+        metric_type="faithfulness",
+        score=round(avg, 4),
+        passed=avg >= 0.8,
+        detail=f"avg={avg:.3f}, ungrounded_fields={mismatches}",
+    )
+
+
 def _load_baseline(baseline_path: str, target: str) -> float | None:
     path = Path(baseline_path)
     if not path.exists():
@@ -375,14 +433,17 @@ async def evaluate(
     resolved_target = target_fn or _resolve_target(target)
 
     outputs: list[dict[str, Any]] = []
+    raw_results: list[Any] = []
     for case in cases:
         raw = await _invoke_target(resolved_target, case.cve_id)
+        raw_results.append(raw)
         outputs.append(_normalize_target_output(target, raw))
 
     metrics = [
         _deterministic_score(cases, outputs),
         await _judge_metric(cases, outputs, rubric, judge_fn=judge_fn),
         _adversarial_metric(),
+        _faithfulness_metric(target, raw_results),
     ]
 
     overall_score = round(sum(m.score for m in metrics) / len(metrics), 4)

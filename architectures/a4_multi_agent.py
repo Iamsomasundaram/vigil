@@ -602,7 +602,7 @@ async def analyse_cve(
         )
     )
 
-    console.print(f"[dim]  All agents complete. Orchestrator synthesising...[/dim]")
+    console.print("[dim]  All agents complete. Orchestrator synthesising...[/dim]")
 
     # ── Fan-in: orchestrator synthesises ──────────────────────────────────────
     final = await synthesise_reports(cve_id, threat, impact, remediation)
@@ -795,7 +795,7 @@ if __name__ == "__main__":
     console.print()
     console.print(Text("VIGIL", style="bold cyan") + Text(" — Architecture 4: Multi-Agent", style="dim"))
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}[/dim]")
-    console.print(f"[dim]Pattern: Orchestrator → [ThreatIntel ‖ Impact ‖ Remediation] → Synthesise[/dim]")
+    console.print("[dim]Pattern: Orchestrator → [ThreatIntel ‖ Impact ‖ Remediation] → Synthesise[/dim]")
 
     threat, impact, remediation, final, tool_log = asyncio.run(analyse_cve(cve_id))
 

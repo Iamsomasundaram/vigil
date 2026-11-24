@@ -86,7 +86,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -341,7 +340,7 @@ async def critique_draft(draft: DraftAssessment, raw_data: dict) -> CritiqueRepo
     The adversarial framing ("your job is to find problems") is intentional —
     it produces more specific and actionable critiques than neutral evaluation.
     """
-    console.print(f"[dim]  Phase 2: Critic reviewing draft...[/dim]")
+    console.print("[dim]  Phase 2: Critic reviewing draft...[/dim]")
 
     response = await client.chat.completions.create(
         model=MODEL,
@@ -401,7 +400,7 @@ async def revise_draft(
     If the critique found no significant issues, the reviser can confirm
     the draft is already solid and make only minor improvements.
     """
-    console.print(f"[dim]  Phase 3: Revising based on critique...[/dim]")
+    console.print("[dim]  Phase 3: Revising based on critique...[/dim]")
 
     response = await client.chat.completions.create(
         model=MODEL,
@@ -464,7 +463,7 @@ async def analyse_cve(
     if critique.improvement_needed:
         console.print(f"[dim]  Critique found {len(critique.issues)} issue(s). Revising...[/dim]")
     else:
-        console.print(f"[dim]  Critique: draft is acceptable. Minor polish only.[/dim]")
+        console.print("[dim]  Critique: draft is acceptable. Minor polish only.[/dim]")
 
     final = await revise_draft(cve_id, draft, critique, raw_data)
 
@@ -571,7 +570,7 @@ if __name__ == "__main__":
     console.print()
     console.print(Text("VIGIL", style="bold cyan") + Text(" — Architecture 3: Reflection / Self-Critique", style="dim"))
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}[/dim]")
-    console.print(f"[dim]Pattern: Draft → Critique → Revise  (3 LLM calls)[/dim]")
+    console.print("[dim]Pattern: Draft → Critique → Revise  (3 LLM calls)[/dim]")
 
     draft, critique, final = asyncio.run(analyse_cve(cve_id))
 

@@ -21,7 +21,7 @@ from typing import Any, Literal
 import httpx
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from rich import box
 from rich.console import Console
 from rich.panel import Panel

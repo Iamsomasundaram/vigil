@@ -628,7 +628,7 @@ async def analyse_cve(cve_id: str) -> tuple[InvestigationPlan, PlanExecuteReport
     for s in plan.steps:
         console.print(f"[dim]    {s.step}. [{s.step_type}] {s.description}[/dim]")
 
-    console.print(f"\n[dim]  Phase 2: Executing plan...[/dim]")
+    console.print("\n[dim]  Phase 2: Executing plan...[/dim]")
     report, execution_log = await execute_plan(cve_id, plan)
 
     elapsed = time.perf_counter() - start
@@ -726,7 +726,7 @@ if __name__ == "__main__":
     console.print()
     console.print(Text("VIGIL", style="bold cyan") + Text(" — Architecture 2: Plan-and-Execute", style="dim"))
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}[/dim]")
-    console.print(f"[dim]Pattern: Plan (one LLM call) → Execute (one tool call per step)[/dim]")
+    console.print("[dim]Pattern: Plan (one LLM call) → Execute (one tool call per step)[/dim]")
 
     plan, report, log = asyncio.run(analyse_cve(cve_id))
 

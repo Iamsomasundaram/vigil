@@ -316,7 +316,7 @@ async def analyse_cve(cve_id: str) -> tuple[dict, FinalVerdict]:
       - Returns their results in the same order they were passed
     """
     _reset_usage()
-    console.print(f"\n[dim]  Launching 4 agents in parallel...[/dim]")
+    console.print("\n[dim]  Launching 4 agents in parallel...[/dim]")
 
     # ── Fan-out: all four agents start simultaneously ──────────────────────
     start = time.perf_counter()
@@ -334,7 +334,7 @@ async def analyse_cve(cve_id: str) -> tuple[dict, FinalVerdict]:
     agent_reports = {name: report for name, report in results}
 
     # ── Synthesis: moderator runs after all agents complete ────────────────
-    console.print(f"[dim]  Running moderator...[/dim]")
+    console.print("[dim]  Running moderator...[/dim]")
     verdict = await run_moderator(cve_id, agent_reports)
 
     return agent_reports, verdict
@@ -393,7 +393,7 @@ if __name__ == "__main__":
     cve_id = sys.argv[1] if len(sys.argv) > 1 else "CVE-2021-44228"
 
     console.print()
-    console.print(f"[bold cyan]VIGIL[/bold cyan] [dim]— Level 2: Parallel Agent Fan-out[/dim]")
+    console.print("[bold cyan]VIGIL[/bold cyan] [dim]— Level 2: Parallel Agent Fan-out[/dim]")
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}  |  4 parallel agents + 1 moderator[/dim]")
 
     # asyncio.run() is the entry point for async code.

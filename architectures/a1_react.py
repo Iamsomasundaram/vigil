@@ -691,7 +691,7 @@ if __name__ == "__main__":
     console.print()
     console.print(Text("VIGIL", style="bold cyan") + Text(" — Architecture 1: ReAct", style="dim"))
     console.print(f"[dim]Model: {MODEL}  |  CVE: {cve_id}[/dim]")
-    console.print(f"[dim]Tools: NVD + EPSS + CISA KEV  |  Pattern: Thought → Act → Observe[/dim]")
+    console.print("[dim]Tools: NVD + EPSS + CISA KEV  |  Pattern: Thought → Act → Observe[/dim]")
 
     report, trace = asyncio.run(analyse_cve(cve_id))
 

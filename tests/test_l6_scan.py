@@ -37,15 +37,11 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
 
 from levels.l6_autonomous import (
     DB_URL,
-    ChangeSignal,
     add_to_watchlist,
     detect_changes,
-    get_watchlist,
-    init_db_l6,
     is_running,
     scan_all_once,
     start_monitor,
@@ -190,8 +186,6 @@ async def test_monitor_start_and_stop(clean_watchlist):
     We shorten the scan interval so the test completes in < 2 seconds.
     """
     import levels.l6_autonomous as l6
-
-    original_interval = l6.SCAN_INTERVAL_SECONDS
 
     with (
         patch("levels.l6_autonomous.fetch_current_nvd",  new=AsyncMock(return_value=_fake_nvd())),
