@@ -264,8 +264,7 @@ Model text differs on every run, so compare the *shape* of the output, not the w
 | L4    | The same analysis, grounded in live NVD and EPSS lookups and your asset inventory in `data/assets.json`          | The scores shown match what NVD and EPSS return today             |
 | L5–L6 | Memory and autonomous-monitor output backed by PostgreSQL                                                        | A second run for the same CVE can draw on the first               |
 
-Token usage per run is available through each level's `get_usage()`. To see an example of the expected structure
-without spending anything, open the matching page in the Streamlit UI or read the level's module docstring.
+Token usage per run is available through each level's `get_usage()`. Each level's module docstring explains what it should do and why.
 
 Try different CVEs to see how the outputs vary:
 
