@@ -190,6 +190,38 @@ inside Docker Compose.
 
 ---
 
+## Cost and Offline Options
+
+**What needs no key and no money:** the test suite, the notebooks (live-call cells are skipped), and the three exercises.
+
+**What needs a key:** running the level scripts (L0–L6) against OpenAI. Each call is billed per token.
+The repo's estimator ([`vigil/pricing.py`](vigil/pricing.py)) encodes these list prices per million tokens
+(input / output): `gpt-4o-mini` $0.15 / $0.60 and `gpt-4o` $2.50 / $10.00. Those figures were copied into
+the code and can go stale, so check OpenAI's pricing page before relying on them. The default model is
+`gpt-4o-mini`, the cheaper of the two. R5 (cost control) shows per-request token and cost estimates, so you
+can measure what each level costs you rather than guessing.
+
+### Run without OpenAI (free / local)
+
+The level scripts use the OpenAI SDK, which honours the `OPENAI_BASE_URL` environment variable. Pointing it at
+a local [Ollama](https://ollama.com) server should let L0–L4 run on your own machine:
+
+```bash
+ollama pull llama3.1:8b
+# in .env
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_API_KEY=ollama          # any non-empty value
+OPENAI_MODEL=llama3.1:8b
+```
+
+This route has not been verified against every level. Smaller local models follow structured-output and
+tool-calling instructions less reliably, so L1 and L4 may fail or give weaker answers. The API's multi-provider
+layer (F3 / E4, `vigil/inference.py`) supports Ollama and OpenAI-compatible endpoints directly.
+
+Embeddings are offline by default (`VIGIL_EMBED_MODE=local`), so L5 memory recall needs no embedding API.
+
+---
+
 ## Running Each Level
 
 Levels L0–L4 are independently runnable with just `pip install -e .`.
