@@ -64,6 +64,21 @@ Full index and status: [`specs/README.md`](specs/README.md) and
 
 ---
 
+## Which Tracks Should I Do?
+
+You do not need all of it. Pick a depth.
+
+| Tier             | What to do                                                                 | Time      |
+| ---------------- | -------------------------------------------------------------------------- | --------- |
+| **Core**         | Levels L0–L4, the three exercises, notebooks 00–03                         | 1–2 days  |
+| **Intermediate** | L5–L6, architectures A1–A4, reliability R1–R5, retrieval/RAG (F1, F11–F16) | 1 week    |
+| **Advanced**     | R6–R9, governance and privacy (F15, F18–F20), fine-tuning (F21), MCP (F8), theme T1 | as needed |
+
+Each track has a spec in [`specs/`](specs/README.md) that states the goal and what to build.
+Time estimates are rough guides, not measured.
+
+---
+
 ## Documentation
 
 A browsable, self-contained HTML reference (structure, key modules & functions,
@@ -221,7 +236,7 @@ vigil/
 │   ├── foundations/  F-series modules (tokenization, retrieval, factuality, …)
 │   └── themes/       T-series domain tracks (incident ops)
 ├── architectures/    A1–A4 orchestration patterns (+ frameworks/ bridge)
-├── reliability/      R1–R5 + governance/ops modules (drift, supply chain, …)
+├── reliability/      R1–R9: guardrails, eval, observability, resilience, cost, drift, governance, supply chain, release safety
 ├── vigil_mcp/        MCP tool server + client path (see vigil_mcp/README.md)
 ├── ui/               Streamlit learning UI
 ├── specs/            One spec per feature + progress board
@@ -276,10 +291,9 @@ The jump from L5 to L6 is where an AI _system_ becomes an AI _agent_.
 
 ## Forking This Project
 
-Vigil is intentionally kept simple for learning. Once you understand all 6 levels, fork it and build the enterprise version:
+Vigil is a teaching codebase. PostgreSQL memory, a FastAPI service, a Streamlit UI and optional API-key auth already exist. To take it towards production, fork it and add what is still missing:
 
-- Add a database (replace SQLite with PostgreSQL)
-- Add a REST API (FastAPI)
-- Add a frontend dashboard
 - Connect to real SIEM/ticketing systems (Jira, ServiceNow, Splunk)
-- Add multi-tenancy and auth
+- Make API authentication mandatory (it is optional today) and add multi-tenancy
+- Add database migrations and managed secrets
+- Split `vigil/api.py` and `ui/app.py` into routers and per-page modules
