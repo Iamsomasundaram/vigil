@@ -1,0 +1,14 @@
+[
+  {
+    "id": "v1",
+    "name": "baseline-concise",
+    "template": "Classify severity for {item}. Keep answer concise.",
+    "notes": "Low-token baseline"
+  },
+  {
+    "id": "v2",
+    "name": "structured-risk-first",
+    "template": "Classify severity for {item}. First state severity, then 2 risks, then 2 actions. Use clear operational wording.",
+    "notes": "Structured format with explicit action guidance"
+  }
+]

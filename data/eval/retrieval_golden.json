@@ -1,0 +1,14 @@
+[
+  {
+    "query": "log4j remote code execution patch",
+    "relevant_doc_ids": ["doc1"]
+  },
+  {
+    "query": "http2 rapid reset denial of service",
+    "relevant_doc_ids": ["doc2"]
+  },
+  {
+    "query": "heartbleed openssl key rotation",
+    "relevant_doc_ids": ["doc3"]
+  }
+]
