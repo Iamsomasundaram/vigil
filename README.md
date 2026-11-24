@@ -259,6 +259,25 @@ Try different CVEs to see how the outputs vary:
 
 ---
 
+## Troubleshooting
+
+| Symptom                                                         | Likely cause and fix                                                                                         |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `The api_key client option must be set...` when running a level | No key loaded. Create `.env` from `.env.example`, set `OPENAI_API_KEY`, and run from the repo root.          |
+| `ModuleNotFoundError: vigil` / `levels` / `reliability`         | Package not installed. Activate the venv and run `pip install -e .` (or an extra) from the repo root.        |
+| `ModuleNotFoundError: pytest`                                   | Dev extra missing: `pip install -e ".[dev]"`.                                                                |
+| PowerShell blocks `.venv\Scripts\Activate.ps1`                  | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or call `.venv\Scripts\python.exe` directly.      |
+| `python` opens the Microsoft Store (Windows)                    | Install Python 3.11+ and disable the "App execution aliases" for python in Windows Settings.                 |
+| L5/L6 fail to connect to the database                           | PostgreSQL isn't running, or `DATABASE_URL` still points at host `db`. Use Docker Compose or set your own URL. |
+| Streamlit pages show connection errors                          | The API isn't running. Start it, or set `VIGIL_API_URL` if it isn't on `localhost:8000`.                      |
+| `401` from the API                                              | `VIGIL_API_KEYS` is set in `.env`. Send a matching key, or leave the variable empty for local use.           |
+| L4 returns no NVD or EPSS data                                  | Those are live public APIs. Check your network connection and retry, since they can rate-limit or time out.  |
+| Tests are slow or fail on optional features                     | Install the extras CI uses: `pip install -e ".[full,dev,foundations]"`. Skipped tests mean an extra is absent. |
+
+Still stuck? Run `python -m pytest -q` first. If it fails on a clean checkout, that is a repo bug worth reporting.
+
+---
+
 ## Project Structure
 
 ```
