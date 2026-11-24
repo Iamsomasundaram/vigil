@@ -3,6 +3,7 @@ name = "vigil"
 version = "0.1.0"
 description = "Autonomous CVE Intelligence & Remediation Agent — A GenAI Learning Project"
 requires-python = ">=3.11"
+license = { text = "MIT" }
 dependencies = [
     "openai>=1.30",
     "pydantic>=2.0",
@@ -15,12 +16,16 @@ dependencies = [
 api  = ["fastapi>=0.111", "uvicorn[standard]>=0.29", "asyncpg>=0.29"]
 ui   = ["streamlit>=1.35", "httpx>=0.27"]
 full = ["fastapi>=0.111", "uvicorn[standard]>=0.29", "asyncpg>=0.29", "streamlit>=1.35", "httpx>=0.27"]
-dev  = ["pytest", "pytest-asyncio"]
+dev  = ["pytest", "pytest-asyncio", "ruff"]
 otel = ["opentelemetry-sdk>=1.25", "opentelemetry-exporter-otlp>=1.25"]
 cache = ["redis>=5.0"]
 multimodal = ["pypdf>=4.0"]
 tokens = ["tiktoken>=0.7"]
 notebooks = ["jupyter>=1.0", "tiktoken>=0.7"]
+foundations = ["tiktoken>=0.7"]
+frameworks = ["langgraph>=0.2", "langchain-openai>=0.2"]
+mcp = ["mcp>=1.0"]
+claude = ["anthropic>=0.39"]
 
 [build-system]
 requires = ["setuptools>=42"]
@@ -29,6 +34,16 @@ build-backend = "setuptools.build_meta"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv", "vigil.egg-info", "notebooks"]
+
+[tool.ruff.lint]
+# Pyflakes-only gate: catches real issues (unused imports, undefined names,
+# f-string mistakes) without imposing heavy style churn on a teaching codebase.
+select = ["F"]
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["vigil*"]
+include = ["vigil*", "levels*", "reliability*", "architectures*", "vigil_mcp*"]

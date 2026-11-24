@@ -152,7 +152,7 @@ class EvalCase(_Base):
 
 class MetricResult(_Base):
     name: str
-    metric_type: Literal["deterministic", "llm_judge", "adversarial"]
+    metric_type: Literal["deterministic", "llm_judge", "adversarial", "faithfulness"]
     score: float = Field(ge=0.0, le=1.0)
     passed: bool
     detail: str | None = None
@@ -262,6 +262,365 @@ class ContextBudgetReport(_Base):
     entries_summarized: int = Field(ge=0)
     was_truncated: bool
     was_summarized: bool
+
+
+# ─── F4/F6/F8/F10 Shared Models ───────────────────────────────────────────
+
+class TokenReport(_Base):
+    model: str
+    text_preview: str
+    token_count: int = Field(ge=0)
+    context_limit: int = Field(ge=1)
+    pct_of_context: float = Field(ge=0.0)
+    est_cost_usd: float = Field(ge=0.0)
+    sample_tokens: list[str]
+
+
+class PromptComparison(_Base):
+    task: str
+    results: list[dict]
+    notes: str
+
+
+class RetrievalHit(_Base):
+    chunk_id: str
+    doc_id: str
+    title: str
+    score: float = Field(ge=0.0)
+    overlap_count: int = Field(ge=0)
+    overlap_terms: list[str]
+    word_count: int = Field(ge=0)
+    text_preview: str
+
+
+class RetrievalLabReport(_Base):
+    query: str
+    chunk_size_words: int = Field(ge=20)
+    overlap_words: int = Field(ge=0)
+    top_k: int = Field(ge=1)
+    n_docs: int = Field(ge=0)
+    n_chunks: int = Field(ge=0)
+    avg_chunk_words: float = Field(ge=0.0)
+    diversity_entropy: float = Field(ge=0.0)
+    hits: list[RetrievalHit]
+
+
+class RetrievalMetricSummary(_Base):
+    recall_at_k: float = Field(ge=0.0, le=1.0)
+    mrr_at_k: float = Field(ge=0.0, le=1.0)
+    ndcg_at_k: float = Field(ge=0.0, le=1.0)
+
+
+class RetrievalEvalCaseResult(_Base):
+    retrieved_doc_ids: list[str]
+    recall_at_k: float = Field(ge=0.0, le=1.0)
+    mrr_at_k: float = Field(ge=0.0, le=1.0)
+    ndcg_at_k: float = Field(ge=0.0, le=1.0)
+
+
+class RetrievalEvalCase(_Base):
+    query: str
+    relevant_doc_ids: list[str]
+    a: RetrievalEvalCaseResult
+    b: RetrievalEvalCaseResult
+
+
+class RetrievalSetting(_Base):
+    chunk_size_words: int = Field(ge=20)
+    overlap_words: int = Field(ge=0)
+
+
+class RetrievalEvalReport(_Base):
+    dataset_path: str
+    k: int = Field(ge=1)
+    setting_a: RetrievalSetting
+    setting_b: RetrievalSetting
+    summary_a: RetrievalMetricSummary
+    summary_b: RetrievalMetricSummary
+    winner: Literal["a", "b", "tie"]
+    delta: RetrievalMetricSummary
+    cases: list[RetrievalEvalCase]
+
+
+class ClaimVerification(_Base):
+    claim: str
+    supported: bool
+    support_score: float = Field(ge=0.0, le=1.0)
+    evidence_excerpt: str
+
+
+class FactualityReport(_Base):
+    faithfulness_score: float = Field(ge=0.0, le=1.0)
+    supported_claims: int = Field(ge=0)
+    total_claims: int = Field(ge=0)
+    unsupported_claims: list[str]
+    abstain_recommended: bool
+    results: list[ClaimVerification]
+
+
+class PromptVersion(_Base):
+    id: str
+    name: str
+    template: str
+    notes: str | None = None
+
+
+class PromptExperimentSummary(_Base):
+    a_avg_quality: float = Field(ge=0.0, le=1.0)
+    b_avg_quality: float = Field(ge=0.0, le=1.0)
+    a_wins: int = Field(ge=0)
+    b_wins: int = Field(ge=0)
+    ties: int = Field(ge=0)
+
+
+class PromptExperimentCase(_Base):
+    item: str
+    a_quality: float = Field(ge=0.0, le=1.0)
+    b_quality: float = Field(ge=0.0, le=1.0)
+    winner: Literal["a", "b", "tie"]
+
+
+class PromptExperimentReport(_Base):
+    version_a: str
+    version_b: str
+    overall_winner: Literal["a", "b", "tie"]
+    summary: PromptExperimentSummary
+    per_item: list[PromptExperimentCase]
+
+
+class RedactionFinding(_Base):
+    type: str
+    count: int = Field(ge=0)
+
+
+class PrivacyReport(_Base):
+    input_length: int = Field(ge=0)
+    changed: bool
+    findings: list[RedactionFinding]
+    redacted_text: str
+    safe_log_snapshot: dict
+
+
+# ─── F16: Hybrid Retrieval + Reranking ─────────────────────────────────────
+
+class HybridHit(_Base):
+    chunk_id: str
+    doc_id: str
+    title: str
+    mode: str
+    lexical_score: float = Field(ge=0.0)
+    vector_score: float = Field(ge=0.0)
+    fused_score: float = Field(ge=0.0)
+    rerank_score: float | None = None
+    score: float = Field(ge=0.0)
+    text_preview: str
+
+
+class HybridRetrievalReport(_Base):
+    query: str
+    alpha: float = Field(ge=0.0, le=1.0)
+    rerank: bool
+    top_k: int = Field(ge=1)
+    n_chunks: int = Field(ge=0)
+    lexical_hits: list[HybridHit]
+    vector_hits: list[HybridHit]
+    hybrid_hits: list[HybridHit]
+
+
+# ─── F17: Online Evaluation & Drift ────────────────────────────────────────
+
+class DriftReport(_Base):
+    n_samples: int = Field(ge=0)
+    slo: dict[str, float]
+    avg_quality: float = Field(ge=0.0, le=1.0)
+    avg_latency_ms: float = Field(ge=0.0)
+    avg_cost_usd: float = Field(ge=0.0)
+    quality_drift: float
+    breaches: list[str]
+    sustained_drift: bool
+    recommended_action: str
+
+
+# ─── F18: Action Governance ────────────────────────────────────────────────
+
+class ActionDecision(_Base):
+    role: str
+    tool: str
+    requested_sandbox: str
+    allowed: bool
+    effective_sandbox: str
+    requires_approval: bool
+    reasons: list[str]
+
+
+# ─── F19: AI Supply Chain ──────────────────────────────────────────────────
+
+class ArtifactStatus(_Base):
+    name: str
+    type: str
+    env: str
+    provenance: str
+    recorded_checksum: str
+    actual_checksum: str
+    verified: bool
+
+
+class SupplyChainReport(_Base):
+    manifest_path: str
+    n_artifacts: int = Field(ge=0)
+    violations: int = Field(ge=0)
+    integrity_ok: bool
+    artifacts: list[ArtifactStatus]
+
+
+class PromotionDecision(_Base):
+    allowed: bool
+    integrity_ok: bool
+    eval_passed: bool
+    reasons: list[str]
+
+
+# ─── F20: Release Safety ───────────────────────────────────────────────────
+
+class ReleaseDecision(_Base):
+    canary_percent: int = Field(ge=0, le=100)
+    control_avg: float = Field(ge=0.0, le=1.0)
+    treatment_avg: float = Field(ge=0.0, le=1.0)
+    delta: float
+    min_delta: float
+    decision: Literal["promote", "hold", "rollback"]
+    next_stage: str
+    rollback_triggered: bool
+
+
+# ─── F21: Fine-tuning / Adapters & Build-vs-Tune ───────────────────────────
+
+class ApproachScore(_Base):
+    approach: str
+    score: float
+
+
+class AdaptationRecommendation(_Base):
+    recommended: str
+    ranked: list[ApproachScore]
+    reasons: list[str]
+    guidance: str
+
+
+class FinetuneDatasetReport(_Base):
+    total: int = Field(ge=0)
+    valid: int = Field(ge=0)
+    duplicates: int = Field(ge=0)
+    empty_completions: int = Field(ge=0)
+    role_errors: int = Field(ge=0)
+    quality_score: float = Field(ge=0.0, le=1.0)
+    ready_to_train: bool
+    issues: list[str]
+
+
+# ─── F22: Claude Model Selection ───────────────────────────────────────────
+
+class ModelTierScore(_Base):
+    tier: str
+    score: float
+
+
+class ModelRecommendation(_Base):
+    recommended: str
+    recommended_name: str
+    ranked: list[ModelTierScore]
+    reasons: list[str]
+    escalation_hint: str
+
+
+# ─── F23: Responsible-AI Evaluation ────────────────────────────────────────
+
+class ModerationResult(_Base):
+    text: str
+    flagged: bool
+    categories: list[str]
+    matched_spans: list[str]
+    action: str
+
+
+class FairnessReport(_Base):
+    groups: dict[str, float]
+    min_rate: float = Field(ge=0.0, le=1.0)
+    max_rate: float = Field(ge=0.0, le=1.0)
+    disparate_impact_ratio: float = Field(ge=0.0)
+    passes_80pct_rule: bool
+    n: int = Field(ge=0)
+
+
+class ResponsibleAIReport(_Base):
+    n_texts: int = Field(ge=0)
+    flagged_texts: int = Field(ge=0)
+    moderation: list[ModerationResult]
+    fairness: FairnessReport
+    safe_to_ship: bool
+
+
+# ─── F24: Semantic Caching ─────────────────────────────────────────────────
+
+class SemanticCacheStats(_Base):
+    entries: int = Field(ge=0)
+    hits: int = Field(ge=0)
+    misses: int = Field(ge=0)
+    hit_rate: float = Field(ge=0.0, le=1.0)
+    threshold: float = Field(ge=0.0, le=1.0)
+    ttl_seconds: int = Field(ge=0)
+
+
+class SemanticCacheStep(_Base):
+    query: str
+    hit: bool
+    similarity: float = Field(ge=0.0, le=1.0)
+
+
+class SemanticCacheReport(_Base):
+    threshold: float = Field(ge=0.0, le=1.0)
+    trace: list[SemanticCacheStep]
+    stats: SemanticCacheStats
+
+
+# ─── Claude bridge / MCP client (additive) ─────────────────────────────────
+
+class ClaudeMappedMessages(_Base):
+    system: str
+    messages: list[dict]
+
+
+class McpToolCall(_Base):
+    tool: str
+    arguments: dict
+    result: dict
+
+
+class McpLoopReport(_Base):
+    cve_id: str
+    tool_calls: int = Field(ge=0)
+    transcript: list[McpToolCall]
+    stop_reason: str
+
+
+class DiscoveredTool(_Base):
+    name: str
+    description: str
+    input_schema: dict
+    source: str
+
+
+class CacheInfo(_Base):
+    from_cache: bool
+    key: str
+    ttl_seconds: int = Field(ge=0)
+
+
+class FaithfulnessScore(_Base):
+    grounded_fields: int = Field(ge=0)
+    total_fields: int = Field(ge=0)
+    score: float = Field(ge=0.0, le=1.0)
+    ungrounded: list[str]
 
 
 # ─── F2: Multimodal (vision + document parsing) ───────────────────────────
@@ -377,3 +736,17 @@ class InferenceComparison(_Base):
     """Side-by-side comparison of one task across providers (F3)."""
     task: str
     rows: list[dict]   # provider, model, latency_ms, tokens, est_cost_usd, output_preview, error?
+
+
+# ─── Theme Tracks (domain portability) ─────────────────────────────────────
+
+class IncidentOpsReport(_Base):
+    service_name: str
+    severity: Literal["Critical", "High", "Medium", "Low"]
+    track: Literal["containment", "mitigation", "monitor"]
+    summary: str
+    urgency_minutes: int = Field(ge=1)
+    likely_domains: list[str]
+    immediate_actions: list[str]
+    escalation_targets: list[str]
+    reasoning: str

@@ -34,21 +34,28 @@ ReDoc UI (auto-generated):    http://localhost:8000/redoc
 from __future__ import annotations
 
 import os
+import json
+import hashlib
 import time
 import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from vigil.cache import CacheBackend
 from vigil.models import (
     BudgetStatus,
+    CacheInfo,
     Consensus,
     ContextBudgetReport,
     CostReport,
+    DiscoveredTool,
     GuardedVerdict,
     HumanDecision,
     InferenceComparison,
-    InferenceResult,
+    IncidentOpsReport,
     InjectionScan,
     PausedRun,
     ProviderInfo,
@@ -56,7 +63,28 @@ from vigil.models import (
     ResilientVerdict,
     RoutePolicy,
     Scorecard,
+    TokenReport,
     Trace,
+    PromptComparison,
+    RetrievalLabReport,
+    RetrievalEvalReport,
+    FactualityReport,
+    PromptVersion,
+    PromptExperimentReport,
+    PrivacyReport,
+    HybridRetrievalReport,
+    DriftReport,
+    ActionDecision,
+    SupplyChainReport,
+    PromotionDecision,
+    ReleaseDecision,
+    AdaptationRecommendation,
+    FinetuneDatasetReport,
+    ModelRecommendation,
+    ClaudeMappedMessages,
+    McpLoopReport,
+    ResponsibleAIReport,
+    SemanticCacheReport,
 )
 
 
@@ -85,6 +113,61 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+
+# ─── HARDENING (F10): AUTH + RATE LIMIT + RESPONSE CACHE ───────────────────
+
+_API_KEYS = {k.strip() for k in os.getenv("VIGIL_API_KEYS", "").split(",") if k.strip()}
+_RATE_PER_MIN = int(os.getenv("VIGIL_RATE_PER_MIN", "60"))
+_CACHE_TTL = int(os.getenv("VIGIL_CACHE_TTL", "300"))
+_CACHE = CacheBackend(default_ttl=_CACHE_TTL)
+_RATE_STATE: dict[str, dict[str, float]] = {}
+
+
+def _is_protected_path(path: str, method: str) -> bool:
+    if method.upper() != "POST":
+        return False
+    protected_prefixes = (
+        "/l0/", "/l1/", "/l2/", "/l3/", "/l4/", "/l4b/", "/l5/",
+        "/r1/", "/r2/", "/r4/", "/inference/compare", "/foundations/prompt-compare",
+    )
+    return path.startswith(protected_prefixes)
+
+
+def _check_rate(identity: str) -> bool:
+    now = time.time()
+    state = _RATE_STATE.setdefault(identity, {"tokens": float(_RATE_PER_MIN), "last": now})
+    elapsed = max(0.0, now - state["last"])
+    refill_per_sec = _RATE_PER_MIN / 60.0
+    state["tokens"] = min(float(_RATE_PER_MIN), state["tokens"] + elapsed * refill_per_sec)
+    state["last"] = now
+    if state["tokens"] < 1.0:
+        return False
+    state["tokens"] -= 1.0
+    return True
+
+
+def _cache_key(namespace: str, payload: dict[str, Any]) -> str:
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    raw = json.dumps({"ns": namespace, "model": model, "payload": payload}, sort_keys=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+@app.middleware("http")
+async def enforce_hardening(request: Request, call_next):
+    path = request.url.path
+    method = request.method.upper()
+
+    if _is_protected_path(path, method):
+        api_key = request.headers.get("x-api-key")
+        if _API_KEYS and api_key not in _API_KEYS:
+            return JSONResponse(status_code=401, content={"detail": "Missing or invalid API key"})
+
+        identity = api_key or (request.client.host if request.client else "unknown")
+        if not _check_rate(identity):
+            return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+
+    return await call_next(request)
 
 
 # ─── REQUEST / RESPONSE SCHEMAS ───────────────────────────────────────────────
@@ -121,6 +204,7 @@ class L0Response(BaseModel):
     concept:     str
     elapsed_ms:  int
     explanation: str
+    cache: CacheInfo | None = None
     token_usage: TokenUsage
     trace_id: str
 
@@ -160,6 +244,7 @@ class L4Response(BaseModel):
     elapsed_ms:  int
     tool_calls:  list
     analysis:    dict
+    cache: CacheInfo | None = None
     token_usage: TokenUsage
     trace_id: str
 
@@ -242,6 +327,166 @@ class InferenceCompareRequest(BaseModel):
     task: str = Field(default="default")
     providers: list[str] = Field(default_factory=lambda: ["openai"])
 
+
+class TokenizeRequest(BaseModel):
+    text: str = Field(default="CVE-2021-44228 RCE in Log4j")
+    model: str | None = None
+
+
+class PromptCompareRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+    advisory_text: str = Field(default="")
+
+
+class RetrievalLabRequest(BaseModel):
+    query: str = Field(default="log4j remote code execution patch")
+    chunk_size_words: int = Field(default=80, ge=20, le=500)
+    overlap_words: int = Field(default=20, ge=0, le=250)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class RetrievalEvalRequest(BaseModel):
+    dataset_path: str = Field(default="data/eval/retrieval_golden.json")
+    k: int = Field(default=5, ge=1, le=20)
+    chunk_size_a: int = Field(default=80, ge=20, le=500)
+    overlap_a: int = Field(default=20, ge=0, le=250)
+    chunk_size_b: int = Field(default=120, ge=20, le=500)
+    overlap_b: int = Field(default=20, ge=0, le=250)
+
+
+class FactualityCheckRequest(BaseModel):
+    answer_text: str = Field(default="Log4j has remote code execution and patch 2.17.1 is available.")
+    evidence_snippets: list[str] = Field(
+        default_factory=lambda: [
+            "CVE-2021-44228 allows remote code execution in Apache Log4j.",
+            "Patch to Log4j 2.17.1 or later is recommended.",
+        ]
+    )
+    support_threshold: float = Field(default=0.45, ge=0.0, le=1.0)
+
+
+class PromptVersionsRequest(BaseModel):
+    path: str = Field(default="data/prompts/f14_prompt_versions.json")
+
+
+class PromptCompareVersionsRequest(BaseModel):
+    version_a: str = Field(default="v1")
+    version_b: str = Field(default="v2")
+    items: list[str] = Field(default_factory=lambda: ["CVE-2021-44228", "CVE-2023-44487", "CVE-2014-0160"])
+    path: str = Field(default="data/prompts/f14_prompt_versions.json")
+
+
+class PrivacyRedactRequest(BaseModel):
+    text: str = Field(default="Contact ops@example.com from 10.20.30.40 token=abc123")
+    sample_payload: dict | None = None
+
+
+class HybridRetrievalRequest(BaseModel):
+    query: str = Field(default="log4j remote code execution patch")
+    chunk_size_words: int = Field(default=80, ge=20, le=500)
+    overlap_words: int = Field(default=20, ge=0, le=250)
+    alpha: float = Field(default=0.5, ge=0.0, le=1.0)
+    rerank: bool = Field(default=False)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class DriftSampleRequest(BaseModel):
+    quality: float = Field(ge=0.0, le=1.0)
+    latency_ms: float = Field(ge=0.0)
+    cost_usd: float = Field(ge=0.0)
+
+
+class DriftReportRequest(BaseModel):
+    baseline_quality: float = Field(default=0.8, ge=0.0, le=1.0)
+    slo: dict[str, float] | None = None
+
+
+class ActionCheckRequest(BaseModel):
+    role: str = Field(default="analyst")
+    tool: str = Field(default="apply_patch")
+    requested_sandbox: str = Field(default="execute")
+    approved: bool = Field(default=False)
+
+
+class PromotionRequest(BaseModel):
+    manifest_path: str = Field(default="data/manifests/ai_artifacts.json")
+    eval_passed: bool = Field(default=True)
+
+
+class ReleaseEvalRequest(BaseModel):
+    control_scores: list[float] = Field(default_factory=lambda: [0.80, 0.82, 0.79])
+    treatment_scores: list[float] = Field(default_factory=lambda: [0.81, 0.83, 0.80])
+    canary_percent: int = Field(default=10, ge=0, le=100)
+    min_delta: float = Field(default=-0.02)
+
+
+class AdaptationRequest(BaseModel):
+    task_stability: str = Field(default="stable")
+    data_volume: int = Field(default=1500, ge=0)
+    needs_fresh_knowledge: bool = Field(default=False)
+    strict_format: bool = Field(default=True)
+    latency_sensitive: bool = Field(default=False)
+    domain_shift: str = Field(default="low")
+
+
+class FinetuneDatasetRequest(BaseModel):
+    records: list[dict] = Field(default_factory=list)
+
+
+class ModelSelectRequest(BaseModel):
+    task_complexity: str = Field(default="medium")
+    latency_sensitive: bool = Field(default=False)
+    cost_sensitive: bool = Field(default=False)
+    high_volume: bool = Field(default=False)
+    high_stakes: bool = Field(default=False)
+
+
+class ClaudeMapRequest(BaseModel):
+    messages: list[dict] = Field(
+        default_factory=lambda: [
+            {"role": "system", "content": "You are a CVE analyst."},
+            {"role": "user", "content": "Summarize CVE-2021-44228."},
+        ]
+    )
+
+
+class McpLoopRequest(BaseModel):
+    cve_id: str = Field(default="CVE-2021-44228")
+
+
+class ResponsibleAIRequest(BaseModel):
+    texts: list[str] = Field(default_factory=lambda: ["This tool is great", "You stupid loser"])
+    outcomes: list[dict] = Field(
+        default_factory=lambda: [
+            {"group": "group_a", "positive": True},
+            {"group": "group_b", "positive": False},
+        ]
+    )
+
+
+class SemanticCacheRequest(BaseModel):
+    pairs: list[dict] = Field(
+        default_factory=lambda: [
+            {"query": "What is CVE-2021-44228?", "response": "Log4Shell RCE"},
+            {"query": "Tell me about CVE-2021-44228", "response": "Log4Shell RCE"},
+        ]
+    )
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+
+
+class IncidentThemeRequest(BaseModel):
+    alert_text: str = Field(default="Payment API error rate surged and customer checkouts are failing")
+    service_name: str = Field(default="payments-api")
+    customer_impact: bool = Field(default=True)
+    signals: list[str] = Field(default_factory=lambda: ["latency", "error rate", "checkout failures"])
+
+
+class IncidentThemeResponse(BaseModel):
+    theme: str
+    scenario: str
+    elapsed_ms: int
+    report: IncidentOpsReport
+
 class L4bResponse(BaseModel):
     source_type: str
     concept:     str
@@ -303,8 +548,380 @@ def root():
             "L5": "POST /l5/analyse — memory + feedback loop (PostgreSQL)",
             "L6": "POST /l6/monitor/start — autonomous monitoring (kill switch: /l6/monitor/stop)",
         },
+        "foundations": {
+            "F4": "POST /foundations/tokenize — token report + context economics",
+            "F6": "POST /foundations/prompt-compare — zero/few-shot/CoT/self-consistency",
+            "F11": "POST /foundations/retrieval-lab — chunking/index quality and ranked hits",
+            "F12": "POST /foundations/retrieval-eval — Recall@k, MRR, nDCG across settings",
+            "F13": "POST /foundations/factuality-check — claim support and abstain signal",
+            "F14": "GET /foundations/prompt-versions · POST /foundations/prompt-versions/compare",
+            "F15": "POST /foundations/privacy/redact — detect and redact sensitive content",
+            "F8": "GET /l4/tools?source=inline|mcp — discover tool definitions",
+        },
+        "themes": {
+            "T1": "POST /themes/incident/analyse — incident response ops planning",
+        },
         "docs": "/docs",
     }
+
+
+@app.get("/admin/ratelimit", tags=["system"])
+def admin_ratelimit(request: Request):
+    """Inspect in-memory rate bucket state (local diagnostics)."""
+    if _API_KEYS:
+        api_key = request.headers.get("x-api-key")
+        if api_key not in _API_KEYS:
+            raise HTTPException(status_code=401, detail="Missing or invalid API key")
+    return {"rate_per_min": _RATE_PER_MIN, "buckets": _RATE_STATE}
+
+
+@app.post("/foundations/tokenize", response_model=TokenReport, tags=["foundations"])
+def tokenize_foundations(req: TokenizeRequest):
+    """F4: tokenize text, report token count vs context limit and projected cost."""
+    try:
+        from levels.foundations.tokenization import tokenize_report
+
+        model = req.model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        return TokenReport.model_validate(tokenize_report(req.text, model=model))
+    except ModuleNotFoundError as e:
+        raise HTTPException(status_code=503, detail=f"Tokenizer dependency missing ({e}). Install with: pip install -e .[foundations]")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/prompt-compare", response_model=PromptComparison, tags=["foundations"])
+async def prompt_compare_foundations(req: PromptCompareRequest):
+    """F6: compare prompt techniques on the same CVE task."""
+    try:
+        from levels.foundations.prompting import prompt_compare
+
+        return PromptComparison.model_validate(await prompt_compare(req.cve_id, req.advisory_text))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/retrieval-lab", response_model=RetrievalLabReport, tags=["foundations"])
+def retrieval_lab_foundations(req: RetrievalLabRequest):
+    """F11: tune chunking/indexing settings and inspect ranked retrieval hits."""
+    try:
+        from levels.foundations.retrieval_quality import retrieval_lab
+
+        return RetrievalLabReport.model_validate(
+            retrieval_lab(
+                query=req.query,
+                chunk_size_words=req.chunk_size_words,
+                overlap_words=req.overlap_words,
+                top_k=req.top_k,
+            )
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/retrieval-eval", response_model=RetrievalEvalReport, tags=["foundations"])
+def retrieval_eval_foundations(req: RetrievalEvalRequest):
+    """F12: evaluate retrieval quality using Recall@k, MRR, and nDCG."""
+    try:
+        from levels.foundations.retrieval_quality import evaluate_retrieval_settings
+
+        out = evaluate_retrieval_settings(
+            dataset_path=req.dataset_path,
+            chunk_size_a=req.chunk_size_a,
+            overlap_a=req.overlap_a,
+            chunk_size_b=req.chunk_size_b,
+            overlap_b=req.overlap_b,
+            k=req.k,
+        )
+        return RetrievalEvalReport.model_validate(out)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/factuality-check", response_model=FactualityReport, tags=["foundations"])
+def factuality_check_foundations(req: FactualityCheckRequest):
+    """F13: verify answer claims against provided evidence snippets."""
+    try:
+        from levels.foundations.factuality import factuality_check
+
+        out = factuality_check(
+            answer_text=req.answer_text,
+            evidence_snippets=req.evidence_snippets,
+            support_threshold=req.support_threshold,
+        )
+        return FactualityReport.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/foundations/prompt-versions", response_model=list[PromptVersion], tags=["foundations"])
+def prompt_versions_foundations(path: str = "data/prompts/f14_prompt_versions.json"):
+    """F14: list available prompt versions for replay/experimentation."""
+    try:
+        from levels.foundations.prompt_lifecycle import list_versions
+
+        return [PromptVersion.model_validate(v) for v in list_versions(path)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/prompt-versions/compare", response_model=PromptExperimentReport, tags=["foundations"])
+def prompt_versions_compare_foundations(req: PromptCompareVersionsRequest):
+    """F14: compare prompt versions on fixed items and return a winner."""
+    try:
+        from levels.foundations.prompt_lifecycle import compare_versions
+
+        out = compare_versions(
+            version_a=req.version_a,
+            version_b=req.version_b,
+            items=req.items,
+            path=req.path,
+        )
+        return PromptExperimentReport.model_validate(out)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/privacy/redact", response_model=PrivacyReport, tags=["foundations"])
+def privacy_redact_foundations(req: PrivacyRedactRequest):
+    """F15: redact sensitive patterns and produce a safe log snapshot."""
+    try:
+        from levels.foundations.privacy import privacy_report
+
+        out = privacy_report(req.text, sample_payload=req.sample_payload)
+        return PrivacyReport.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/hybrid-retrieval", response_model=HybridRetrievalReport, tags=["foundations"])
+def hybrid_retrieval_foundations(req: HybridRetrievalRequest):
+    """F16: compare lexical, vector, and hybrid retrieval with optional reranking."""
+    try:
+        from levels.foundations.retrieval_quality import hybrid_lab
+
+        out = hybrid_lab(
+            query=req.query,
+            chunk_size_words=req.chunk_size_words,
+            overlap_words=req.overlap_words,
+            alpha=req.alpha,
+            rerank=req.rerank,
+            top_k=req.top_k,
+        )
+        return HybridRetrievalReport.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reliability/drift/sample", tags=["reliability"])
+def drift_sample(req: DriftSampleRequest):
+    """F17: record one online-eval sample into the rolling window."""
+    try:
+        from reliability.r6_online_eval_drift import record_sample
+
+        record_sample(quality=req.quality, latency_ms=req.latency_ms, cost_usd=req.cost_usd)
+        return {"recorded": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reliability/drift/report", response_model=DriftReport, tags=["reliability"])
+def drift_report_endpoint(req: DriftReportRequest):
+    """F17: compute drift signals and SLO breaches over the rolling window."""
+    try:
+        from reliability.r6_online_eval_drift import drift_report
+
+        out = drift_report(baseline_quality=req.baseline_quality, slo=req.slo)
+        return DriftReport.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reliability/action/check", response_model=ActionDecision, tags=["reliability"])
+def action_check_endpoint(req: ActionCheckRequest):
+    """F18: evaluate an agent action against least-privilege permission policy."""
+    try:
+        from reliability.r7_action_governance import check_action
+
+        out = check_action(
+            role=req.role,
+            tool=req.tool,
+            requested_sandbox=req.requested_sandbox,
+            approved=req.approved,
+        )
+        return ActionDecision.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/reliability/supply-chain/verify", response_model=SupplyChainReport, tags=["reliability"])
+def supply_chain_verify(manifest_path: str = "data/manifests/ai_artifacts.json"):
+    """F19: verify AI artifact integrity against the tracked manifest."""
+    try:
+        from reliability.r8_supply_chain import verify_artifacts
+
+        return SupplyChainReport.model_validate(verify_artifacts(manifest_path))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reliability/supply-chain/promote", response_model=PromotionDecision, tags=["reliability"])
+def supply_chain_promote(req: PromotionRequest):
+    """F19: gate promotion on artifact integrity plus eval status."""
+    try:
+        from reliability.r8_supply_chain import can_promote
+
+        out = can_promote(path=req.manifest_path, eval_passed=req.eval_passed)
+        return PromotionDecision.model_validate(out)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reliability/release/evaluate", response_model=ReleaseDecision, tags=["reliability"])
+def release_evaluate(req: ReleaseEvalRequest):
+    """F20: evaluate a staged rollout (canary) and decide promote/hold/rollback."""
+    try:
+        from reliability.r9_release_safety import evaluate_release
+
+        out = evaluate_release(
+            control_scores=req.control_scores,
+            treatment_scores=req.treatment_scores,
+            canary_percent=req.canary_percent,
+            min_delta=req.min_delta,
+        )
+        return ReleaseDecision.model_validate(out)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/adaptation/recommend", response_model=AdaptationRecommendation, tags=["foundations"])
+def adaptation_recommend(req: AdaptationRequest):
+    """F21: recommend prompt/few-shot/RAG/fine-tune approach from task traits."""
+    try:
+        from levels.foundations.finetuning import recommend_approach
+
+        out = recommend_approach(
+            task_stability=req.task_stability,
+            data_volume=req.data_volume,
+            needs_fresh_knowledge=req.needs_fresh_knowledge,
+            strict_format=req.strict_format,
+            latency_sensitive=req.latency_sensitive,
+            domain_shift=req.domain_shift,
+        )
+        return AdaptationRecommendation.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/finetune/validate", response_model=FinetuneDatasetReport, tags=["foundations"])
+def finetune_validate(req: FinetuneDatasetRequest):
+    """F21: validate a chat-style fine-tuning dataset for common quality issues."""
+    try:
+        from levels.foundations.finetuning import validate_finetune_dataset
+
+        return FinetuneDatasetReport.model_validate(validate_finetune_dataset(req.records))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/model-select", response_model=ModelRecommendation, tags=["foundations"])
+def model_select_foundations(req: ModelSelectRequest):
+    """F22: recommend a Claude model tier (Haiku/Sonnet/Opus) from constraints."""
+    try:
+        from levels.foundations.model_selection import recommend_model
+
+        out = recommend_model(
+            task_complexity=req.task_complexity,
+            latency_sensitive=req.latency_sensitive,
+            cost_sensitive=req.cost_sensitive,
+            high_volume=req.high_volume,
+            high_stakes=req.high_stakes,
+        )
+        return ModelRecommendation.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/claude/map-messages", response_model=ClaudeMappedMessages, tags=["claude"])
+def claude_map_messages(req: ClaudeMapRequest):
+    """Claude bridge: map OpenAI-style messages to Claude Messages API shape."""
+    try:
+        from vigil.claude_provider import map_messages_to_claude
+
+        return ClaudeMappedMessages.model_validate(map_messages_to_claude(req.messages))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mcp/tool-loop", response_model=McpLoopReport, tags=["claude"])
+async def mcp_tool_loop(req: McpLoopRequest):
+    """MCP client path: run a deterministic tool loop over the MCP server tools."""
+    try:
+        from vigil_mcp.vigil_client import run_tool_loop
+
+        return McpLoopReport.model_validate(await run_tool_loop(cve_id=req.cve_id))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/responsible-ai", response_model=ResponsibleAIReport, tags=["foundations"])
+def responsible_ai_foundations(req: ResponsibleAIRequest):
+    """F23: content moderation + fairness (demographic parity) evaluation."""
+    try:
+        from levels.foundations.responsible_ai import responsible_ai_report
+
+        out = responsible_ai_report(texts=req.texts, outcomes=req.outcomes)
+        return ResponsibleAIReport.model_validate(out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/foundations/semantic-cache", response_model=SemanticCacheReport, tags=["foundations"])
+def semantic_cache_foundations(req: SemanticCacheRequest):
+    """F24: replay queries through a similarity-based semantic cache."""
+    try:
+        from levels.foundations.semantic_cache import simulate
+
+        return SemanticCacheReport.model_validate(simulate(req.pairs, threshold=req.threshold))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/themes/incident/analyse", response_model=IncidentThemeResponse, tags=["themes"])
+def analyse_theme_incident(req: IncidentThemeRequest):
+    """T1: domain transfer demo from CVE workflows to incident-response operations."""
+    try:
+        from levels.themes.incident_ops import analyse_incident
+
+        start = time.perf_counter()
+        report = analyse_incident(
+            alert_text=req.alert_text,
+            service_name=req.service_name,
+            customer_impact=req.customer_impact,
+            signals=req.signals,
+        )
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        return {
+            "theme": "T1",
+            "scenario": "Incident Response Ops",
+            "elapsed_ms": elapsed_ms,
+            "report": report,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/inference/policy", response_model=list[RoutePolicy], tags=["extensions"])
@@ -350,6 +967,17 @@ async def inference_compare(req: InferenceCompareRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/frameworks/a1", tags=["architectures"])
+async def framework_a1(req: CVERequest):
+    """F7: run the A1-style LangGraph port (or fallback when deps are absent)."""
+    try:
+        from architectures.frameworks.a1_react_langgraph import analyse_cve
+
+        return await analyse_cve(req.cve_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── LEVEL 0 ──────────────────────────────────────────────────────────────────
 # Concept: single LLM call, free-form text response
 
@@ -365,18 +993,35 @@ def analyse_l0(req: CVERequest):
     # Each level file is standalone; we just call its core function.
     try:
         from levels.l0_single_call import explain_cve, get_usage
+        key = _cache_key("l0.analyse", req.model_dump())
+        cached = _CACHE.get(key)
+        if cached is not None:
+            return {
+                "cve_id":      req.cve_id,
+                "level":       0,
+                "concept":     "single LLM call",
+                "elapsed_ms":  0,
+                "explanation": cached["explanation"],
+                "cache":       {"from_cache": True, "key": key, "ttl_seconds": _CACHE.ttl(key)},
+                "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0},
+                "trace_id": str(uuid.uuid4()),
+            }
+
         start = time.perf_counter()
         explanation = explain_cve(req.cve_id)
         elapsed_ms  = int((time.perf_counter() - start) * 1000)
-        return {
+        payload = {
             "cve_id":      req.cve_id,
             "level":       0,
             "concept":     "single LLM call",
             "elapsed_ms":  elapsed_ms,
             "explanation": explanation,
+            "cache":       {"from_cache": False, "key": key, "ttl_seconds": _CACHE_TTL},
             "token_usage": get_usage(),
             "trace_id": str(uuid.uuid4()),
         }
+        _CACHE.set(key, {"explanation": explanation}, ttl_seconds=_CACHE_TTL)
+        return payload
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -534,21 +1179,51 @@ async def analyse_l4(req: CVERequest):
     """
     try:
         from levels.l4_tool_use import analyse_cve as analyse_cve_l4, get_usage as l4_get_usage
+        key = _cache_key("l4.analyse", req.model_dump())
+        cached = _CACHE.get(key)
+        if cached is not None:
+            return {
+                "cve_id":      req.cve_id,
+                "level":       4,
+                "concept":     "tool use — grounded analysis via live APIs",
+                "elapsed_ms":  0,
+                "tool_calls":  cached["tool_calls"],
+                "analysis":    cached["analysis"],
+                "cache":       {"from_cache": True, "key": key, "ttl_seconds": _CACHE.ttl(key)},
+                "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0},
+                "trace_id":    str(uuid.uuid4()),
+            }
+
         start = time.perf_counter()
 
         analysis, tool_log = await analyse_cve_l4(req.cve_id)
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
-        return {
+        payload = {
             "cve_id":      req.cve_id,
             "level":       4,
             "concept":     "tool use — grounded analysis via live APIs",
             "elapsed_ms":  elapsed_ms,
             "tool_calls":  tool_log,
             "analysis":    analysis.model_dump(),
+            "cache":       {"from_cache": False, "key": key, "ttl_seconds": _CACHE_TTL},
             "token_usage": l4_get_usage(),
             "trace_id":    str(uuid.uuid4()),
         }
+        _CACHE.set(key, {"tool_calls": tool_log, "analysis": analysis.model_dump()}, ttl_seconds=_CACHE_TTL)
+        return payload
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/l4/tools", response_model=list[DiscoveredTool], tags=["levels"])
+def tools_l4(source: str = Query(default="inline", pattern="^(inline|mcp)$")):
+    """F8: discover available L4 tools from inline definitions or MCP."""
+    try:
+        from levels.l4_tool_use import discover_tools
+
+        rows = discover_tools(source=source)
+        return [DiscoveredTool.model_validate(r) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -37,6 +37,27 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.markdown(
+        """
+        <style>
+            .vigil-kicker {
+                color: #93C5FD;
+                font-weight: 700;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+                font-size: 0.77rem;
+                margin-bottom: 0.25rem;
+            }
+            .vigil-step {
+                color: #E2E8F0;
+                font-size: 0.92em;
+                margin: 2px 0;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+)
+
 # The CVE the user is working with, shared across every page so it never
 # has to be re-typed when moving between levels.
 st.session_state.setdefault("vigil_cve", "CVE-2021-44228")
@@ -102,6 +123,73 @@ def concept_box(title: str, what: str, why: str, key_idea: str) -> None:
     )
 
 
+def learner_flow(level: str, run_label: str, look_for: str, next_step: str) -> None:
+    """Consistent learning workflow banner shown at the top of pages."""
+    st.markdown(
+        f"""
+        <div style="background:#132033;border:1px solid #2B4A6F;border-radius:8px;padding:12px 14px;margin:6px 0 14px 0">
+                    <div class="vigil-kicker">{level} learning flow</div>
+                    <div class="vigil-step"><b>1. Run:</b> {run_label}</div>
+                    <div class="vigil-step"><b>2. Inspect:</b> {look_for}</div>
+                    <div style="color:#A7F3D0;font-size:0.9em;margin-top:4px"><b>3. Then:</b> {next_step}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def lesson_objective(level: str, objective: str, success_looks_like: str) -> None:
+    """Sticky objective bar so learners always know the point of this page."""
+    success = success_looks_like.strip()
+    if success:
+        success = success[0].upper() + success[1:]
+    st.markdown(
+        f"""
+        <div style="position:sticky;top:0;z-index:10;background:#0F172A;border:1px solid #334155;
+                    border-radius:8px;padding:10px 12px;margin:4px 0 14px 0">
+          <div style="color:#FDE68A;font-size:0.8em;font-weight:700;letter-spacing:0.03em">CURRENT OBJECTIVE · {level}</div>
+          <div style="color:#E2E8F0;font-size:0.95em;margin-top:3px"><b>{objective}</b></div>
+          <div style="color:#93C5FD;font-size:0.86em;margin-top:4px"><b>Success check:</b> {success}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def learner_coach(before_run: str, read_output: str, common_miss: str) -> None:
+    """Progressive disclosure for guidance without overwhelming the page."""
+    with st.expander("🧭 Learner Coach: How to Get the Most From This Page", expanded=False):
+        st.markdown(f"**Before you run:** {before_run}")
+        st.markdown(f"**How to read the output:** {read_output}")
+        st.markdown(f"**Common pitfall:** {common_miss}")
+
+
+def try_next_cve(level_key: str) -> None:
+    """One-click CVE presets to reduce friction between experiments."""
+    st.caption("Try another CVE quickly (keep one variable constant as you compare levels).")
+    presets = [
+        ("CVE-2021-44228", "Log4Shell"),
+        ("CVE-2023-44487", "HTTP/2 Rapid Reset"),
+        ("CVE-2014-0160", "Heartbleed"),
+    ]
+    cols = st.columns(3)
+    for col, (cve, label) in zip(cols, presets):
+        with col:
+            if st.button(f"{label}", key=f"{level_key}_{cve}", use_container_width=True):
+                st.session_state["vigil_cve"] = cve
+                st.success(f"Active CVE set to {cve}")
+
+
+def result_hint(title: str, text: str, tone: str = "info") -> None:
+    """Short interpretation hint to prevent learner confusion."""
+    if tone == "success":
+        st.success(f"{title}: {text}")
+    elif tone == "warning":
+        st.warning(f"{title}: {text}")
+    else:
+        st.info(f"{title}: {text}")
+
+
 def under_the_hood(code_snippet: str, explanation: str) -> None:
     """Collapsible 'Under the hood' section showing the key code."""
     with st.expander("🔍 Under the hood"):
@@ -121,6 +209,11 @@ def cost_line(data: dict) -> None:
         )
     else:
         st.caption(f"⏱ {data['elapsed_ms']}ms")
+
+    cache = data.get("cache")
+    if cache and isinstance(cache, dict):
+        label = "hit" if cache.get("from_cache") else "miss"
+        st.caption(f"🧠 Cache: {label}  ·  key {str(cache.get('key', ''))[:12]}...  ·  ttl {cache.get('ttl_seconds', 0)}s")
 
 
 def cve_input(key: str = "vigil_cve", default: str = "CVE-2021-44228") -> str:
@@ -156,12 +249,12 @@ with st.sidebar:
     st.divider()
 
     NAV_GROUPS = {
-        "🏠 Start Here": {
+        "1) Start": {
             "🏠 Home":                  "home",
             "📖 Glossary":              "glossary",
             "📋 Prod Readiness":        "checklist",
         },
-        "🎓 Learning Levels": {
+        "2) Core Levels": {
             "L0 — Single LLM Call":     "l0",
             "L1 — Prompt Chain":        "l1",
             "L2 — Parallel Fan-out":    "l2",
@@ -171,23 +264,46 @@ with st.sidebar:
             "L5 — Memory & Feedback":   "l5",
             "L6 — Autonomous Monitor":  "l6",
         },
-        "🛡️ Reliability": {
+        "3) Reliability": {
             "R1 — Guardrails":          "r1",
             "R2 — Evaluation":          "r2",
             "R3 — Observability":       "r3",
             "R4 — Resilience":          "r4",
         },
-        "🧩 Extensions": {
+        "4) Foundations": {
+            "F4 — Tokenization":        "f4",
+            "F6 — Prompt Techniques":   "f6",
+            "F11 — Retrieval Quality":  "f11",
+            "F12 — Retrieval Metrics":  "f12",
+            "F13 — Factuality":         "f13",
+            "F14 — Prompt Lifecycle":   "f14",
+            "F15 — Privacy":            "f15",
+            "F16 — Hybrid Retrieval":   "f16",
+            "F21 — Fine-tune Advisor":  "f21",
+            "F22 — Claude Model Select": "f22",
+        },
+        "5) Extensions": {
             "E1 — Semantic Memory":     "e1",
             "E2 — Human-in-the-Loop":   "e2",
             "E3 — Agent Communication": "e3",
             "E4 — Inference Layer":     "e4",
         },
-        "🏗️ Architectures": {
+        "6) Architectures": {
             "A1 — ReAct":               "a1",
             "A2 — Plan-and-Execute":    "a2",
             "A3 — Reflection":          "a3",
             "A4 — Multi-Agent":         "a4",
+        },
+        "7) Themes": {
+            "T1 — Incident Response Ops": "t1_incident",
+        },
+        "8) Governance & Ops": {
+            "F17 — Drift Monitoring":   "f17",
+            "F18 — Action Governance":  "f18",
+            "F19 — Supply Chain":       "f19",
+            "F20 — Release Safety":     "f20",
+            "F23 — Responsible AI":     "f23",
+            "F24 — Semantic Cache":     "f24",
         },
     }
 
@@ -195,13 +311,17 @@ with st.sidebar:
         "Section",
         list(NAV_GROUPS.keys()),
         key="nav_group",
-        help="Pick a track, then choose a page below. Each track builds on the last.",
+        help="If new: Start -> Core Levels (L0-L6) -> Reliability -> Extensions/Architectures.",
     )
     items = NAV_GROUPS[group]
     # No key on this radio: when the group changes its options change, so it
     # naturally resets to the first page of the newly selected track.
     selected = st.radio("Page", list(items.keys()), label_visibility="collapsed")
     page = items[selected]
+
+    st.divider()
+    st.caption("Suggested sequence")
+    st.caption("Start -> L0-L6 -> R1-R4 -> F4/F6/F11/F12/F13/F14/F15 -> E1-E4 -> A1-A4")
 
     st.divider()
     st.caption("Active CVE")
@@ -239,6 +359,15 @@ if page == "home":
         if qs2.button("Use this CVE", type="primary", use_container_width=True, key="home_set_cve"):
             st.session_state["vigil_cve"] = quick_cve.strip() or "CVE-2021-44228"
             st.success(f"Working CVE set to {st.session_state['vigil_cve']}")
+
+    st.divider()
+    st.markdown("### Start Here in 20 Minutes")
+    st.markdown(
+        "1. Run **L0** once to see the raw model baseline.  "
+        "2. Run **L1** and compare structure/clarity vs L0.  "
+        "3. Run **L4** to see grounded tool-based analysis.  "
+        "4. Run **L5** twice to observe memory effects."
+    )
 
     st.divider()
 
@@ -308,6 +437,7 @@ if page == "home":
 
 elif page == "l0":
     st.title("L0 — Single LLM Call")
+    lesson_objective("L0", "Understand the baseline behavior of one prompt and one response.", "you can explain why this output is easy for humans but hard for automation")
 
     concept_box(
         title="The simplest possible AI interaction",
@@ -315,6 +445,17 @@ elif page == "l0":
         why="Every agentic system, no matter how complex, is built on this primitive. "
             "Understanding it deeply before adding structure is essential.",
         key_idea="client.chat.completions.create(messages=[system, user]) → text string",
+    )
+    learner_flow(
+        "L0",
+        "Ask the model",
+        "free-form text quality, coverage gaps, and ambiguity",
+        "L1 to see how structure fixes these limits",
+    )
+    learner_coach(
+        "Use the default CVE first so you can compare later pages on the same input.",
+        "Focus on answer quality and whether key facts are explicit or vague.",
+        "Treating fluent text as reliable structured truth.",
     )
 
     cve_id = cve_input("l0_cve")
@@ -325,8 +466,9 @@ elif page == "l0":
             data = api("POST", "/l0/analyse", json={"cve_id": cve_id})
 
         if data:
-            st.success(f"✅ Done")
+            st.success("✅ Done")
             cost_line(data)
+            result_hint("What this means", "You got a human-readable answer, but it is unstructured text. Automation is hard at this stage.")
             st.markdown("### Response")
             st.markdown(
                 f'<div style="background:#1E1E2E;padding:20px;border-radius:6px;'
@@ -349,12 +491,14 @@ return response.choices[0].message.content  # plain string""",
                 explanation="One API call. The output is unstructured text — great for humans, "
                             "unreliable for code to process. L1 solves this with structured output.",
             )
+            try_next_cve("l0")
 
 
 # ─── L1 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l1":
     st.title("L1 — Prompt Chain")
+    lesson_objective("L1", "See how decomposing one big task into steps improves reliability.", "you can point to what each step contributes to final quality")
 
     concept_box(
         title="Three focused calls, each building on the last",
@@ -363,6 +507,17 @@ elif page == "l1":
         why="One prompt trying to do all three produces mediocre results for all three. "
             "Chaining lets each step give its full attention to one job.",
         key_idea="summary = step1(cve)  →  risk = step2(summary)  →  plan = step3(summary, risk)",
+    )
+    learner_flow(
+        "L1",
+        "Run chain",
+        "how each step gets more specific and machine-usable",
+        "L2 for speed and specialization via parallelism",
+    )
+    learner_coach(
+        "Run with the same CVE you used in L0 to make quality differences obvious.",
+        "Check if step outputs become progressively more actionable.",
+        "Assuming more tokens always means better output rather than better structure.",
     )
 
     cve_id = cve_input("l1_cve")
@@ -374,6 +529,7 @@ elif page == "l1":
         if data:
             st.success("✅ All 3 steps completed")
             cost_line(data)
+            result_hint("What changed from L0", "Output is now typed and decomposed by task, which makes downstream logic reliable.", tone="success")
 
             steps = data.get("steps", {})
 
@@ -431,12 +587,14 @@ plan    = step3_remediation(summary, risk) # receives step 1 + 2 outputs
                             "step2 knows the CVSS score from step1. step3 knows the urgency from step2. "
                             "This context accumulation is what makes the plan actually tailored.",
             )
+            try_next_cve("l1")
 
 
 # ─── L2 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l2":
     st.title("L2 — Parallel Fan-out")
+    lesson_objective("L2", "Learn concurrency by comparing specialist breadth and latency.", "you can explain why parallel fan-out is faster than sequential pipelines")
 
     concept_box(
         title="Four specialist agents running simultaneously",
@@ -445,6 +603,17 @@ elif page == "l2":
         why="Sequential (L1-style): 4 × 3s = 12s. Parallel (this level): max(3s, 3s, 3s, 3s) = 3s. "
             "At scale this difference is not optional — it's mandatory.",
         key_idea="results = await asyncio.gather(agent1(), agent2(), agent3(), agent4())",
+    )
+    learner_flow(
+        "L2",
+        "Run parallel agents",
+        "specialist diversity plus lower end-to-end latency",
+        "L3 for dynamic routing to avoid unnecessary work",
+    )
+    learner_coach(
+        "Use a CVE with rich context (Log4Shell works well) so all specialists have signal.",
+        "Read each specialist first, then the moderator as synthesis.",
+        "Reading only the final verdict and skipping specialist disagreement.",
     )
 
     cve_id = cve_input("l2_cve")
@@ -456,6 +625,7 @@ elif page == "l2":
         if data:
             st.success("✅ 4 agents + moderator complete")
             cost_line(data)
+            result_hint("Interpretation", "Each agent gives a partial truth; the moderator is the synthesis layer, not a replacement for specialists.")
             st.caption("Compare elapsed time to L1's sequential run — parallel is almost always faster.")
 
             reports = data.get("agent_reports", {})
@@ -512,12 +682,14 @@ results = await asyncio.gather(
                             "the thread. With await, Python switches to the next coroutine while "
                             "waiting for the API response — real concurrency with one thread.",
             )
+            try_next_cve("l2")
 
 
 # ─── L3 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l3":
     st.title("L3 — Conditional Routing")
+    lesson_objective("L3", "Understand AI-driven control flow and its operational impact.", "you can justify whether the selected track and urgency make sense")
 
     concept_box(
         title="The LLM decides which pipeline to run",
@@ -526,6 +698,17 @@ elif page == "l3":
         why="Not every CVE needs a full L2 run. A CVSS 2.0 info-leak doesn't need the same "
             "response as Log4Shell. Routing saves cost and latency for low-priority items.",
         key_idea='handler = TRACK_HANDLERS[routing.track]  # LLM output drives Python control flow',
+    )
+    learner_flow(
+        "L3",
+        "Route and analyse",
+        "selected track, urgency hours, and confidence",
+        "L4 for live external grounding",
+    )
+    learner_coach(
+        "Try two very different CVEs and compare track selection.",
+        "Inspect routing reason before reading the track output details.",
+        "Treating confidence as proof; confidence is a signal, not certainty.",
     )
 
     TRACK_COLOURS = {
@@ -556,6 +739,7 @@ elif page == "l3":
 
             st.success("✅ Done")
             cost_line(data)
+            result_hint("Interpretation", "Routing is a cost and latency control decision; wrong routing can be as harmful as wrong analysis.", tone="warning")
 
             # Routing decision — show prominently
             st.markdown("### Routing Decision")
@@ -599,12 +783,14 @@ result  = await handler(cve_id, routing)  # run the matched pipeline""",
                             "is used directly as a Python dict key. The AI makes a judgment call; "
                             "the code executes it deterministically. That's the router pattern.",
             )
+            try_next_cve("l3")
 
 
 # ─── L4 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l4":
     st.title("L4 — Tool Use")
+    lesson_objective("L4", "Learn grounding: trust comes from tool evidence, not model fluency.", "you can trace final claims back to NVD/EPSS tool outputs")
 
     concept_box(
         title="Agent calls real external APIs — analysis grounded in live data",
@@ -613,6 +799,17 @@ elif page == "l4":
         why="Without tools, the model relies on training memory — which has a cutoff date "
             "and can hallucinate scores. With tools, every fact is traceable to an API call.",
         key_idea="while response has tool_calls: execute_tool() → append result → call LLM again",
+    )
+    learner_flow(
+        "L4",
+        "Fetch live data and analyse",
+        "tool call log first, then final grounded recommendation",
+        "L5 to add temporal memory and feedback",
+    )
+    learner_coach(
+        "Keep CVE constant and compare L3 vs L4 behavior.",
+        "Read tool logs first, then verify the final analysis references those facts.",
+        "Skipping tool logs and trusting summary text by default.",
     )
 
     cve_id = cve_input("l4_cve")
@@ -627,6 +824,7 @@ elif page == "l4":
 
             st.success(f"✅ Done — {len(tool_calls)} real API call(s) made")
             cost_line(data)
+            result_hint("Interpretation", "Trust the analysis only to the extent the tool log supports it. The log is your audit trail.", tone="success")
 
             # Tool call trace — show what the agent actually fetched
             st.markdown("### Tool Call Log")
@@ -661,7 +859,7 @@ elif page == "l4":
             col3.metric("EPSS Score", f"{epss:.4f}", delta=f"{epss_pct:.1f}% exploitation probability")
             col4.metric("EPSS Percentile", f"{analysis.get('epss_percentile',0)*100:.0f}th")
 
-            st.markdown(f"**Description (verbatim from NVD):**")
+            st.markdown("**Description (verbatim from NVD):**")
             st.info(analysis.get("description", ""))
             st.markdown(f"**Patch available:** {'✅ Yes' if analysis.get('patch_available') else '❌ Not yet'}")
             st.markdown(f"**Recommended action:** {analysis.get('recommended_action','')}")
@@ -685,12 +883,14 @@ while True:
                             "The model reads the result and decides whether to call another tool "
                             "or produce a final response. This is the ReAct loop.",
             )
+            try_next_cve("l4")
 
 
 # ─── L4b — MULTIMODAL ─────────────────────────────────────────────────────────
 
 elif page == "l4b":
     st.title("L4b — Multimodal Inputs")
+    lesson_objective("L4b", "See how image/PDF evidence becomes structured fields with quotes.", "you can identify extracted values and the exact grounding snippets")
 
     concept_box(
         title="The agent reads images and PDFs — not just text",
@@ -701,6 +901,17 @@ elif page == "l4b":
             "not clean API responses. A vision model can read these directly instead of asking "
             "a human to re-type them.",
         key_idea='content becomes a LIST of parts: [{"type":"text",...}, {"type":"image_url",...}]',
+    )
+    learner_flow(
+        "L4b",
+        "Read image and extract / Parse PDF and extract",
+        "grounding quotes and extracted identity fields",
+        "L5 for memory over repeated incidents",
+    )
+    learner_coach(
+        "Start with a clean advisory screenshot/PDF that clearly contains CVE and severity text.",
+        "Check grounding quotes; weak quotes usually mean weak extraction confidence.",
+        "Assuming extraction quality is high when source text is sparse or blurry.",
     )
 
     tab_img, tab_pdf = st.tabs(["🖼️  Image", "📄  PDF"])
@@ -780,12 +991,14 @@ messages = [{"role": "user", "content": f"Bulletin text:\\n{text}"}]''',
                     "PDFs aren't read natively here — we extract the text with pypdf first, then the "
                     "model grounds its answer on that text and quotes the lines it used.",
     )
+    try_next_cve("l4b")
 
 
 # ─── L5 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l5":
     st.title("L5 — Memory & Feedback Loops")
+    lesson_objective("L5", "Observe how historical context changes current recommendations.", "you can explain notable change and memory_context_used behavior")
 
     concept_box(
         title="Agent remembers past analyses and learns from what happened next",
@@ -795,6 +1008,17 @@ elif page == "l5":
         why="Without memory, the agent gives the same advice on day 60 as day 1. "
             "With memory, it knows you dismissed this before and EPSS has since tripled.",
         key_idea="history = await get_history(db, cve_id)  →  inject as context  →  analyse  →  save",
+    )
+    learner_flow(
+        "L5",
+        "Analyse with memory",
+        "history count, notable change, and context-window budget",
+        "L6 to automate repeated monitoring",
+    )
+    learner_coach(
+        "Run once, record feedback, then run again on the same CVE.",
+        "Look for changed recommendation and context-budget behavior.",
+        "Testing memory with only one run and expecting visible change.",
     )
 
     cve_id = cve_input("l5_cve")
@@ -816,6 +1040,7 @@ elif page == "l5":
 
                 st.success("✅ Done")
                 cost_line(data)
+                result_hint("Interpretation", "If memory_context_used is Yes and notable_change is meaningful, your historical context is influencing decisions correctly.")
 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("CVSS", a.get("cvss_score", "?"))
@@ -910,12 +1135,14 @@ await save_analysis(conn, cve_id, analysis.model_dump(), tool_log)""",
                     "system prompt. The model reads it before calling any tools. This is "
                     "'in-context learning' — no fine-tuning, no embeddings, just well-formatted text.",
     )
+    try_next_cve("l5")
 
 
 # ─── L6 ───────────────────────────────────────────────────────────────────────
 
 elif page == "l6":
     st.title("L6 — Autonomous Monitoring")
+    lesson_objective("L6", "Operate an autonomous loop safely with watchlist, alerts, and control.", "you can add, scan, inspect alerts, and stop the monitor confidently")
 
     concept_box(
         title="The agent acts without being asked",
@@ -925,6 +1152,17 @@ elif page == "l6":
         why="Without autonomy: you ask → agent answers. With autonomy: agent monitors → "
             "agent alerts → you respond to what matters. The difference is who initiates.",
         key_idea="asyncio.create_task(_monitor_loop())  — runs forever alongside the API",
+    )
+    learner_flow(
+        "L6",
+        "Add CVE to watchlist, then Run manual scan now",
+        "new alerts, acknowledgement flow, and monitor state",
+        "R1-R4 to harden reliability and safety",
+    )
+    learner_coach(
+        "Add at least one CVE before running a manual scan.",
+        "Use monitor status and alerts together; they answer different questions.",
+        "Confusing 'monitor running' with 'new alerts generated'.",
     )
 
     tabs = st.tabs(["Watchlist", "Alerts", "Monitor Control"])
@@ -1753,6 +1991,1065 @@ elif page == "e4":
                 st.error(f"Could not reach the API at {API_BASE}.\n\n{e}")
 
 
+# ─── F4 ───────────────────────────────────────────────────────────────────────
+
+elif page == "f4":
+    st.title("F4 — Tokenization & Context Economics")
+    lesson_objective("F4", "Build intuition for token density and context-window pressure.", "you can estimate which inputs will be expensive or near limits")
+
+    concept_box(
+        title="See tokens directly, not just as a billing line",
+        what="Tokenize arbitrary text and inspect context usage against model limits.",
+        why="Token intuition drives prompt design, RAG chunking, and cost control.",
+        key_idea="text -> token count -> context % -> estimated cost",
+    )
+    learner_flow(
+        "F4",
+        "Tokenize",
+        "token_count, pct_of_context, and sample token pieces",
+        "F6 to connect token tradeoffs to prompt quality",
+    )
+    learner_coach(
+        "Compare short prose, JSON, and code snippets.",
+        "Use context percentage to reason about headroom before model calls.",
+        "Treating character count as equivalent to token count.",
+    )
+
+    model = st.text_input("Model", value="gpt-4o-mini", key="f4_model")
+    text = st.text_area(
+        "Text to tokenize",
+        value="CVE-2021-44228 allows remote code execution in vulnerable Log4j deployments.",
+        key="f4_text",
+        height=140,
+    )
+
+    if st.button("Tokenize", type="primary", key="f4_run"):
+        data = api("POST", "/foundations/tokenize", json={"text": text, "model": model.strip() or None})
+        if data:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Token count", data.get("token_count", 0))
+            c2.metric("Context limit", data.get("context_limit", 0))
+            c3.metric("Est. cost", f"${data.get('est_cost_usd', 0.0):.6f}")
+            st.progress(min(float(data.get("pct_of_context", 0.0)) / 100.0, 1.0))
+            st.caption(f"Prompt occupies {data.get('pct_of_context', 0.0):.4f}% of the context window.")
+            st.markdown("#### Sample token pieces")
+            st.write(data.get("sample_tokens", []))
+
+
+# ─── F6 ───────────────────────────────────────────────────────────────────────
+
+elif page == "f6":
+    st.title("F6 — Prompt Engineering Techniques")
+    lesson_objective("F6", "Compare prompt patterns and their token-quality tradeoffs.", "you can pick a technique intentionally for a task and budget")
+
+    concept_box(
+        title="Compare prompt techniques on one task",
+        what="Run zero-shot, few-shot, chain-of-thought, and self-consistency side-by-side.",
+        why="Prompting is the cheapest high-leverage knob before model or infra changes.",
+        key_idea="same task + different prompt strategy -> different quality/cost",
+    )
+    learner_flow(
+        "F6",
+        "Compare techniques",
+        "output differences vs token/cost overhead",
+        "E4 to route techniques by provider/cost policy",
+    )
+    learner_coach(
+        "Keep the same CVE and advisory text while comparing techniques.",
+        "Read output differences before judging token/cost overhead.",
+        "Assuming few-shot or CoT is always best regardless of task complexity.",
+    )
+
+    cve_id = cve_input("f6_cve")
+    advisory = st.text_area(
+        "Optional advisory text (treated as untrusted and fenced)",
+        value="Public exploit observed; internet-facing service; patch available.",
+        key="f6_text",
+        height=120,
+    )
+
+    if st.button("Compare techniques", type="primary", key="f6_run"):
+        with st.spinner("Running prompt comparisons…"):
+            data = api("POST", "/foundations/prompt-compare", json={"cve_id": cve_id, "advisory_text": advisory})
+        if data:
+            st.dataframe(data.get("results", []), use_container_width=True)
+            st.caption(data.get("notes", ""))
+
+
+# ─── F11 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f11":
+    st.title("F11 — Retrieval Data Preparation and Index Quality")
+    lesson_objective("F11", "Understand how chunking and overlap change retrieval quality.", "you can tune chunk settings and explain ranking differences")
+
+    concept_box(
+        title="Data engineering for RAG starts before retrieval",
+        what="This lab chunks a small document set and retrieves top hits for your query.",
+        why="Many GenAI failures come from weak chunking/indexing choices, not the model itself.",
+        key_idea="documents -> chunks(size, overlap) -> ranked hits with evidence overlap",
+    )
+    learner_flow(
+        "F11",
+        "Run retrieval lab",
+        "hit scores, overlap terms, and chunk count economics",
+        "F12 for objective retrieval metrics",
+    )
+    learner_coach(
+        "Start with a short query, then vary only one knob at a time.",
+        "Inspect overlap terms and preview text, not score alone.",
+        "Changing multiple parameters at once and losing comparability.",
+    )
+
+    c1, c2 = st.columns(2)
+    query = c1.text_input(
+        "Query",
+        value="log4j remote code execution patch urgency",
+        key="f11_query",
+    )
+    top_k = c2.slider("Top-k", min_value=1, max_value=10, value=5, key="f11_topk")
+
+    c3, c4 = st.columns(2)
+    chunk_size = c3.slider("Chunk size (words)", min_value=20, max_value=200, value=80, step=10, key="f11_chunk")
+    overlap = c4.slider("Chunk overlap (words)", min_value=0, max_value=100, value=20, step=5, key="f11_overlap")
+
+    if st.button("Run retrieval lab", type="primary", key="f11_run"):
+        with st.spinner("Building index and ranking retrieval hits…"):
+            data = api(
+                "POST",
+                "/foundations/retrieval-lab",
+                json={
+                    "query": query,
+                    "chunk_size_words": chunk_size,
+                    "overlap_words": overlap,
+                    "top_k": top_k,
+                },
+            )
+
+        if data:
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Documents", data.get("n_docs", 0))
+            m2.metric("Chunks", data.get("n_chunks", 0))
+            m3.metric("Avg chunk words", data.get("avg_chunk_words", 0.0))
+            m4.metric("Diversity entropy", data.get("diversity_entropy", 0.0))
+
+            hits = data.get("hits", [])
+            if not hits:
+                st.warning("No hits returned. Try broader query terms.")
+            else:
+                rows = []
+                for i, h in enumerate(hits, 1):
+                    rows.append(
+                        {
+                            "rank": i,
+                            "chunk": h.get("chunk_id", "?"),
+                            "title": h.get("title", "?"),
+                            "score": h.get("score", 0.0),
+                            "overlap_terms": ", ".join(h.get("overlap_terms", [])),
+                            "preview": h.get("text_preview", ""),
+                        }
+                    )
+                st.dataframe(rows, use_container_width=True)
+
+            result_hint("Interpretation", "If top hits are noisy, adjust chunk size and overlap before changing models.")
+
+
+# ─── F12 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f12":
+    st.title("F12 — Retrieval Evaluation Metrics")
+    lesson_objective("F12", "Quantify retrieval quality with Recall@k, MRR, and nDCG.", "you can compare two retrieval settings objectively")
+
+    concept_box(
+        title="Measure retrieval before changing models",
+        what="Run a labeled benchmark and compare two chunking configurations.",
+        why="Metrics make retrieval changes objective instead of guesswork.",
+        key_idea="same dataset -> setting A vs B -> Recall@k, MRR, nDCG deltas",
+    )
+    learner_flow(
+        "F12",
+        "Run retrieval evaluation",
+        "summary metrics and per-query wins/losses",
+        "choose the winning setting and retest after data changes",
+    )
+    learner_coach(
+        "Change one setting at a time between A and B.",
+        "Prioritize MRR/nDCG for ranking quality, not just Recall@k.",
+        "Treating one metric increase as overall improvement when others regress.",
+    )
+
+    c1, c2 = st.columns(2)
+    dataset_path = c1.text_input("Dataset path", value="data/eval/retrieval_golden.json", key="f12_dataset")
+    k = c2.slider("k", min_value=1, max_value=10, value=5, key="f12_k")
+
+    st.markdown("### Setting A")
+    a1, a2 = st.columns(2)
+    chunk_a = a1.slider("Chunk size A", min_value=20, max_value=200, value=80, step=10, key="f12_chunk_a")
+    overlap_a = a2.slider("Overlap A", min_value=0, max_value=100, value=20, step=5, key="f12_overlap_a")
+
+    st.markdown("### Setting B")
+    b1, b2 = st.columns(2)
+    chunk_b = b1.slider("Chunk size B", min_value=20, max_value=200, value=120, step=10, key="f12_chunk_b")
+    overlap_b = b2.slider("Overlap B", min_value=0, max_value=100, value=20, step=5, key="f12_overlap_b")
+
+    if st.button("Run retrieval evaluation", type="primary", key="f12_run"):
+        with st.spinner("Evaluating retrieval settings on labeled queries…"):
+            data = api(
+                "POST",
+                "/foundations/retrieval-eval",
+                json={
+                    "dataset_path": dataset_path,
+                    "k": k,
+                    "chunk_size_a": chunk_a,
+                    "overlap_a": overlap_a,
+                    "chunk_size_b": chunk_b,
+                    "overlap_b": overlap_b,
+                },
+            )
+
+        if data:
+            sa = data.get("summary_a", {})
+            sb = data.get("summary_b", {})
+            winner = data.get("winner", "tie")
+            result_hint("Winner", "Setting A" if winner == "a" else ("Setting B" if winner == "b" else "Tie"), tone="success")
+
+            rows = [
+                {"setting": "A", "recall@k": sa.get("recall_at_k", 0.0), "mrr@k": sa.get("mrr_at_k", 0.0), "ndcg@k": sa.get("ndcg_at_k", 0.0)},
+                {"setting": "B", "recall@k": sb.get("recall_at_k", 0.0), "mrr@k": sb.get("mrr_at_k", 0.0), "ndcg@k": sb.get("ndcg_at_k", 0.0)},
+            ]
+            st.dataframe(rows, use_container_width=True)
+
+            case_rows = []
+            for case in data.get("cases", []):
+                case_rows.append(
+                    {
+                        "query": case.get("query", ""),
+                        "A_recall": case.get("a", {}).get("recall_at_k", 0.0),
+                        "A_mrr": case.get("a", {}).get("mrr_at_k", 0.0),
+                        "A_ndcg": case.get("a", {}).get("ndcg_at_k", 0.0),
+                        "B_recall": case.get("b", {}).get("recall_at_k", 0.0),
+                        "B_mrr": case.get("b", {}).get("mrr_at_k", 0.0),
+                        "B_ndcg": case.get("b", {}).get("ndcg_at_k", 0.0),
+                    }
+                )
+            st.markdown("### Per-query breakdown")
+            st.dataframe(case_rows, use_container_width=True)
+            result_hint("Interpretation", "Pick the setting with stronger MRR/nDCG unless recall requirements dictate otherwise.")
+
+
+# ─── F13 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f13":
+    st.title("F13 — Factuality and Citation Verification")
+    lesson_objective("F13", "Check whether claims are actually supported by evidence.", "you can flag unsupported claims and decide when to abstain")
+
+    concept_box(
+        title="Fluent text is not always faithful",
+        what="Paste an answer and evidence snippets to verify claim support.",
+        why="Grounded systems should abstain when claims cannot be supported by evidence.",
+        key_idea="answer -> claim split -> support check against evidence -> faithfulness score",
+    )
+    learner_flow(
+        "F13",
+        "Run factuality check",
+        "faithfulness score, unsupported claims, abstain recommendation",
+        "tighten claims or improve retrieval evidence and rerun",
+    )
+    learner_coach(
+        "Use the same answer text while changing evidence quality.",
+        "Pay attention to unsupported claims list before trusting summary quality.",
+        "Assuming confident tone means evidence-backed truth.",
+    )
+
+    answer_text = st.text_area(
+        "Answer text to verify",
+        value=(
+            "Log4j allows remote code execution. Patch 2.17.1 is available. "
+            "This exploit affects all network routers globally."
+        ),
+        key="f13_answer",
+        height=130,
+    )
+    evidence_blob = st.text_area(
+        "Evidence snippets (one per line)",
+        value=(
+            "CVE-2021-44228 allows remote code execution in Apache Log4j.\n"
+            "Patch to Log4j 2.17.1 or later is recommended."
+        ),
+        key="f13_evidence",
+        height=120,
+    )
+    threshold = st.slider("Support threshold", min_value=0.1, max_value=0.9, value=0.45, step=0.05, key="f13_threshold")
+
+    if st.button("Run factuality check", type="primary", key="f13_run"):
+        evidence_snippets = [line.strip() for line in evidence_blob.splitlines() if line.strip()]
+        with st.spinner("Evaluating claim support against evidence…"):
+            data = api(
+                "POST",
+                "/foundations/factuality-check",
+                json={
+                    "answer_text": answer_text,
+                    "evidence_snippets": evidence_snippets,
+                    "support_threshold": threshold,
+                },
+            )
+
+        if data:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Faithfulness", data.get("faithfulness_score", 0.0))
+            m2.metric("Supported", f"{data.get('supported_claims', 0)} / {data.get('total_claims', 0)}")
+            m3.metric("Abstain recommended", "Yes" if data.get("abstain_recommended") else "No")
+
+            unsupported = data.get("unsupported_claims", [])
+            if unsupported:
+                st.warning("Unsupported claims detected")
+                for claim in unsupported:
+                    st.markdown(f"- {claim}")
+
+            rows = []
+            for row in data.get("results", []):
+                rows.append(
+                    {
+                        "claim": row.get("claim", ""),
+                        "supported": row.get("supported", False),
+                        "support_score": row.get("support_score", 0.0),
+                        "evidence_excerpt": row.get("evidence_excerpt", ""),
+                    }
+                )
+            st.dataframe(rows, use_container_width=True)
+            result_hint("Interpretation", "When unsupported claims remain, revise output or abstain.", tone="warning")
+
+
+# ─── F14 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f14":
+    st.title("F14 — Prompt Lifecycle and Experiments")
+    lesson_objective("F14", "Compare prompt versions on fixed tasks and decide ship or hold.", "you can justify a winner from replay metrics")
+
+    concept_box(
+        title="Prompting as a managed lifecycle",
+        what="List prompt versions and compare them on a fixed replay set.",
+        why="Versioning and replay prevent subjective prompt changes from reaching production.",
+        key_idea="version A vs B on same items -> quality summary -> promote or hold",
+    )
+    learner_flow(
+        "F14",
+        "Compare versions",
+        "avg quality, per-item wins, and tie cases",
+        "promote only if gains are stable across items",
+    )
+    learner_coach(
+        "Keep the replay set fixed while changing prompt versions.",
+        "Check per-item outcomes before trusting overall average.",
+        "Promoting a prompt from one good example instead of a replay set.",
+    )
+
+    versions = api("GET", "/foundations/prompt-versions") or []
+    version_ids = [v.get("id", "") for v in versions if v.get("id")]
+    if not version_ids:
+        st.warning("No prompt versions found.")
+    else:
+        c1, c2 = st.columns(2)
+        version_a = c1.selectbox("Version A", version_ids, index=0, key="f14_a")
+        version_b = c2.selectbox("Version B", version_ids, index=min(1, len(version_ids) - 1), key="f14_b")
+
+        items_blob = st.text_area(
+            "Replay items (one per line)",
+            value="CVE-2021-44228\nCVE-2023-44487\nCVE-2014-0160",
+            key="f14_items",
+            height=110,
+        )
+        items = [x.strip() for x in items_blob.splitlines() if x.strip()]
+
+        if st.button("Compare prompt versions", type="primary", key="f14_run"):
+            with st.spinner("Running deterministic replay comparison…"):
+                data = api(
+                    "POST",
+                    "/foundations/prompt-versions/compare",
+                    json={
+                        "version_a": version_a,
+                        "version_b": version_b,
+                        "items": items,
+                    },
+                )
+
+            if data:
+                summary = data.get("summary", {})
+                m1, m2, m3 = st.columns(3)
+                m1.metric("A avg", summary.get("a_avg_quality", 0.0))
+                m2.metric("B avg", summary.get("b_avg_quality", 0.0))
+                m3.metric("Winner", data.get("overall_winner", "tie"))
+
+                st.dataframe(data.get("per_item", []), use_container_width=True)
+                result_hint("Interpretation", "Promote only if the winner is consistent across most items.")
+
+
+# ─── F15 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f15":
+    st.title("F15 — Privacy and Safe Logging")
+    lesson_objective("F15", "Redact sensitive content before model calls and logging.", "you can produce a safe log snapshot without leaking secrets")
+
+    concept_box(
+        title="Privacy controls are part of GenAI quality",
+        what="Detect and redact common sensitive patterns from input and nested logs.",
+        why="Safe systems preserve debugging value while preventing data leakage.",
+        key_idea="raw text -> redaction findings -> redacted text + safe log snapshot",
+    )
+    learner_flow(
+        "F15",
+        "Run privacy redaction",
+        "findings, changed flag, and sanitized payload",
+        "integrate this before any external model/tool calls",
+    )
+    learner_coach(
+        "Paste realistic strings containing emails, IPs, or tokens.",
+        "Validate both redacted text and safe nested snapshot output.",
+        "Only sanitizing display text but logging raw payloads elsewhere.",
+    )
+
+    text = st.text_area(
+        "Text to sanitize",
+        value="Contact ops@example.com from 10.20.30.40 using token=abc123 and key sk-demo-1234567890123456",
+        key="f15_text",
+        height=120,
+    )
+
+    if st.button("Run privacy redaction", type="primary", key="f15_run"):
+        with st.spinner("Redacting sensitive patterns…"):
+            data = api("POST", "/foundations/privacy/redact", json={"text": text})
+        if data:
+            m1, m2 = st.columns(2)
+            m1.metric("Changed", "Yes" if data.get("changed") else "No")
+            m2.metric("Findings", len(data.get("findings", [])))
+            st.markdown("### Redacted text")
+            st.code(data.get("redacted_text", ""))
+            st.markdown("### Safe log snapshot")
+            st.json(data.get("safe_log_snapshot", {}))
+            result_hint("Interpretation", "Redact before sending to LLMs and before persisting traces.")
+
+
+# ─── F16 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f16":
+    st.title("F16 — Hybrid Retrieval & Reranking")
+    lesson_objective("F16", "See how lexical, vector, and hybrid retrieval differ, and how reranking helps.", "you can pick a retrieval strategy from evidence")
+
+    concept_box(
+        title="Production RAG rarely uses one retriever",
+        what="Compare lexical, vector, and fused hybrid retrieval, with optional reranking.",
+        why="Hybrid retrieval plus reranking is the industry-standard path to better top-k quality.",
+        key_idea="lexical + vector -> fused score -> optional rerank -> better ranking",
+    )
+    learner_flow(
+        "F16",
+        "Run hybrid retrieval",
+        "how hybrid and rerank reorder the top hits vs single-mode",
+        "F12 to quantify which setting is objectively better",
+    )
+    learner_coach(
+        "Adjust alpha to shift lexical vs vector weight.",
+        "Compare the three result lists side by side, not just the top hit.",
+        "Assuming vector search always beats lexical for keyword-heavy queries.",
+    )
+
+    c1, c2 = st.columns(2)
+    query = c1.text_input("Query", value="log4j remote code execution patch urgency", key="f16_query")
+    top_k = c2.slider("Top-k", min_value=1, max_value=10, value=5, key="f16_topk")
+
+    c3, c4 = st.columns(2)
+    alpha = c3.slider("Alpha (lexical weight)", min_value=0.0, max_value=1.0, value=0.5, step=0.1, key="f16_alpha")
+    rerank = c4.checkbox("Apply reranking", value=True, key="f16_rerank")
+
+    if st.button("Run hybrid retrieval", type="primary", key="f16_run"):
+        with st.spinner("Running lexical, vector, and hybrid retrieval…"):
+            data = api(
+                "POST",
+                "/foundations/hybrid-retrieval",
+                json={"query": query, "alpha": alpha, "rerank": rerank, "top_k": top_k},
+            )
+        if data:
+            def _rows(hits):
+                return [
+                    {
+                        "chunk": h.get("chunk_id", "?"),
+                        "doc": h.get("doc_id", "?"),
+                        "lexical": h.get("lexical_score", 0.0),
+                        "vector": h.get("vector_score", 0.0),
+                        "fused": h.get("fused_score", 0.0),
+                        "rerank": h.get("rerank_score"),
+                        "score": h.get("score", 0.0),
+                    }
+                    for h in hits
+                ]
+
+            st.markdown("### Lexical")
+            st.dataframe(_rows(data.get("lexical_hits", [])), use_container_width=True)
+            st.markdown("### Vector")
+            st.dataframe(_rows(data.get("vector_hits", [])), use_container_width=True)
+            st.markdown("### Hybrid" + (" + rerank" if rerank else ""))
+            st.dataframe(_rows(data.get("hybrid_hits", [])), use_container_width=True)
+            result_hint("Interpretation", "Prefer the mode whose top hits best match the intended answer, then confirm with F12 metrics.")
+
+
+# ─── F21 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f21":
+    st.title("F21 — Fine-tune Advisor & Build-vs-Tune")
+    lesson_objective("F21", "Decide between prompting, RAG, and fine-tuning from task traits.", "you can justify an adaptation strategy and check dataset readiness")
+
+    concept_box(
+        title="Fine-tuning is a decision, not a default",
+        what="Get an approach recommendation from task traits, and validate a fine-tuning dataset.",
+        why="Choosing prompt/RAG/LoRA correctly saves cost and avoids premature training.",
+        key_idea="task traits -> ranked approaches; dataset -> readiness check",
+    )
+    learner_flow(
+        "F21",
+        "Get a recommendation and validate data",
+        "ranked approaches, reasons, and dataset readiness",
+        "F14 to version prompts or F12 to measure RAG quality first",
+    )
+    learner_coach(
+        "Change one trait at a time to see how the recommendation shifts.",
+        "Read the reasons, not just the top approach.",
+        "Fine-tuning for fresh-knowledge tasks that RAG solves more cheaply.",
+    )
+
+    tab_advisor, tab_data = st.tabs(["Approach Advisor", "Dataset Validator"])
+
+    with tab_advisor:
+        c1, c2 = st.columns(2)
+        data_volume = c1.number_input("Labeled examples", min_value=0, value=1500, step=100, key="f21_vol")
+        stability = c2.selectbox("Task stability", ["stable", "unstable"], key="f21_stab")
+        c3, c4 = st.columns(2)
+        fresh = c3.checkbox("Needs fresh knowledge", value=False, key="f21_fresh")
+        strict = c4.checkbox("Strict output format", value=True, key="f21_strict")
+        c5, c6 = st.columns(2)
+        latency = c5.checkbox("Latency sensitive", value=False, key="f21_lat")
+        domain = c6.selectbox("Domain shift", ["low", "high"], key="f21_domain")
+
+        if st.button("Recommend approach", type="primary", key="f21_run"):
+            data = api(
+                "POST",
+                "/foundations/adaptation/recommend",
+                json={
+                    "task_stability": stability,
+                    "data_volume": int(data_volume),
+                    "needs_fresh_knowledge": fresh,
+                    "strict_format": strict,
+                    "latency_sensitive": latency,
+                    "domain_shift": domain,
+                },
+            )
+            if data:
+                result_hint("Recommended", data.get("recommended", "?"), tone="success")
+                st.dataframe(data.get("ranked", []), use_container_width=True)
+                st.markdown("**Why:**")
+                for r in data.get("reasons", []):
+                    st.markdown(f"- {r}")
+                st.info(data.get("guidance", ""))
+
+    with tab_data:
+        st.caption("Paste JSONL-style records (one JSON object per line) with a messages array.")
+        default_blob = (
+            '{"messages":[{"role":"user","content":"Summarize CVE-2021-44228"},{"role":"assistant","content":"Log4Shell RCE"}]}\n'
+            '{"messages":[{"role":"user","content":"Summarize CVE-2021-44228"},{"role":"assistant","content":"Log4Shell RCE"}]}'
+        )
+        blob = st.text_area("Dataset (JSONL)", value=default_blob, key="f21_data", height=160)
+
+        if st.button("Validate dataset", type="primary", key="f21_validate"):
+            records = []
+            parse_error = None
+            for line in blob.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    import json as _json
+                    records.append(_json.loads(line))
+                except Exception as e:
+                    parse_error = str(e)
+                    break
+
+            if parse_error:
+                st.error(f"Parse error: {parse_error}")
+            else:
+                data = api("POST", "/foundations/finetune/validate", json={"records": records})
+                if data:
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Total", data.get("total", 0))
+                    m2.metric("Valid", data.get("valid", 0))
+                    m3.metric("Quality", data.get("quality_score", 0.0))
+                    m4.metric("Ready", "Yes" if data.get("ready_to_train") else "No")
+                    issues = data.get("issues", [])
+                    if issues:
+                        st.warning("Issues detected")
+                        for issue in issues:
+                            st.markdown(f"- {issue}")
+                    result_hint("Interpretation", "Fix duplicates and empty completions before training; ready requires clean, sufficient data.")
+
+
+# ─── F22 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f22":
+    st.title("F22 — Claude Model Selection & Context Engineering")
+    lesson_objective("F22", "Pick the right Claude tier (Haiku/Sonnet/Opus) from constraints.", "you can justify a model tier and an escalation path")
+
+    concept_box(
+        title="Model selection is an architecture decision",
+        what="Recommend a Claude tier from complexity, latency, cost, volume, and stakes.",
+        why="Right-sizing the model is a core Claude-architect skill: start cheap, escalate on evidence.",
+        key_idea="constraints -> ranked tiers -> start cheap, escalate when evals demand it",
+    )
+    learner_flow(
+        "F22",
+        "Recommend a model tier",
+        "recommended tier, ranking, and escalation hint",
+        "F21 to decide prompt vs RAG vs fine-tune for the same task",
+    )
+    learner_coach(
+        "Toggle one constraint at a time to see tier shifts.",
+        "Read the reasons and escalation hint, not just the top tier.",
+        "Defaulting to the most capable tier for every task regardless of cost.",
+    )
+
+    c1, c2 = st.columns(2)
+    complexity = c1.selectbox("Task complexity", ["low", "medium", "high"], index=1, key="f22_complexity")
+    high_stakes = c2.checkbox("High-stakes correctness", value=False, key="f22_stakes")
+    c3, c4, c5 = st.columns(3)
+    latency = c3.checkbox("Latency sensitive", value=False, key="f22_lat")
+    cost = c4.checkbox("Cost sensitive", value=False, key="f22_cost")
+    volume = c5.checkbox("High volume", value=False, key="f22_vol")
+
+    if st.button("Recommend model tier", type="primary", key="f22_run"):
+        data = api(
+            "POST",
+            "/foundations/model-select",
+            json={
+                "task_complexity": complexity,
+                "latency_sensitive": latency,
+                "cost_sensitive": cost,
+                "high_volume": volume,
+                "high_stakes": high_stakes,
+            },
+        )
+        if data:
+            result_hint("Recommended", data.get("recommended_name", "?"), tone="success")
+            st.dataframe(data.get("ranked", []), use_container_width=True)
+            st.markdown("**Why:**")
+            for r in data.get("reasons", []):
+                st.markdown(f"- {r}")
+            st.info(data.get("escalation_hint", ""))
+
+    st.divider()
+    st.caption("Claude bridge: map OpenAI-style messages to the Claude Messages API shape (system param + content blocks).")
+    if st.button("Show Claude message mapping", key="f22_map"):
+        data = api(
+            "POST",
+            "/claude/map-messages",
+            json={
+                "messages": [
+                    {"role": "system", "content": "You are a grounded CVE analyst."},
+                    {"role": "user", "content": "Summarize CVE-2021-44228."},
+                ]
+            },
+        )
+        if data:
+            st.json(data)
+
+
+# ─── F17 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f17":
+    st.title("F17 — Online Evaluation & Drift Monitoring")
+    lesson_objective("F17", "Monitor live quality/latency/cost and detect sustained drift.", "you can decide when to investigate or roll back")
+
+    concept_box(
+        title="Offline evals are not enough",
+        what="Record live samples into a rolling window, then compute drift and SLO breaches.",
+        why="Production quality decays silently; online monitoring catches regressions early.",
+        key_idea="rolling samples -> drift + SLO breach -> action recommendation",
+    )
+    learner_flow(
+        "F17",
+        "Add samples and compute drift",
+        "avg quality, breaches, and sustained-drift flag",
+        "F20 to gate rollout when drift breaches SLOs",
+    )
+    learner_coach(
+        "Add a batch of samples first, then request the drift report.",
+        "Distinguish a single bad sample from sustained drift.",
+        "Reacting to noise instead of a sustained downward trend.",
+    )
+
+    c1, c2, c3 = st.columns(3)
+    q = c1.slider("Sample quality", 0.0, 1.0, 0.6, 0.05, key="f17_q")
+    lat = c2.number_input("Latency ms", min_value=0.0, value=1200.0, key="f17_lat")
+    cost = c3.number_input("Cost USD", min_value=0.0, value=0.004, format="%.4f", key="f17_cost")
+
+    cc1, cc2 = st.columns(2)
+    if cc1.button("Add 5 samples", key="f17_add"):
+        for _ in range(5):
+            api("POST", "/reliability/drift/sample", json={"quality": q, "latency_ms": lat, "cost_usd": cost})
+        st.success("Added 5 samples to the rolling window.")
+
+    if cc2.button("Compute drift report", type="primary", key="f17_run"):
+        data = api("POST", "/reliability/drift/report", json={"baseline_quality": 0.8})
+        if data:
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Samples", data.get("n_samples", 0))
+            m2.metric("Avg quality", data.get("avg_quality", 0.0))
+            m3.metric("Drift", data.get("quality_drift", 0.0))
+            m4.metric("Action", data.get("recommended_action", "?"))
+            breaches = data.get("breaches", [])
+            if breaches:
+                st.warning("SLO breaches: " + ", ".join(breaches))
+            if data.get("sustained_drift"):
+                st.error("Sustained drift detected — investigate or roll back.")
+            result_hint("Interpretation", "Rollback/human-review is warranted when quality breaches SLO or drift is sustained.")
+
+
+# ─── F18 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f18":
+    st.title("F18 — Agent Permissions & Action Governance")
+    lesson_objective("F18", "Enforce least-privilege tool access and sandbox limits.", "you can explain why an action is allowed, denied, or needs approval")
+
+    concept_box(
+        title="Autonomy needs guardrails on actions",
+        what="Check a proposed tool action against role scope, sandbox limit, and approval rules.",
+        why="Least-privilege and sandboxing prevent unsafe agent actions in production.",
+        key_idea="role + tool + sandbox -> allow / deny / require approval",
+    )
+    learner_flow(
+        "F18",
+        "Check an action",
+        "allowed flag, effective sandbox, and reasons",
+        "combine with F20 rollback for full action safety",
+    )
+    learner_coach(
+        "Try the same tool across viewer, analyst, and responder roles.",
+        "Notice when execute mode requires human approval.",
+        "Granting execute scope where simulate would be sufficient.",
+    )
+
+    c1, c2 = st.columns(2)
+    role = c1.selectbox("Role", ["viewer", "analyst", "responder"], key="f18_role")
+    tool = c2.selectbox("Tool", ["fetch_nvd_data", "fetch_epss_score", "open_ticket", "apply_patch"], key="f18_tool")
+    c3, c4 = st.columns(2)
+    sandbox = c3.selectbox("Sandbox", ["read_only", "simulate", "execute"], index=2, key="f18_sandbox")
+    approved = c4.checkbox("Human approved", value=False, key="f18_approved")
+
+    if st.button("Check action", type="primary", key="f18_run"):
+        data = api(
+            "POST",
+            "/reliability/action/check",
+            json={"role": role, "tool": tool, "requested_sandbox": sandbox, "approved": approved},
+        )
+        if data:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Allowed", "Yes" if data.get("allowed") else "No")
+            m2.metric("Effective sandbox", data.get("effective_sandbox", "?"))
+            m3.metric("Needs approval", "Yes" if data.get("requires_approval") else "No")
+            st.markdown("**Reasons:** " + ", ".join(data.get("reasons", [])))
+            tone = "success" if data.get("allowed") else "warning"
+            result_hint("Interpretation", "Denied actions never execute; approvals gate sensitive execute-mode actions.", tone=tone)
+
+
+# ─── F19 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f19":
+    st.title("F19 — AI Supply Chain & Provenance")
+    lesson_objective("F19", "Verify integrity of prompts, model policies, and tool schemas.", "you can block promotion when artifacts fail integrity or evals")
+
+    concept_box(
+        title="Prompts and configs are supply-chain assets",
+        what="Verify tracked AI artifacts against recorded checksums and gate promotion.",
+        why="Tampering or drift in prompts/tools/configs introduces silent production risk.",
+        key_idea="manifest -> checksum verify -> promotion gate (integrity + evals)",
+    )
+    learner_flow(
+        "F19",
+        "Verify artifacts and test promotion",
+        "integrity status and promotion decision",
+        "F20 to stage the promoted change safely",
+    )
+    learner_coach(
+        "Verify first, then test promotion with eval pass/fail.",
+        "Read per-artifact verification, not just the overall flag.",
+        "Promoting changes without provenance or integrity checks.",
+    )
+
+    if st.button("Verify artifacts", type="primary", key="f19_verify"):
+        data = api("GET", "/reliability/supply-chain/verify")
+        if data:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Artifacts", data.get("n_artifacts", 0))
+            m2.metric("Violations", data.get("violations", 0))
+            m3.metric("Integrity", "OK" if data.get("integrity_ok") else "FAILED")
+            st.dataframe(data.get("artifacts", []), use_container_width=True)
+
+    eval_passed = st.checkbox("Evals passed", value=True, key="f19_eval")
+    if st.button("Test promotion gate", key="f19_promote"):
+        data = api("POST", "/reliability/supply-chain/promote", json={"eval_passed": eval_passed})
+        if data:
+            allowed = data.get("allowed", False)
+            result_hint(
+                "Promotion",
+                "Allowed" if allowed else "Blocked: " + ", ".join(data.get("reasons", [])),
+                tone="success" if allowed else "warning",
+            )
+
+
+# ─── F20 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f20":
+    st.title("F20 — Release Safety: Shadow, Canary & Rollback")
+    lesson_objective("F20", "Compare control vs treatment and decide promote/hold/rollback.", "you can trigger rollback from objective guardrails")
+
+    concept_box(
+        title="Ship changes with a blast-radius limit",
+        what="Compare canary treatment quality against control and apply a rollback guardrail.",
+        why="Staged rollout with rollback is the safe way to change prompts, models, or retrieval.",
+        key_idea="control vs treatment -> delta vs min_delta -> promote / hold / rollback",
+    )
+    learner_flow(
+        "F20",
+        "Evaluate a rollout",
+        "delta and decision (promote/hold/rollback)",
+        "wire this to F17 drift alerts for automatic rollback",
+    )
+    learner_coach(
+        "Enter realistic control and treatment quality scores.",
+        "Watch how a small regression trips the rollback guardrail.",
+        "Promoting on a noisy improvement without enough samples.",
+    )
+
+    c1, c2 = st.columns(2)
+    control_csv = c1.text_input("Control scores (comma)", value="0.80,0.82,0.79", key="f20_control")
+    treatment_csv = c2.text_input("Treatment scores (comma)", value="0.74,0.71,0.70", key="f20_treatment")
+    min_delta = st.slider("Min acceptable delta", -0.2, 0.0, -0.02, 0.01, key="f20_delta")
+
+    if st.button("Evaluate rollout", type="primary", key="f20_run"):
+        control = [float(x) for x in control_csv.split(",") if x.strip()]
+        treatment = [float(x) for x in treatment_csv.split(",") if x.strip()]
+        data = api(
+            "POST",
+            "/reliability/release/evaluate",
+            json={"control_scores": control, "treatment_scores": treatment, "min_delta": min_delta},
+        )
+        if data:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Control avg", data.get("control_avg", 0.0))
+            m2.metric("Treatment avg", data.get("treatment_avg", 0.0))
+            m3.metric("Delta", data.get("delta", 0.0))
+            decision = data.get("decision", "hold")
+            tone = "success" if decision == "promote" else ("warning" if decision == "hold" else "warning")
+            result_hint("Decision", decision.upper() + " (next stage: " + str(data.get("next_stage", "?")) + ")", tone=tone)
+
+
+# ─── F23 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f23":
+    st.title("F23 — Responsible-AI Evaluation")
+    lesson_objective("F23", "Screen output for policy violations and check outcome fairness.", "you can decide if a batch is safe to ship")
+
+    concept_box(
+        title="Safety is moderation plus fairness",
+        what="Run content moderation on outputs and a demographic-parity check on outcomes.",
+        why="Responsible-AI gates catch harmful content and biased outcomes before release.",
+        key_idea="texts -> moderation flags; outcomes -> 80% rule -> safe-to-ship",
+    )
+    learner_flow(
+        "F23",
+        "Run responsible-AI check",
+        "flagged categories and disparate-impact ratio",
+        "gate releases (F20) on this safe-to-ship signal",
+    )
+    learner_coach(
+        "Test clean and clearly harmful text side by side.",
+        "Read the disparate-impact ratio, not just per-group rates.",
+        "Shipping when moderation is clean but fairness fails the 80% rule.",
+    )
+
+    texts_blob = st.text_area(
+        "Output samples (one per line)",
+        value="This CVE analysis is clear and helpful\nYou stupid loser",
+        key="f23_texts",
+        height=110,
+    )
+    st.caption("Outcomes: group,positive per line (positive = 1/0)")
+    outcomes_blob = st.text_area(
+        "Outcomes (group,positive)",
+        value="group_a,1\ngroup_a,1\ngroup_b,0\ngroup_b,0",
+        key="f23_outcomes",
+        height=110,
+    )
+
+    if st.button("Run responsible-AI check", type="primary", key="f23_run"):
+        texts = [t.strip() for t in texts_blob.splitlines() if t.strip()]
+        outcomes = []
+        for line in outcomes_blob.splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) == 2:
+                outcomes.append({"group": parts[0], "positive": parts[1] in ("1", "true", "True")})
+
+        data = api("POST", "/foundations/responsible-ai", json={"texts": texts, "outcomes": outcomes})
+        if data:
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Texts flagged", f"{data.get('flagged_texts', 0)} / {data.get('n_texts', 0)}")
+            fairness = data.get("fairness", {})
+            m2.metric("Disparate impact", fairness.get("disparate_impact_ratio", 0.0))
+            m3.metric("Safe to ship", "Yes" if data.get("safe_to_ship") else "No")
+
+            flagged = [m for m in data.get("moderation", []) if m.get("flagged")]
+            if flagged:
+                st.warning("Flagged content")
+                st.dataframe(
+                    [{"text": m["text"], "categories": ", ".join(m["categories"])} for m in flagged],
+                    use_container_width=True,
+                )
+            st.markdown("**Group selection rates:** " + ", ".join(f"{g}={r}" for g, r in fairness.get("groups", {}).items()))
+            if not fairness.get("passes_80pct_rule", True):
+                st.error("Fails the 80% rule — potential disparate impact.")
+            result_hint("Interpretation", "Ship only when moderation is clean AND fairness passes the 80% rule.", tone="warning" if not data.get("safe_to_ship") else "success")
+
+
+# ─── F24 ──────────────────────────────────────────────────────────────────────
+
+elif page == "f24":
+    st.title("F24 — Semantic Caching")
+    lesson_objective("F24", "Serve cached answers for semantically similar queries.", "you can explain semantic vs exact-key caching tradeoffs")
+
+    concept_box(
+        title="Cache meaning, not just exact keys",
+        what="Replay queries through a similarity cache; near-duplicate wording reuses answers.",
+        why="Semantic caching cuts cost/latency where exact-key caches miss on paraphrases.",
+        key_idea="query terms -> cosine similarity -> hit if >= threshold",
+    )
+    learner_flow(
+        "F24",
+        "Simulate the cache",
+        "per-query hit/miss and overall hit rate",
+        "tune threshold to balance reuse vs false hits",
+    )
+    learner_coach(
+        "Include paraphrased duplicates to see semantic hits.",
+        "Watch how threshold changes hit rate and false positives.",
+        "Setting the threshold so low that unrelated queries hit.",
+    )
+
+    threshold = st.slider("Similarity threshold", 0.1, 1.0, 0.6, 0.05, key="f24_threshold")
+    pairs_blob = st.text_area(
+        "Query|response pairs (one per line)",
+        value=(
+            "What is CVE-2021-44228?|Log4Shell RCE\n"
+            "Tell me about CVE-2021-44228|Log4Shell RCE\n"
+            "How do I bake bread?|Use flour and yeast"
+        ),
+        key="f24_pairs",
+        height=130,
+    )
+
+    if st.button("Simulate semantic cache", type="primary", key="f24_run"):
+        pairs = []
+        for line in pairs_blob.splitlines():
+            if "|" in line:
+                q, r = line.split("|", 1)
+                pairs.append({"query": q.strip(), "response": r.strip()})
+
+        data = api("POST", "/foundations/semantic-cache", json={"pairs": pairs, "threshold": threshold})
+        if data:
+            stats = data.get("stats", {})
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Hits", stats.get("hits", 0))
+            m2.metric("Misses", stats.get("misses", 0))
+            m3.metric("Hit rate", stats.get("hit_rate", 0.0))
+            st.dataframe(data.get("trace", []), use_container_width=True)
+            result_hint("Interpretation", "Higher threshold = fewer but safer hits; lower = more reuse but risk of wrong answers.")
+
+
+# ─── T1 ───────────────────────────────────────────────────────────────────────
+
+elif page == "t1_incident":
+    st.title("T1 — Incident Response Ops")
+    lesson_objective("T1", "Transfer agentic patterns from CVE analysis to production incident triage.", "you can classify urgency and produce a structured first-hour response plan")
+
+    concept_box(
+        title="Same agent patterns, new domain",
+        what="Use alert text plus service context to classify severity and route the response track.",
+        why="This proves the learning stack is portable beyond CVEs into real SRE and incident workflows.",
+        key_idea="alert signals -> severity/track -> immediate actions and escalation targets",
+    )
+    learner_flow(
+        "T1",
+        "Analyse incident",
+        "severity, track, urgency, and action ordering",
+        "Repeat with different incidents to stress-test routing",
+    )
+    learner_coach(
+        "Keep one alert text constant while toggling customer impact.",
+        "Read reasoning and escalation targets, not severity alone.",
+        "Treating all degraded-service incidents as critical without context.",
+    )
+
+    c1, c2 = st.columns(2)
+    alert_text = c1.text_area(
+        "Incident alert text",
+        value="Payment API error rate surged; checkout failures in two regions; possible data exfiltration indicators.",
+        key="t1_alert_text",
+        height=140,
+    )
+    service_name = c2.text_input("Service name", value="payments-api", key="t1_service")
+
+    c3, c4 = st.columns(2)
+    customer_impact = c3.checkbox("Customer impact observed", value=True, key="t1_customer_impact")
+    signals_csv = c4.text_input(
+        "Signals (comma-separated)",
+        value="latency,error rate,checkout failures",
+        key="t1_signals",
+    )
+
+    if st.button("Analyse incident", type="primary", key="t1_run"):
+        signals = [s.strip() for s in signals_csv.split(",") if s.strip()]
+        with st.spinner("Classifying incident severity and response track…"):
+            data = api(
+                "POST",
+                "/themes/incident/analyse",
+                json={
+                    "alert_text": alert_text,
+                    "service_name": service_name,
+                    "customer_impact": customer_impact,
+                    "signals": signals,
+                },
+            )
+
+        if data:
+            rep = data.get("report", {})
+            sev = rep.get("severity", "Medium")
+            c1m, c2m, c3m, c4m = st.columns(4)
+            c1m.markdown(
+                f"**Severity**<br>{badge(sev, severity_colour(sev))}",
+                unsafe_allow_html=True,
+            )
+            c2m.metric("Track", rep.get("track", "?"))
+            c3m.metric("Urgency", f"{rep.get('urgency_minutes', '?')} min")
+            c4m.metric("Elapsed", f"{data.get('elapsed_ms', 0)} ms")
+
+            st.markdown(f"**Summary:** {rep.get('summary', '')}")
+            st.markdown(f"**Likely domains:** {', '.join(rep.get('likely_domains', []))}")
+
+            st.markdown("### Immediate actions")
+            for i, action in enumerate(rep.get("immediate_actions", []), 1):
+                st.markdown(f"{i}. {action}")
+
+            st.markdown("### Escalation targets")
+            for target in rep.get("escalation_targets", []):
+                st.markdown(f"- {target}")
+
+            result_hint("Interpretation", rep.get("reasoning", "Review alert quality and incident context."))
+
+
 # ─── GLOSSARY ─────────────────────────────────────────────────────────────────
 
 elif page == "glossary":
@@ -2377,6 +3674,11 @@ elif page == "a1":
         "L4 also uses tools, but the reasoning is hidden inside the model. "
         "ReAct surfaces it as a first-class output you can read, debug, and audit.",
         icon="💡",
+    )
+
+    st.caption(
+        "F7 bridge: see architectures/frameworks/a1_react_langgraph.py and "
+        "architectures/frameworks/MAPPING.md for a direct hand-rolled ReAct -> LangGraph mapping."
     )
 
     with st.expander("Pattern diagram", expanded=False):
