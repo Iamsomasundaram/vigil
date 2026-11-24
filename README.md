@@ -142,10 +142,43 @@ cp .env.example .env
 
 ---
 
+## Running the API and UI
+
+The FastAPI service wraps every level, and the Streamlit UI has one page per level.
+
+**Option A — Docker Compose (needed for L5/L6, which use PostgreSQL and Redis):**
+
+```bash
+cp .env.example .env            # Windows PowerShell: Copy-Item .env.example .env
+# edit .env and set OPENAI_API_KEY
+docker compose up --build
+```
+
+| Service | URL                           |
+| ------- | ----------------------------- |
+| API     | http://localhost:8000/docs    |
+| UI      | http://localhost:8501         |
+
+Run the test suite inside the same image: `docker compose --profile test run --rm test`.
+
+**Option B — locally, without Docker (L0–L4 pages only):**
+
+```bash
+pip install -e ".[full]"
+uvicorn vigil.api:app --reload          # terminal 1
+streamlit run ui/app.py                 # terminal 2
+```
+
+If you run the API locally, memory-backed endpoints (L5/L6) need `DATABASE_URL`
+pointing at your own PostgreSQL. The default (`...@db:5432/vigil`) only resolves
+inside Docker Compose.
+
+---
+
 ## Running Each Level
 
 Levels L0–L4 are independently runnable with just `pip install -e .`.
-L5 and L6 require PostgreSQL — use Docker Compose (see below) or supply your
+L5 and L6 require PostgreSQL — use Docker Compose (see [Running the API and UI](#running-the-api-and-ui)) or supply your
 own `DATABASE_URL`.
 
 ```bash
