@@ -251,6 +251,22 @@ python levels/l5_memory.py CVE-2021-44228
 python levels/l6_autonomous.py --scan CVE-2021-44228
 ```
 
+### What you should see
+
+Model text differs on every run, so compare the *shape* of the output, not the wording.
+
+| Level | Command prints                                                                                                   | Sanity check                                                      |
+| ----- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| L0    | A `VIGIL — Level 0` header with the model and CVE, then one panel titled with the CVE ID                         | The panel answers the five numbered questions in the prompt       |
+| L1    | Three stages in order: CVE summary, risk assessment, remediation plan                                            | Each stage reuses facts from the one before                       |
+| L2    | One card per specialist agent, then a moderator's final verdict                                                  | Wall time is about one agent's latency, not four added together   |
+| L3    | A routing decision first, then the result of one of four tracks: critical, standard patch, low risk, human review | A famous critical CVE should not land in the low-risk track       |
+| L4    | The same analysis, grounded in live NVD and EPSS lookups and your asset inventory in `data/assets.json`          | The scores shown match what NVD and EPSS return today             |
+| L5–L6 | Memory and autonomous-monitor output backed by PostgreSQL                                                        | A second run for the same CVE can draw on the first               |
+
+Token usage per run is available through each level's `get_usage()`. To see an example of the expected structure
+without spending anything, open the matching page in the Streamlit UI or read the level's module docstring.
+
 Try different CVEs to see how the outputs vary:
 
 - `CVE-2021-44228` — Log4Shell (critical, widely known)
