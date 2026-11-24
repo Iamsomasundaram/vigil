@@ -14,6 +14,22 @@ More importantly, Vigil is a **learning project**. Each level introduces one new
 
 ---
 
+## Start Here (15 minutes)
+
+New to Vigil? Follow this order. Steps 1–3 need no API key.
+
+1. **Install** — create a virtual environment and `pip install -e ".[full,dev,foundations,notebooks]"` (see [Setup](#setup)).
+2. **Check it works** — `python -m pytest -q`. Every test stubs the LLM, so this runs offline.
+3. **Poke at concepts** — `jupyter lab notebooks/`, then open `00_setup.ipynb`. These run without a key.
+4. **Add a key** — copy `.env.example` to `.env` and set `OPENAI_API_KEY` (or see [Run without OpenAI](#run-without-openai-free--local)).
+5. **Run Level 0** — `python levels/l0_single_call.py CVE-2021-44228`, then read the file top to bottom.
+6. **Continue L1 → L4**, doing the matching [exercise](exercises/README.md) after each level.
+7. **Explore the UI** (optional) — see [Running the API and UI](#running-the-api-and-ui).
+
+L5 and L6 need PostgreSQL, so start them only once L0–L4 are comfortable.
+
+---
+
 ## The Learning Path
 
 | Level | File                       | Concept                             | What it does                                                          |
