@@ -1,6 +1,6 @@
 # R1 — Guardrails & Prompt-Injection Defense
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** 3 — Reliability & Safety
 - **Module:** `reliability/r1_guardrails.py`
 - **Depends on:** L4 (tool use — that's where untrusted external text enters)
@@ -125,11 +125,11 @@ class GuardedVerdict(_Base):
 
 ## Acceptance Criteria
 
-- [ ] `--demo` shows the injection succeeding on naive L4 and blocked on R1.
-- [ ] All four guardrail layers are individually unit-tested.
-- [ ] `GuardedVerdict` always validates; invalid model output is rejected, not trusted.
-- [ ] Follows repo conventions (banner, `get_usage()`, `rich`, env config).
-- [ ] No real network/LLM calls in tests.
+- [x] `--demo` shows the injection succeeding on naive L4 and blocked on R1.
+- [x] All four guardrail layers are individually unit-tested.
+- [x] `GuardedVerdict` always validates; invalid model output is rejected, not trusted.
+- [x] Follows repo conventions (banner, `get_usage()`, `rich`, env config).
+- [x] No real network/LLM calls in tests.
 
 ## Open Questions
 
@@ -137,3 +137,8 @@ class GuardedVerdict(_Base):
   always-on; LLM classifier opt-in via flag to keep base install cheap.)
 - Where should policy invariants (KEV cannot be "None") live — in `models.py`
   validators or a dedicated `policies.py`?
+
+
+
+
+

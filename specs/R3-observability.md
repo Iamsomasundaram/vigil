@@ -1,6 +1,6 @@
 # R3 — Observability & Tracing
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** 3 — Reliability & Safety
 - **Module:** `reliability/r3_observability.py`
 - **Depends on:** L4 (multi-step tool loop is where traces matter)
@@ -106,10 +106,10 @@ class Trace(_Base):
 
 ## Acceptance Criteria
 
-- [ ] `--trace` prints a correct nested span tree with timings and cost.
-- [ ] One correlation id spans an entire request end-to-end.
-- [ ] OTLP export works behind the `otel` extra and is optional.
-- [ ] Conventions followed; no real calls in tests.
+- [x] `--trace` prints a correct nested span tree with timings and cost.
+- [x] One correlation id spans an entire request end-to-end.
+- [x] OTLP export works behind the `otel` extra and is optional.
+- [x] Conventions followed; no real calls in tests.
 
 ## Open Questions
 
@@ -122,3 +122,8 @@ class Trace(_Base):
 - Add real span instrumentation inside `levels/l4_tool_use.py` and
   `levels/l6_autonomous.py` internals (per-LLM-turn, per-tool-call, per-decision),
   beyond wrapper-level tracing.
+
+
+
+
+

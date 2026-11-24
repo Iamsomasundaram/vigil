@@ -1,6 +1,6 @@
 # F1 — Real Embeddings & Vector RAG (upgrades E1 / L5)
 
-- **Status:** Implemented
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — makes Axis-1 semantic memory real
 - **Extends / Fixes:** `levels/l5_memory.py`, spec [E1](E1-semantic-memory.md)
 - **Depends on:** L5 (episodic memory + PostgreSQL), E1 (semantic_recall scaffold)
@@ -104,13 +104,16 @@ class RecalledMemory(_Base):
 
 ## Acceptance Criteria
 
-- [ ] `VIGIL_EMBED_MODE=openai` produces real `text-embedding-3-small` vectors.
-- [ ] Default `local` mode keeps all existing tests green and works offline.
-- [ ] A semantically similar prior (different wording) is recalled above threshold in openai mode.
-- [ ] pgvector path used when available; JSONB+cosine path otherwise — both return ranked matches.
-- [ ] Embedding failures fall back, never crash. Conventions + token tracking followed.
+- [x] `VIGIL_EMBED_MODE=openai` produces real `text-embedding-3-small` vectors.
+- [x] Default `local` mode keeps all existing tests green and works offline.
+- [x] A semantically similar prior (different wording) is recalled above threshold in openai mode.
+- [x] pgvector path used when available; JSONB+cosine path otherwise — both return ranked matches.
+- [x] Embedding failures fall back, never crash. Conventions + token tracking followed.
 
 ## Open Questions
 
 - Pin `text-embedding-3-small` (1536) vs `-large` (3072)? Proposal: `-small` (cost/quality fit).
 - pgvector index: HNSW (recall quality, tiny dataset → negligible cost). Confirmed.
+
+
+

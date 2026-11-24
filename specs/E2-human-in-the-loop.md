@@ -1,6 +1,6 @@
 # E2 — Human-in-the-Loop Approval Gates (extends A2)
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Extension of Axis 2 (Orchestration) — extends A2 Plan-and-Execute
 - **Extends:** `architectures/a2_plan_execute.py`
 - **Depends on:** A2 (plan/execute separation)
@@ -111,10 +111,10 @@ class PausedRun(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Agent demonstrably halts and waits for a human decision before high-risk steps.
-- [ ] All decision types work and are recorded with actor + rationale.
-- [ ] Sync (CLI) and async (API) resume paths both function.
-- [ ] Conventions followed; tests stub LLM and skip DB gracefully.
+- [x] Agent demonstrably halts and waits for a human decision before high-risk steps.
+- [x] All decision types work and are recorded with actor + rationale.
+- [x] Sync (CLI) and async (API) resume paths both function.
+- [x] Conventions followed; tests stub LLM and skip DB gracefully.
 
 ## Open Questions
 
@@ -122,3 +122,8 @@ class PausedRun(_Base):
   in-memory for CLI, DB for API.
 - Timeout/expiry for an unanswered gate? Proposal: configurable; default none for the
   learning project.
+
+
+
+
+

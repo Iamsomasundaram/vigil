@@ -22,9 +22,42 @@ More importantly, Vigil is a **learning project**. Each level introduces one new
 | L1    | `levels/l1_chain.py`       | Prompt chaining + structured output | 3-step chain: summarise → assess risk → remediation plan              |
 | L2    | `levels/l2_parallel.py`    | Parallel agent fan-out              | 4 specialist agents run simultaneously, moderator synthesises         |
 | L3    | `levels/l3_routing.py`     | Conditional routing                 | System classifies CVE type, activates the right specialist track      |
-| L4    | `levels/l4_tools.py`       | Real tool use                       | Queries NVD, EPSS, and your asset inventory                           |
+| L4    | `levels/l4_tool_use.py`    | Real tool use                       | Queries NVD, EPSS, and your asset inventory                           |
 | L5    | `levels/l5_memory.py`      | Memory + feedback loops             | Tracks remediation, follows up, learns from history                   |
 | L6    | `levels/l6_autonomous.py`  | Fully autonomous                    | Monitors CVE feeds, assigns tickets, verifies fixes — no human needed |
+
+> L4b (`levels/l4b_multimodal.py`) adds vision + PDF advisory parsing.
+
+---
+
+## Beyond the Levels
+
+The levels are Axis 1 (capability). Three more axes build on them — each module has
+a spec in [`specs/`](specs/README.md) and a live page in the Streamlit UI.
+
+| Track                      | Range  | What it teaches                                                                                                                                                                                                                                                                   |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architectures**          | A1–A4  | ReAct, Plan-and-Execute, Reflection, Multi-Agent                                                                                                                                                                                                                                  |
+| **Reliability & Safety**   | R1–R5  | Guardrails, evaluation, observability, resilience, cost control                                                                                                                                                                                                                   |
+| **Axis Extensions**        | E1–E4  | Semantic memory, human-in-the-loop, agent comms, inference layer                                                                                                                                                                                                                  |
+| **Foundations & Frontier** | F1–F24 | Embeddings/RAG, multimodal, tokenization, prompting, MCP, retrieval quality/metrics, factuality, prompt lifecycle, privacy, hybrid RAG + reranking, drift, action governance, supply chain, release safety, fine-tuning, Claude model selection, responsible-AI, semantic caching |
+| **Theme Tracks**           | T1     | Domain portability — incident-response ops beyond CVEs                                                                                                                                                                                                                            |
+
+Full index and status: [`specs/README.md`](specs/README.md) and
+[`specs/progress-board.md`](specs/progress-board.md).
+
+---
+
+## Documentation
+
+A browsable, self-contained HTML reference (structure, key modules & functions,
+all API endpoints, and the spec index) is generated from the code:
+
+```bash
+python docs/build_docs.py     # regenerates docs/index.html
+```
+
+Open [`docs/index.html`](docs/index.html) in a browser.
 
 ---
 
@@ -74,6 +107,18 @@ pip install -e ".[ui]"
 #   Everything at once (recommended for exploring all levels):
 pip install -e ".[full]"
 
+#   Foundations modules (F4/F6):
+pip install -e ".[foundations]"
+
+#   Framework bridge (F7, optional):
+pip install -e ".[frameworks]"
+
+#   MCP tool server (F8, optional):
+pip install -e ".[mcp]"
+
+#   Claude Messages API bridge (optional):
+pip install -e ".[claude]"
+
 # 4. Set your API key
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
@@ -122,20 +167,20 @@ Try different CVEs to see how the outputs vary:
 
 ```
 vigil/
-├── vigil/
-│   ├── __init__.py       learning path overview
-│   └── models.py         shared Pydantic schemas (used from L2+)
-├── levels/
-│   ├── l0_single_call.py  ← start here
-│   ├── l1_chain.py
-│   ├── l2_parallel.py
-│   ├── l3_routing.py
-│   ├── l4_tool_use.py
-│   ├── l5_memory.py       requires PostgreSQL
-│   └── l6_autonomous.py   requires PostgreSQL
-├── data/
-│   └── assets.json        sample asset inventory (used from L3+)
-├── .env.example
+├── vigil/            API, shared models, inference seam, pricing, cache, Claude bridge
+├── levels/           L0–L6 capability levels
+│   ├── foundations/  F-series modules (tokenization, retrieval, factuality, …)
+│   └── themes/       T-series domain tracks (incident ops)
+├── architectures/    A1–A4 orchestration patterns (+ frameworks/ bridge)
+├── reliability/      R1–R5 + governance/ops modules (drift, supply chain, …)
+├── vigil_mcp/        MCP tool server + client path (see vigil_mcp/README.md)
+├── ui/               Streamlit learning UI
+├── specs/            One spec per feature + progress board
+├── tests/            Full pytest suite
+├── docs/             HTML documentation generator + output
+├── notebooks/        Interactive, offline-friendly notebooks
+├── exercises/        Graded "try it yourself" challenges
+├── data/             Sample assets, eval sets, manifests
 └── pyproject.toml
 ```
 

@@ -1,6 +1,6 @@
 # F2 — Multimodal Inputs: Vision & Document Parsing
 
-- **Status:** Implemented
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — new capability dimension
 - **New module:** `levels/l4b_multimodal.py` (sits beside L4 tool use)
 - **Depends on:** L1 (structured output), L4 (tool/grounding patterns)
@@ -83,12 +83,15 @@ class AdvisoryExtract(_Base):
 
 ## Acceptance Criteria
 
-- [ ] An advisory screenshot yields a populated `AdvisoryExtract`.
-- [ ] A PDF bulletin yields a populated `AdvisoryExtract` with grounding quotes.
-- [ ] Non-vision model / missing parser degrade gracefully.
-- [ ] Token tracking + conventions followed; UI page works.
+- [x] An advisory screenshot yields a populated `AdvisoryExtract`.
+- [x] A PDF bulletin yields a populated `AdvisoryExtract` with grounding quotes.
+- [x] Non-vision model / missing parser degrade gracefully.
+- [x] Token tracking + conventions followed; UI page works.
 
 ## Open Questions
 
 - Pin a vision model name via env (`OPENAI_VISION_MODEL`, default `gpt-4o-mini`)?
 - Cap PDF size / pages to control cost — propose first 8 pages.
+
+
+

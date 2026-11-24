@@ -1,6 +1,6 @@
 # R2 — Agent Evaluation & Regression Testing
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** 3 — Reliability & Safety
 - **Module:** `reliability/r2_evaluation.py`
 - **Depends on:** L1–L4 (the things being evaluated)
@@ -113,13 +113,18 @@ class Scorecard(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Running against L2/L3 produces a `Scorecard` with all three metric types.
-- [ ] A deliberately worsened prompt produces a detectable regression vs baseline.
-- [ ] Judge rubric is versioned and referenced in the report.
-- [ ] Conventions followed; tests use stubs, no real calls.
+- [x] Running against L2/L3 produces a `Scorecard` with all three metric types.
+- [x] A deliberately worsened prompt produces a detectable regression vs baseline.
+- [x] Judge rubric is versioned and referenced in the report.
+- [x] Conventions followed; tests use stubs, no real calls.
 
 ## Open Questions
 
 - Should the judge use a stronger model than the target (`gpt-4o` judging
   `gpt-4o-mini`)? Proposal: yes, configurable via `OPENAI_JUDGE_MODEL`.
 - Baseline storage: committed JSON vs. DB table? Proposal: JSON for portability.
+
+
+
+
+

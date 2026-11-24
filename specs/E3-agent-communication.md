@@ -1,6 +1,6 @@
 # E3 — Agent-to-Agent Communication (extends A4)
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Extension of Axis 2 (Orchestration) — extends A4 Multi-Agent
 - **Extends:** `architectures/a4_multi_agent.py`
 - **Depends on:** A4 (orchestrator + parallel specialists)
@@ -111,11 +111,11 @@ class Consensus(_Base):
 
 ## Acceptance Criteria
 
-- [ ] All three topologies run and produce a `Consensus` with a transcript.
-- [ ] Round limits prevent unbounded loops.
-- [ ] Disagreement is surfaced, not averaged away (debate mode).
-- [ ] Default behavior preserves current A4 fan-out.
-- [ ] Conventions followed; tests stub LLM, no real calls.
+- [x] All three topologies run and produce a `Consensus` with a transcript.
+- [x] Round limits prevent unbounded loops.
+- [x] Disagreement is surfaced, not averaged away (debate mode).
+- [x] Default behavior preserves current A4 fan-out.
+- [x] Conventions followed; tests stub LLM, no real calls.
 
 ## Open Questions
 
@@ -123,3 +123,8 @@ class Consensus(_Base):
   same model to keep cost down.
 - Blackboard convergence signal — agent self-declares "nothing to add" vs. a
   controller checks for no-change round? Proposal: no-change round terminates.
+
+
+
+
+

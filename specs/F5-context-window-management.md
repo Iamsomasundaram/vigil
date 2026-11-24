@@ -1,6 +1,6 @@
 # F5 — Context-Window Management (extends L5)
 
-- **Status:** Implemented
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — extends Axis-1 memory
 - **Extends:** `levels/l5_memory.py` (memory context builder)
 - **Depends on:** L5 (memory), F4 (token counting), R5 (budgets)
@@ -84,12 +84,15 @@ class ContextBudgetReport(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Memory context respects a hard token budget.
-- [ ] Older history is summarized, not dropped silently; recent stays verbatim.
-- [ ] Consolidation reduces repeat cost; report flags are correct.
-- [ ] Conventions + token tracking followed; UI meter renders.
+- [x] Memory context respects a hard token budget.
+- [x] Older history is summarized, not dropped silently; recent stays verbatim.
+- [x] Consolidation reduces repeat cost; report flags are correct.
+- [x] Conventions + token tracking followed; UI meter renders.
 
 ## Open Questions
 
 - Default budget value and "recent K verbatim" (propose budget 1500, K=2).
 - Summarize per-entry or batch? Proposal: batch the overflow into one call.
+
+
+

@@ -1,6 +1,6 @@
 # F3 — Multi-Provider & Local Models (extends E4)
 
-- **Status:** Implemented
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — extends Axis-3 inference layer
 - **Extends:** `vigil/inference.py` (E4 inference/fallback layer)
 - **Depends on:** E4 (policy + fallback chain), R5 (cost control)
@@ -85,12 +85,15 @@ class InferenceComparison(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Same level runs against OpenAI and Ollama by switching policy only.
-- [ ] JSON output works on a non-schema model via fallback coercion.
-- [ ] Comparison table shows latency/cost/quality side by side.
-- [ ] Degrades clearly if Ollama isn't running; conventions followed.
+- [x] Same level runs against OpenAI and Ollama by switching policy only.
+- [x] JSON output works on a non-schema model via fallback coercion.
+- [x] Comparison table shows latency/cost/quality side by side.
+- [x] Degrades clearly if Ollama isn't running; conventions followed.
 
 ## Open Questions
 
 - Default local model (`llama3.1:8b` vs `qwen2.5:7b`)? Proposal: `llama3.1:8b`.
 - Where to enforce capability degradation — in `acomplete_json` only, or globally?
+
+
+

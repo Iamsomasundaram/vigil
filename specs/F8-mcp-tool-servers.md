@@ -1,8 +1,8 @@
 # F8 — Model Context Protocol (MCP) Tool Servers
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — modern tool interoperability
-- **New module:** `mcp/` (server) + client wiring in `levels/l4_tool_use.py`
+- **New module:** `vigil_mcp/` (server) + client wiring in `levels/l4_tool_use.py`
 - **Depends on:** L4 (function/tool calling)
 
 ---
@@ -22,7 +22,7 @@ capability negotiation, transport (stdio), and why MCP decouples tools from agen
 
 ## Goals
 
-- **MCP server** — `mcp/vigil_server.py` exposing `fetch_nvd_data` and `fetch_epss_score`
+- **MCP server** — `vigil_mcp/vigil_server.py` exposing `fetch_nvd_data` and `fetch_epss_score`
   as MCP tools (stdio transport).
 - **MCP client path** — L4 can source its tool list from the MCP server (discovery) and
   route calls through it, behind a `--mcp` flag / env toggle.
@@ -43,7 +43,7 @@ mcp (--mcp):       agent ── list_tools() ─► MCP client ─► stdio ─�
 
 ## Proposed Files
 
-- **New** `mcp/__init__.py`, `mcp/vigil_server.py` — MCP server exposing the two tools.
+- **New** `vigil_mcp/__init__.py`, `vigil_mcp/vigil_server.py` — MCP server exposing the two tools.
 - **Edit** `levels/l4_tool_use.py` — optional MCP-sourced tool discovery + dispatch.
 - **Edit** `vigil/api.py` — `GET /l4/tools?source=mcp` to show discovered tools.
 - **Edit** `pyproject.toml` — extra `mcp = ["mcp>=1.0"]`.
@@ -62,7 +62,7 @@ class DiscoveredTool(_Base):
 
 ## API & CLI Surface
 
-- CLI: `python mcp/vigil_server.py` (run server); `python levels/l4_tool_use.py CVE-... --mcp`.
+- CLI: `python vigil_mcp/vigil_server.py` (run server); `python levels/l4_tool_use.py CVE-... --mcp`.
 - `GET /l4/tools?source=mcp` → `list[DiscoveredTool]`.
 - Env: `VIGIL_TOOL_SOURCE=inline|mcp`.
 
@@ -75,10 +75,13 @@ class DiscoveredTool(_Base):
 
 ## Acceptance Criteria
 
-- [ ] NVD/EPSS tools are reachable over MCP via discovery.
-- [ ] L4 yields equivalent results inline vs MCP.
-- [ ] MCP deps isolated; inline remains default; tests skip without extra.
+- [x] NVD/EPSS tools are reachable over MCP via discovery.
+- [x] L4 yields equivalent results inline vs MCP.
+- [x] MCP deps isolated; inline remains default; tests skip without extra.
 
 ## Open Questions
 
 - stdio only for now (simplest), or also a local HTTP transport? Proposal: stdio first.
+
+
+

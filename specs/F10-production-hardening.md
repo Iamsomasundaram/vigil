@@ -1,6 +1,6 @@
 # F10 — Production Hardening: Auth, Rate Limiting, Caching, Faithfulness Eval
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Foundations meets Axis-3 (Reliability) — production gaps
 - **Edits:** `vigil/api.py`, `reliability/r5_cost_control.py`, `reliability/r2_evaluation.py`
 - **Depends on:** R2 (evals), R5 (cost/caching), L4 (grounding)
@@ -85,12 +85,15 @@ class FaithfulnessScore(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Auth + rate limiting enforce when configured, open by default locally.
-- [ ] Cache serves repeat tool/analyse calls and is visible in responses.
-- [ ] R2 scorecard includes a faithfulness metric that catches ungrounded output.
-- [ ] Conventions followed; degrades cleanly without Redis.
+- [x] Auth + rate limiting enforce when configured, open by default locally.
+- [x] Cache serves repeat tool/analyse calls and is visible in responses.
+- [x] R2 scorecard includes a faithfulness metric that catches ungrounded output.
+- [x] Conventions followed; degrades cleanly without Redis.
 
 ## Open Questions
 
 - Rate-limit identity: API key first, fall back to client IP? Proposal: yes.
 - Cache key: hash of (endpoint, cve_id, model, prompt-version)? Proposal: yes.
+
+
+

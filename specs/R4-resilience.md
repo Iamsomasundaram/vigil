@@ -1,6 +1,6 @@
 # R4 — Resilience in the Agent Loop
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** 3 — Reliability & Safety
 - **Module:** `reliability/r4_resilience.py`
 - **Depends on:** L4 (external tool calls) and L6 (long-running loop)
@@ -101,14 +101,19 @@ class ResilientVerdict(_Base):
 
 ## Acceptance Criteria
 
-- [ ] `--chaos` reliably reproduces timeout/500/flaky behavior for the demo.
-- [ ] All four primitives are independently unit-tested.
-- [ ] Degraded runs never fabricate missing data; they flag it.
-- [ ] L6 scan idempotency verified.
-- [ ] Conventions followed; tests use stubs, no real calls.
+- [x] `--chaos` reliably reproduces timeout/500/flaky behavior for the demo.
+- [x] All four primitives are independently unit-tested.
+- [x] Degraded runs never fabricate missing data; they flag it.
+- [x] L6 scan idempotency verified.
+- [x] Conventions followed; tests use stubs, no real calls.
 
 ## Open Questions
 
 - Circuit-breaker state: per-process only, or persisted in Redis for L6 restarts?
   Proposal: in-process default, optional Redis backing behind the `api` extra.
 - Confidence formula when multiple sources degrade — linear penalty vs. weighted?
+
+
+
+
+

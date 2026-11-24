@@ -1,6 +1,6 @@
 # F6 — Prompt Engineering Techniques
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy)
 - **New module:** `levels/foundations/prompting.py` + notebook
 - **Depends on:** L0/L1 (system prompts, structured output)
@@ -76,10 +76,13 @@ class PromptComparison(_Base):
 
 ## Acceptance Criteria
 
-- [ ] One task runs under 4 techniques with a comparison of output/tokens/cost.
-- [ ] Templates inject variables and fence untrusted data.
-- [ ] Notebook runs; UI page renders the comparison.
+- [x] One task runs under 4 techniques with a comparison of output/tokens/cost.
+- [x] Templates inject variables and fence untrusted data.
+- [x] Notebook runs; UI page renders the comparison.
 
 ## Open Questions
 
 - Number of few-shot exemplars and self-consistency samples (propose 3 and 5).
+
+
+

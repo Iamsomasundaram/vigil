@@ -1,6 +1,6 @@
 # R5 — Cost Control & Token Economics
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** 3 — Reliability & Safety
 - **Module:** `reliability/r5_cost_control.py`
 - **Depends on:** L0+ (token tracking already exists everywhere); pairs with E4 (model routing)
@@ -111,10 +111,10 @@ class CostReport(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Over-budget run is short-circuited with a clean partial result, not a crash.
-- [ ] Cache hit demonstrably costs $0 and is reflected in the report.
-- [ ] Report attributes spend by feature, CVE, and model.
-- [ ] Conventions followed; tests use stubs, no real calls.
+- [x] Over-budget run is short-circuited with a clean partial result, not a crash.
+- [x] Cache hit demonstrably costs $0 and is reflected in the report.
+- [x] Report attributes spend by feature, CVE, and model.
+- [x] Conventions followed; tests use stubs, no real calls.
 
 ## Open Questions
 
@@ -122,3 +122,8 @@ class CostReport(_Base):
   `vigil/pricing.py` map keyed by model (also used by E4) — minor refactor.
 - Cache invalidation for live data (NVD/EPSS change daily). Proposal: TTL on tool
   results, no TTL on pure-LLM transforms.
+
+
+
+
+

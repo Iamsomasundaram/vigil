@@ -55,18 +55,32 @@ implementation stops short of production patterns.
 
 ### Axis 4 — Foundations & Frontier (GenAI literacy gaps)
 
-| Spec                                    | Module / Target                      | Concept                                              | Priority |
-| --------------------------------------- | ------------------------------------ | ---------------------------------------------------- | -------- |
-| [F1](F1-real-embeddings-rag.md)         | `levels/l5_memory.py` (fix E1)       | Real embeddings + vector RAG (replaces fake hashing) | **1**    |
-| [F2](F2-multimodal.md)                  | `levels/l4b_multimodal.py`           | Vision + PDF/document parsing                        | **2**    |
-| [F3](F3-multi-provider-local-models.md) | `vigil/inference.py` (extends E4)    | Multi-provider + local/open models (Ollama)          | **3**    |
-| [F4](F4-tokenization.md)                | `levels/foundations/tokenization.py` | Tokenization & context economics (`tiktoken`)        |          |
-| [F5](F5-context-window-management.md)   | `levels/l5_memory.py` (extends L5)   | Context-window mgmt: summarize/truncate/compact      | **4**    |
-| [F6](F6-prompt-engineering.md)          | `levels/foundations/prompting.py`    | Prompt techniques: zero/few-shot, CoT, templates     |          |
-| [F7](F7-framework-bridge.md)            | `architectures/frameworks/`          | Framework bridge: LangGraph / CrewAI / LlamaIndex    |          |
-| [F8](F8-mcp-tool-servers.md)            | `mcp/vigil_server.py`                | Model Context Protocol (MCP) tool servers            |          |
-| [F9](F9-learning-scaffolding.md)        | `notebooks/`, `exercises/`           | Interactive notebooks + graded exercises             | **5**    |
-| [F10](F10-production-hardening.md)      | `vigil/api.py`, R2/R5                | Auth, rate limiting, caching, faithfulness eval      |          |
+| Spec                                       | Module / Target                           | Concept                                               | Priority |
+| ------------------------------------------ | ----------------------------------------- | ----------------------------------------------------- | -------- |
+| [F1](F1-real-embeddings-rag.md)            | `levels/l5_memory.py` (fix E1)            | Real embeddings + vector RAG (replaces fake hashing)  | **1**    |
+| [F2](F2-multimodal.md)                     | `levels/l4b_multimodal.py`                | Vision + PDF/document parsing                         | **2**    |
+| [F3](F3-multi-provider-local-models.md)    | `vigil/inference.py` (extends E4)         | Multi-provider + local/open models (Ollama)           | **3**    |
+| [F4](F4-tokenization.md)                   | `levels/foundations/tokenization.py`      | Tokenization & context economics (`tiktoken`)         |          |
+| [F5](F5-context-window-management.md)      | `levels/l5_memory.py` (extends L5)        | Context-window mgmt: summarize/truncate/compact       | **4**    |
+| [F6](F6-prompt-engineering.md)             | `levels/foundations/prompting.py`         | Prompt techniques: zero/few-shot, CoT, templates      |          |
+| [F7](F7-framework-bridge.md)               | `architectures/frameworks/`               | Framework bridge: LangGraph / CrewAI / LlamaIndex     |          |
+| [F8](F8-mcp-tool-servers.md)               | `vigil_mcp/vigil_server.py`                     | Model Context Protocol (MCP) tool servers             |          |
+| [F9](F9-learning-scaffolding.md)           | `notebooks/`, `exercises/`                | Interactive notebooks + graded exercises              | **5**    |
+| [F10](F10-production-hardening.md)         | `vigil/api.py`, R2/R5                     | Auth, rate limiting, caching, faithfulness eval       |          |
+| [F11](F11-retrieval-data-prep.md)          | `levels/foundations/retrieval_quality.py` | Data prep and retrieval index quality                 | done     |
+| [F12](F12-retrieval-evaluation.md)         | foundations + `data/eval/`                | Retrieval metrics (Recall@k, MRR, nDCG)               | done     |
+| [F13](F13-factuality-citations.md)         | foundations + reliability bridge          | Factuality and citation verification                  | done     |
+| [F14](F14-prompt-lifecycle-experiments.md) | foundations + reliability bridge          | Prompt versioning, replay, and experiments            | done     |
+| [F15](F15-privacy-governance.md)           | foundations + reliability bridge          | Privacy redaction and safe logging                    | done     |
+| [F16](F16-hybrid-rag-reranking.md)         | retrieval stack + eval bridge             | Hybrid retrieval and reranking                        | done     |
+| [F17](F17-online-evaluation-and-drift.md)  | reliability + observability bridge        | Online evaluation and drift monitoring                | done     |
+| [F18](F18-agent-permissions-sandboxing.md) | tool use + autonomous control             | Permissions, sandboxing, action governance            | done     |
+| [F19](F19-ai-supply-chain-security.md)     | hardening + governance                    | AI supply-chain integrity and provenance              | done     |
+| [F20](F20-release-safety-shadow-canary.md) | reliability + operations                  | Shadow/canary release safety and rollback             | done     |
+| [F21](F21-finetuning-adapters.md)          | `levels/foundations/finetuning.py`        | Fine-tuning/adapters and build-vs-tune decisions      | done     |
+| [F22](F22-claude-model-selection.md)       | `levels/foundations/model_selection.py`   | Claude model selection + Messages bridge + MCP client | done     |
+| [F23](F23-responsible-ai-eval.md)          | `levels/foundations/responsible_ai.py`    | Responsible-AI eval: moderation + fairness            | done     |
+| [F24](F24-semantic-caching.md)             | `levels/foundations/semantic_cache.py`    | Semantic caching for cost/latency reuse               | done     |
 
 ---
 
@@ -91,7 +105,17 @@ The GenAI-literacy gaps, in priority order:
 4. **F5 Context-Window Management** — the production failure mode L5 currently ignores. ← _implemented_
 5. **F9 Learning Scaffolding** — notebooks + exercises so learners experiment, not just read. ← _implemented_
 
-F4, F6, F7, F8, F10 follow once the above land.
+Remaining foundations now implemented as well: **F4**, **F6**, **F7**, **F8**, **F10**.
+
+Advanced industry coverage now implemented as well: **F16-F20** (hybrid retrieval,
+online drift monitoring, permissioned agent execution, AI supply-chain security,
+and staged release safety). The current roadmap is complete through F20.
+
+## Theme Tracks (Domain Portability)
+
+| Spec                              | Module                          | Concept                                | Status |
+| --------------------------------- | ------------------------------- | -------------------------------------- | ------ |
+| [T1](T1-incident-response-ops.md) | `levels/themes/incident_ops.py` | Incident-response planning beyond CVEs | Done   |
 
 ---
 

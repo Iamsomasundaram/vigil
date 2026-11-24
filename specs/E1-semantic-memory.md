@@ -1,6 +1,6 @@
 # E1 — Semantic Memory / RAG (extends L5)
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Extension of Axis 1 (Capability) — extends L5 memory
 - **Extends:** `levels/l5_memory.py`
 - **Depends on:** L5 (episodic/feedback/trend memory + PostgreSQL)
@@ -96,14 +96,19 @@ class RecalledMemory(_Base):
 
 ## Acceptance Criteria
 
-- [ ] A new CVE recalls a semantically similar prior analysis above threshold.
-- [ ] Exact-match L5 memory still functions (backward compatible).
-- [ ] Retrieved context is labeled and isolated, not blindly trusted.
-- [ ] Consolidation reduces stored verbosity without losing recall.
-- [ ] Conventions followed; tests stub embeddings and skip without DB.
+- [x] A new CVE recalls a semantically similar prior analysis above threshold.
+- [x] Exact-match L5 memory still functions (backward compatible).
+- [x] Retrieved context is labeled and isolated, not blindly trusted.
+- [x] Consolidation reduces stored verbosity without losing recall.
+- [x] Conventions followed; tests stub embeddings and skip without DB.
 
 ## Open Questions
 
 - Embedding model + dimensions (`text-embedding-3-small`, 1536) — confirm and pin.
 - pgvector index type (IVFFlat vs HNSW) for the small learning dataset. Proposal:
   HNSW for recall quality; dataset is tiny so cost is negligible.
+
+
+
+
+

@@ -1,6 +1,6 @@
 # F9 — Learning Scaffolding: Notebooks & Exercises
 
-- **Status:** Implemented
+- **Status:** Done
 - **Axis:** Foundations (pedagogy) — how the project is learned
 - **New:** `notebooks/`, `exercises/`
 - **Depends on:** all levels (links them into an interactive path)
@@ -68,10 +68,13 @@ None (pedagogy only).
 
 ## Acceptance Criteria
 
-- [ ] At least 4 notebooks run top-to-bottom (offline-friendly).
-- [ ] At least 3 graded exercises (e.g., L0/L1/L4) with passing reference solutions.
-- [ ] README points learners to the interactive path.
+- [x] At least 4 notebooks run top-to-bottom (offline-friendly).
+- [x] At least 3 graded exercises (e.g., L0/L1/L4) with passing reference solutions.
+- [x] README points learners to the interactive path.
 
 ## Open Questions
 
 - Execute notebooks in CI (nbmake) or just parse-check? Proposal: parse-check first.
+
+
+

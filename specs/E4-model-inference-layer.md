@@ -1,6 +1,6 @@
 # E4 — Model / Inference Layer (shared)
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Cross-cutting — new shared `vigil/` module used by all levels
 - **New module:** `vigil/inference.py`
 - **Depends on:** L0+ (every level makes LLM calls); enables R5 (cost) and R4 (resilience)
@@ -108,12 +108,12 @@ class InferenceResult(_Base):
 
 ## Acceptance Criteria
 
-- [ ] At least one level runs through `complete()` with identical output to before.
-- [ ] Routing selects models by task; override works.
-- [ ] Fallback recovers from a simulated primary-model failure.
-- [ ] Streaming works on the demo endpoint and CLI.
-- [ ] Pricing centralized; `get_usage()` contract preserved.
-- [ ] Conventions followed; tests stub OpenAI, no real calls.
+- [x] At least one level runs through `complete()` with identical output to before.
+- [x] Routing selects models by task; override works.
+- [x] Fallback recovers from a simulated primary-model failure.
+- [x] Streaming works on the demo endpoint and CLI.
+- [x] Pricing centralized; `get_usage()` contract preserved.
+- [x] Conventions followed; tests stub OpenAI, no real calls.
 
 ## Open Questions
 
@@ -123,3 +123,8 @@ class InferenceResult(_Base):
 - Roll out `complete()` to all levels in this spec, or pilot one and migrate the rest
   incrementally? Proposal: pilot L3, migrate others in follow-up PRs to keep diffs
   reviewable.
+
+
+
+
+

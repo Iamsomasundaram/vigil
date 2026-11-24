@@ -1,6 +1,6 @@
 # F7 — Framework Bridge: LangGraph / LlamaIndex / CrewAI
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy) — ecosystem mapping
 - **New module:** `architectures/frameworks/`
 - **Depends on:** A1–A4 (hand-rolled orchestration), L4 (tools)
@@ -72,10 +72,13 @@ Reuse existing A1 output models; no new schema required.
 
 ## Acceptance Criteria
 
-- [ ] A1 ReAct reproduced in LangGraph with equivalent output.
-- [ ] Mapping doc explains node/edge/state correspondence.
-- [ ] Framework deps isolated behind an extra; tests skip without it.
+- [x] A1 ReAct reproduced in LangGraph with equivalent output.
+- [x] Mapping doc explains node/edge/state correspondence.
+- [x] Framework deps isolated behind an extra; tests skip without it.
 
 ## Open Questions
 
 - Port A1 (simplest, clearest) or A4 (shows multi-agent value)? Proposal: A1 first, A4 stretch.
+
+
+

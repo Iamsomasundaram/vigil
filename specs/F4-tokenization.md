@@ -1,6 +1,6 @@
 # F4 — Tokenization & Context Economics
 
-- **Status:** Draft
+- **Status:** Done
 - **Axis:** Foundations (GenAI literacy)
 - **New module:** `levels/foundations/tokenization.py` + notebook
 - **Depends on:** none (pure fundamentals); complements R5 (cost control)
@@ -78,10 +78,13 @@ class TokenReport(_Base):
 
 ## Acceptance Criteria
 
-- [ ] Token counts match `tiktoken` exactly for sample strings.
-- [ ] Budget report shows tokens vs context limit and projected cost.
-- [ ] Notebook runs top-to-bottom; UI page renders a live token report.
+- [x] Token counts match `tiktoken` exactly for sample strings.
+- [x] Budget report shows tokens vs context limit and projected cost.
+- [x] Notebook runs top-to-bottom; UI page renders a live token report.
 
 ## Open Questions
 
 - Use exact provider context limits or a documented constant map? Proposal: constant map.
+
+
+
