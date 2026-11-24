@@ -196,8 +196,8 @@ inside Docker Compose.
 
 **What needs a key:** running the level scripts (L0–L6) against OpenAI. Each call is billed per token.
 The repo's estimator ([`vigil/pricing.py`](vigil/pricing.py)) encodes these list prices per million tokens
-(input / output): `gpt-4o-mini` $0.15 / $0.60 and `gpt-4o` $2.50 / $10.00. Those figures were copied into
-the code and can go stale, so check OpenAI's pricing page before relying on them. The default model is
+(input / output): `gpt-4o-mini` $0.15 / $0.60 and `gpt-4o` $2.50 / $10.00. These figures are **indicative only**: they were copied into
+the code at one point in time, provider prices change, and they are not updated automatically. Treat them as a rough guide and check OpenAI's pricing page for current rates. The default model is
 `gpt-4o-mini`, the cheaper of the two. R5 (cost control) shows per-request token and cost estimates, so you
 can measure what each level costs you rather than guessing.
 

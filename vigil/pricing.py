@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Mapping
 
+# INDICATIVE ONLY: USD per million tokens (input, output) as of when this was written.
+# Provider prices change and are not synced here; use for rough estimates, not billing.
 PRICING_PER_MILLION: Mapping[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.150, 0.600),
     "gpt-4o": (2.500, 10.000),
