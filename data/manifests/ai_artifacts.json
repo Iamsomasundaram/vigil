@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "artifacts": [
+    {
+      "name": "l4_system_prompt",
+      "type": "prompt",
+      "env": "prod",
+      "provenance": "vigil-repo",
+      "content": "You are a grounded CVE analyst. Use only tool outputs.",
+      "checksum": "74caf26e42dddacb3c07ab0345e296a0fcfde70af38de482e35d4d2d05ffc7e6"
+    },
+    {
+      "name": "default_route_policy",
+      "type": "model_policy",
+      "env": "prod",
+      "provenance": "vigil-repo",
+      "content": {
+        "primary": "gpt-4o-mini",
+        "fallbacks": ["gpt-4o"]
+      },
+      "checksum": "e697e961b928d50da5eda88da07eb61ee3ae22fe29ba92d3984130d500e6aeea"
+    },
+    {
+      "name": "nvd_tool_schema",
+      "type": "tool_schema",
+      "env": "prod",
+      "provenance": "vigil-repo",
+      "content": {
+        "name": "fetch_nvd_data",
+        "args": ["cve_id"]
+      },
+      "checksum": "8609d8fcf6c0590b6939236a17e38b0bdf1fc28948974ee223bd39bdb0b5c7db"
+    }
+  ]
+}
