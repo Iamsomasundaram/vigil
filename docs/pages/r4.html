@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R4: Resilience · Vigil Guide</title>
+<meta name="description" content="Retries, timeouts, circuit breakers and graceful degradation, so one failing source does not crash the agent.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html" aria-current=page>R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r4-resilience">R4: Resilience</h1>
+<p><strong>The question this module answers:</strong> what does the agent do when a source it depends on is slow, flaky or down?</p>
+<p>The agent's tools call outside services: NVD for descriptions, EPSS for exploit likelihood, CISA for the known-exploited list. Services fail. If one failure crashes the whole run, the agent is only as reliable as its flakiest dependency. <strong>Resilience</strong> means failing in a controlled way and still giving the best answer available.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Think of a delivery driver who finds the road closed. A fragile driver gives up. A resilient one tries again once or twice, takes another route if the road stays closed, stops wasting time on that road for a while, and tells you honestly that the parcel is late.</p>
+<div class="flow" role="img"><div class="node"><b>Timeout</b><small>do not wait forever</small></div><span class="arr">→</span><div class="node"><b>Retry</b><small>try again, a little later each time</small></div><span class="arr">→</span><div class="node"><b>Circuit breaker</b><small>stop calling a source that keeps failing</small></div><span class="arr">→</span><div class="node"><b>Degrade</b><small>answer with what you have, and say so</small></div></div>
+<h2 id="block-1-timeout-and-retry">Block 1: timeout and retry</h2>
+<p>A timeout puts a ceiling on how long one attempt may take. A retry repeats a call that failed for a temporary reason, waiting longer after each failure (<strong>exponential backoff</strong>) plus a little random jitter so many clients do not retry at the same instant.</p>
+<div class="code"><div class="code-cap">reliability/r4_resilience.py · with_retry</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> with_retry(
+    call: Callable[[], Awaitable[T]],
+    max_attempts: int = <span class="t-n">3</span>,
+    base_delay_s: float = <span class="t-n">0.05</span>,
+    jitter_s: float = <span class="t-n">0.02</span>,
+    retry_on: tuple[type[Exception], ...] = (TransientToolError, TimeoutError),
+) -&gt; T:
+    <span class="t-k">if</span> max_attempts &lt; <span class="t-n">1</span>:
+        <span class="t-k">raise</span> ValueError(<span class="t-s">&quot;max_attempts must be &gt;= 1&quot;</span>)
+
+    last_error: Exception | <span class="t-k">None</span> = <span class="t-k">None</span>
+    <span class="t-k">for</span> attempt <span class="t-k">in</span> range(<span class="t-n">1</span>, max_attempts + <span class="t-n">1</span>):
+        <span class="t-k">try</span>:
+            <span class="t-k">return</span> <span class="t-k">await</span> call()
+        <span class="t-k">except</span> Exception <span class="t-k">as</span> e:
+            <span class="t-k">if</span> <span class="t-k">not</span> isinstance(e, retry_on):
+                <span class="t-k">raise</span>
+            last_error = e
+            <span class="t-k">if</span> attempt &gt;= max_attempts:
+                break
+            delay = (base_delay_s * (<span class="t-n">2</span> ** (attempt - <span class="t-n">1</span>))) + random.uniform(<span class="t-n">0.0</span>, jitter_s)
+            <span class="t-k">await</span> asyncio.sleep(delay)
+
+    <span class="t-k">assert</span> last_error <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>
+    <span class="t-k">raise</span> last_error</code></pre></div>
+<p>The key detail is <code>retry_on</code>. Only errors that are plausibly temporary (<code>TransientToolError</code>, <code>TimeoutError</code>) are retried. A <code>NonTransientToolError</code>, such as a bad request, is raised straight away, because trying the same bad request again cannot help. The tests check this: a non-transient error is called exactly once.</p>
+<h2 id="block-2-the-circuit-breaker">Block 2: the circuit breaker</h2>
+<p>If a source keeps failing, retrying it for every request wastes time and can make an outage worse. A <strong>circuit breaker</strong> counts consecutive failures and, past a threshold, <em>opens</em>: further calls fail immediately without touching the source.</p>
+<div class="code"><div class="code-cap">reliability/r4_resilience.py · CircuitBreaker</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> CircuitBreaker:
+    <span class="t-k">def</span> __init__(self, name: str, failure_threshold: int = <span class="t-n">3</span>, recovery_timeout_s: float = <span class="t-n">5.0</span>):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout_s = recovery_timeout_s
+        self._state: str = <span class="t-s">&quot;closed&quot;</span>
+        self._consecutive_failures = <span class="t-n">0</span>
+        self._opened_at: float | <span class="t-k">None</span> = <span class="t-k">None</span>
+
+    @property
+    <span class="t-k">def</span> state(self) -&gt; str:
+        <span class="t-k">if</span> self._state == <span class="t-s">&quot;open&quot;</span> <span class="t-k">and</span> self._opened_at <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            <span class="t-k">if</span> (time.monotonic() - self._opened_at) &gt;= self.recovery_timeout_s:
+                self._state = <span class="t-s">&quot;half_open&quot;</span>
+        <span class="t-k">return</span> self._state
+
+    <span class="t-k">def</span> _record_success(self) -&gt; <span class="t-k">None</span>:
+        self._consecutive_failures = <span class="t-n">0</span>
+        self._state = <span class="t-s">&quot;closed&quot;</span>
+        self._opened_at = <span class="t-k">None</span>
+
+    <span class="t-k">def</span> _record_failure(self) -&gt; <span class="t-k">None</span>:
+        self._consecutive_failures += <span class="t-n">1</span>
+        <span class="t-k">if</span> self._state == <span class="t-s">&quot;half_open&quot;</span> <span class="t-k">or</span> self._consecutive_failures &gt;= self.failure_threshold:
+            self._state = <span class="t-s">&quot;open&quot;</span>
+            self._opened_at = time.monotonic()
+
+    <span class="t-k">async</span> <span class="t-k">def</span> call(self, call: Callable[[], Awaitable[T]]) -&gt; T:
+        <span class="t-k">if</span> self.state == <span class="t-s">&quot;open&quot;</span>:
+            <span class="t-k">raise</span> CircuitOpenError(<span class="t-s">f&quot;circuit is open for {self.name}&quot;</span>)
+
+        <span class="t-k">try</span>:
+            result = <span class="t-k">await</span> call()
+            self._record_success()
+            <span class="t-k">return</span> result
+        <span class="t-k">except</span> Exception:
+            self._record_failure()
+            <span class="t-k">raise</span></code></pre></div>
+<p>It has three states:</p>
+<div class='table'><table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td><code>closed</code></td><td>Normal. Calls go through.</td></tr><tr><td><code>open</code></td><td>Too many failures. Calls are refused instantly with <code>CircuitOpenError</code>.</td></tr><tr><td><code>half_open</code></td><td>After the recovery time has passed, one trial call is allowed. Success closes the circuit; another failure reopens it.</td></tr></tbody></table></div>
+<p>In this module each source has its own breaker, set to open after <strong>2</strong> consecutive failures and to try again after <strong>2 seconds</strong>. Note that a breaker counts one failure per <em>whole retried call</em>, not per attempt, so a source needs two failed calls in a row before its circuit opens.</p>
+<h2 id="block-3-degrade-gracefully">Block 3: degrade gracefully</h2>
+<p>When a source is unavailable the agent does not fail. It builds a verdict from the sources that did respond and says which did not:</p>
+<div class="code"><div class="code-cap">reliability/r4_resilience.py · analyse_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> analyse_cve(cve_id: str, chaos: dict[str, str] | <span class="t-k">None</span> = <span class="t-k">None</span>) -&gt; ResilientVerdict:
+    _reset_usage()
+    chaos = chaos <span class="t-k">or</span> {}
+
+    nvd_payload, nvd_status = <span class="t-k">await</span> _call_source(<span class="t-s">&quot;nvd&quot;</span>, cve_id, chaos.get(<span class="t-s">&quot;nvd&quot;</span>))
+    epss_payload, epss_status = <span class="t-k">await</span> _call_source(<span class="t-s">&quot;epss&quot;</span>, cve_id, chaos.get(<span class="t-s">&quot;epss&quot;</span>))
+    kev_payload, kev_status = <span class="t-k">await</span> _call_source(<span class="t-s">&quot;kev&quot;</span>, cve_id, chaos.get(<span class="t-s">&quot;kev&quot;</span>))
+
+    statuses = [nvd_status, epss_status, kev_status]
+    degraded_sources = [s.name <span class="t-k">for</span> s <span class="t-k">in</span> statuses <span class="t-k">if</span> <span class="t-k">not</span> s.available]
+
+    confidence = max(<span class="t-n">0.0</span>, round(<span class="t-n">1.0</span> - (<span class="t-n">0.2</span> * len(degraded_sources)), <span class="t-n">3</span>))
+    summary_parts: list[str] = []
+
+    <span class="t-k">if</span> nvd_status.available:
+        summary_parts.append(<span class="t-s">f&quot;NVD severity={nvd_payload.get(&#x27;severity&#x27;, &#x27;UNKNOWN&#x27;)}&quot;</span>)
+    <span class="t-k">if</span> epss_status.available:
+        summary_parts.append(<span class="t-s">f&quot;EPSS={epss_payload.get(&#x27;score&#x27;, 0)}&quot;</span>)
+    <span class="t-k">if</span> kev_status.available:
+        summary_parts.append(<span class="t-s">f&quot;KEV={&#x27;yes&#x27; if kev_payload.get(&#x27;in_kev&#x27;) else &#x27;no&#x27;}&quot;</span>)
+
+    <span class="t-k">if</span> degraded_sources:
+        summary_parts.append(<span class="t-s">f&quot;Degraded sources: {&#x27;, &#x27;.join(degraded_sources)}&quot;</span>)
+
+    <span class="t-k">return</span> ResilientVerdict(
+        cve_id=cve_id,
+        confidence=confidence,
+        degraded_sources=degraded_sources,
+        sources=statuses,
+        summary=<span class="t-s">&quot; | &quot;</span>.join(summary_parts) <span class="t-k">if</span> summary_parts <span class="t-k">else</span> <span class="t-s">&quot;No source data available&quot;</span>,
+    )</code></pre></div>
+<p>Confidence falls by 0.2 for every degraded source (<code>1.0 - 0.2 x degraded</code>, never below 0). Three missing sources gives 0.4. The verdict lists <code>degraded_sources</code> and a status for each source, so a reader can see that the answer rests on partial evidence.</p>
+<h2 id="practice-with-chaos">Practice with chaos</h2>
+<p>Waiting for a real outage is a poor way to test. The module has a built-in <strong>chaos</strong> switch that forces failures on demand:</p>
+<div class='table'><table><thead><tr><th>Directive</th><th>Effect</th></tr></thead><tbody><tr><td><code>timeout</code></td><td>The call hangs, then raises a timeout</td></tr><tr><td><code>500</code> or <code>transient</code></td><td>A temporary error, which is retried</td></tr><tr><td><code>400</code> or <code>permanent</code></td><td>A permanent error, which is not retried</td></tr><tr><td><code>flaky</code></td><td>Fails every other call</td></tr></tbody></table></div>
+<p>This run forces all three sources to fail. It is safe to run without a key, because the forced failure happens before any network call:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r4_resilience --chaos <span class="t-s">&quot;nvd=500,epss=timeout,kev=400&quot;</span></code></pre></div>
+<p>You should see a table like this:</p>
+<div class='table'><table><thead><tr><th>Source</th><th>Available</th><th>Attempts</th><th>Circuit</th></tr></thead><tbody><tr><td>nvd</td><td>no</td><td>3</td><td>closed</td></tr><tr><td>epss</td><td>no</td><td>3</td><td>closed</td></tr><tr><td>kev</td><td>no</td><td>1</td><td>closed</td></tr></tbody></table></div>
+<p>followed by <code>Confidence: 0.40</code> and <code>Summary: Degraded sources: nvd, epss, kev</code>.</p>
+<p>Read the table as a story. <code>nvd</code> and <code>epss</code> had temporary-looking failures, so each was tried 3 times (the maximum). <code>kev</code> got a permanent error, so it was tried <strong>once</strong>. All circuits are still <code>closed</code> because each source has failed only one call so far, and the threshold is two.</p>
+<p>Without <code>--chaos</code>, the command calls the real services and needs network access.</p>
+<h2 id="idempotency-safe-to-retry">Idempotency: safe to retry</h2>
+<p>Retrying is only safe if repeating a step does no extra harm. If a step writes a record, a retry could write it twice. <code>idempotent_scan_step(key, action)</code> remembers the result for a key and returns the stored result instead of running the action again:</p>
+<div class="code"><div class="code-cap">reliability/r4_resilience.py · idempotent_scan_step</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> idempotent_scan_step(key: str, action: Callable[[], Awaitable[dict[str, Any]]]) -&gt; tuple[bool, dict[str, Any]]:
+    <span class="t-k">if</span> key <span class="t-k">in</span> _IDEMPOTENT_RESULTS:
+        <span class="t-k">return</span> <span class="t-k">False</span>, _IDEMPOTENT_RESULTS[key]
+
+    result = <span class="t-k">await</span> action()
+    _IDEMPOTENT_RESULTS[key] = result
+    <span class="t-k">return</span> <span class="t-k">True</span>, result</code></pre></div>
+<p>It returns <code>(ran, result)</code>: <code>True</code> if the action ran this time, <code>False</code> if the stored result was reused. The test suite checks that a retried scan does not create duplicate writes. This cache lives in memory, so it protects retries within one process, not across restarts.</p>
+<h2 id="limits-to-know-about">Limits to know about</h2>
+<aside class="callout warning"><strong>Warning</strong><p>1) <strong>The per-attempt timeout is 0.1 seconds.</strong> That suits the offline demo, but it is very tight for real network calls and would likely cause many false timeouts against live services. A real deployment would use a longer value. 2) <strong>State is in memory.</strong> Breaker state and the idempotency cache reset when the process restarts. 3) <strong>Errors are classified by text.</strong> A source error counts as permanent only if its message contains <code>400</code>; everything else is treated as temporary. 4) <strong>R4 does not call a model.</strong> It wraps the three data tools, and its own cost estimate is always zero.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the chaos command with <code>flaky</code> for one source and see its attempts. 2) Run <code>nvd=500</code> twice inside one Python session using <code>r4.analyse_cve(...)</code> and print <code>r4.get_circuit_states()</code> to watch a circuit open. 3) Wait longer than the recovery time and call again to see <code>half_open</code>.</p></aside>
+<p>Run the tests with <code>python -m pytest tests/test_resilience.py -q</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Retrying everything.</strong> Retrying a permanent error wastes time. Classify errors first.</li><li><strong>Retrying without backoff.</strong> A tight retry loop can hammer a service that is already struggling.</li><li><strong>No timeout.</strong> One hung call can stall the whole agent.</li><li><strong>Hiding the degradation.</strong> A confident answer built on missing data is worse than an honest "partial". Always report what was missing.</li><li><strong>Retrying non-idempotent actions.</strong> Retries need a guard, such as an idempotency key, or you risk double writes.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why is a permanent error such as a 400 not retried?</summary><p>The request itself is wrong, so repeating it will fail the same way. Retries are for failures that might go away on their own.</p></details>
+<details><summary>What does an open circuit protect against?</summary><p>It stops the agent from wasting time and load on a source that keeps failing, and gives the source room to recover.</p></details>
+<details><summary>Why report <code>degraded_sources</code> instead of just lowering the answer's quality quietly?</summary><p>Readers and downstream code need to know the answer rests on partial evidence so they can discount it or wait.</p></details>
+<p>Next: <a href="r5.html">R5: Cost control</a> stops the agent from running up a bill.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r3.html"><small>Previous</small>R3: Observability</a><a class="next" href="r5.html"><small>Next</small>R5: Cost control</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#block-1-timeout-and-retry">Block 1: timeout and retry</a><a class="l2" href="#block-2-the-circuit-breaker">Block 2: the circuit breaker</a><a class="l2" href="#block-3-degrade-gracefully">Block 3: degrade gracefully</a><a class="l2" href="#practice-with-chaos">Practice with chaos</a><a class="l2" href="#idempotency-safe-to-retry">Idempotency: safe to retry</a><a class="l2" href="#limits-to-know-about">Limits to know about</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

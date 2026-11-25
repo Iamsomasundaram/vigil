@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R9: Release safety · Vigil Guide</title>
+<meta name="description" content="Try a change on the side, then on a few users, and back out automatically if quality drops.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html" aria-current=page>R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r9-release-safety">R9: Release safety</h1>
+<p><strong>The question this module answers:</strong> I improved a prompt, a model choice or a retrieval setting. How do I ship it without risking every user at once?</p>
+<h2 id="what-goes-wrong-without-it">What goes wrong without it</h2>
+<p>The obvious way to release a change is to switch everyone over. With AI systems that is especially risky, because:</p>
+<ul><li>A change that looks better on your ten test examples can be worse on real traffic.</li><li>Output is not exactly repeatable, so one good demo proves little.</li><li>By the time complaints arrive, every user has already been affected.</li></ul>
+<p>Careful teams release in stages and keep an exit open at each one.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Think of testing a new recipe in a restaurant. First the chef cooks it in the back and tastes it against the usual dish, with no customer served. Then a few tables get it. Only if those tables are happy does it go on the menu. If they are not, the old dish comes straight back.</p>
+<div class="flow" role="img"><div class="node"><b>Shadow</b><small>run quietly, no users affected</small></div><span class="arr">→</span><div class="node"><b>Canary</b><small>a small share of users</small></div><span class="arr">→</span><div class="node"><b>Full release</b><small>everyone</small></div></div>
+<ul><li><strong>Shadow</strong>: the new version runs on the same inputs as the live one, but its answers are never shown to users. You only compare quality.</li><li><strong>Canary</strong>: the new version serves a small percentage of real traffic. (The name comes from the canary taken into mines to warn of danger early.)</li><li><strong>Rollback</strong>: switching back to the previous version when the canary does worse.</li></ul>
+<h2 id="part-1-shadow-comparison">Part 1: shadow comparison</h2>
+<div class="code"><div class="code-cap">reliability/r9_release_safety.py · shadow_compare</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> shadow_compare(*, live_scores: list[float], shadow_scores: list[float]) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Shadow mode: run new variant with zero user impact and compare quality.&quot;&quot;&quot;</span>
+    live_avg = _mean(live_scores)
+    shadow_avg = _mean(shadow_scores)
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;live_avg&quot;</span>: live_avg,
+        <span class="t-s">&quot;shadow_avg&quot;</span>: shadow_avg,
+        <span class="t-s">&quot;delta&quot;</span>: round(shadow_avg - live_avg, <span class="t-n">4</span>),
+        <span class="t-s">&quot;shadow_safe_to_canary&quot;</span>: shadow_avg &gt;= live_avg - <span class="t-n">0.02</span>,
+    }</code></pre></div>
+<p>You give it quality scores for the live version and for the shadow version on comparable work. It reports both averages, the difference, and <code>shadow_safe_to_canary</code>. That flag is true when the shadow average is <strong>no more than 0.02 below</strong> the live average. So shadow mode is a cheap, risk-free first filter: a version that already looks worse never reaches a real user.</p>
+<h2 id="part-2-the-canary-decision">Part 2: the canary decision</h2>
+<div class="code"><div class="code-cap">reliability/r9_release_safety.py · evaluate_release</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> evaluate_release(
+    *,
+    control_scores: list[float],
+    treatment_scores: list[float],
+    canary_percent: int = <span class="t-n">10</span>,
+    min_delta: float = -<span class="t-n">0.02</span>,
+) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Compare control vs treatment for a staged rollout and decide the action.
+
+    ``min_delta`` is the worst acceptable quality change before rollback fires.
+    &quot;&quot;&quot;</span>
+    <span class="t-k">if</span> <span class="t-k">not</span> control_scores <span class="t-k">or</span> <span class="t-k">not</span> treatment_scores:
+        <span class="t-k">raise</span> ValueError(<span class="t-s">&quot;control_scores and treatment_scores must be non-empty&quot;</span>)
+
+    control_avg = _mean(control_scores)
+    treatment_avg = _mean(treatment_scores)
+    delta = round(treatment_avg - control_avg, <span class="t-n">4</span>)
+
+    <span class="t-k">if</span> delta &lt; min_delta:
+        decision = <span class="t-s">&quot;rollback&quot;</span>
+        stage = <span class="t-s">&quot;canary&quot;</span>
+    <span class="t-k">elif</span> delta &gt;= <span class="t-n">0.0</span>:
+        decision = <span class="t-s">&quot;promote&quot;</span>
+        stage = <span class="t-s">&quot;full&quot;</span>
+    <span class="t-k">else</span>:
+        decision = <span class="t-s">&quot;hold&quot;</span>
+        stage = <span class="t-s">&quot;canary&quot;</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;canary_percent&quot;</span>: int(canary_percent),
+        <span class="t-s">&quot;control_avg&quot;</span>: control_avg,
+        <span class="t-s">&quot;treatment_avg&quot;</span>: treatment_avg,
+        <span class="t-s">&quot;delta&quot;</span>: delta,
+        <span class="t-s">&quot;min_delta&quot;</span>: float(min_delta),
+        <span class="t-s">&quot;decision&quot;</span>: decision,
+        <span class="t-s">&quot;next_stage&quot;</span>: stage,
+        <span class="t-s">&quot;rollback_triggered&quot;</span>: decision == <span class="t-s">&quot;rollback&quot;</span>,
+    }</code></pre></div>
+<p>Here you pass scores for the <strong>control</strong> (the current version) and the <strong>treatment</strong> (the new one). The function compares their averages and applies three rules to the difference, called <code>delta</code>:</p>
+<div class='table'><table><thead><tr><th>Delta (treatment minus control)</th><th>Decision</th></tr></thead><tbody><tr><td>Lower than <code>min_delta</code>, which defaults to -0.02</td><td><code>rollback</code></td></tr><tr><td>Zero or better</td><td><code>promote</code></td></tr><tr><td>Slightly worse, but not worse than <code>min_delta</code></td><td><code>hold</code></td></tr></tbody></table></div>
+<p><code>hold</code> is the useful middle ground: the new version is not clearly bad, so keep it at the canary stage and gather more evidence rather than promote or panic. <code>min_delta</code> is the <strong>worst quality loss you are willing to accept</strong>, so you set it according to how much risk you can tolerate.</p>
+<p>The report also includes <code>rollback_triggered</code>, a plain true or false. If you give it empty score lists it raises an error instead of guessing.</p>
+<h2 id="a-worked-example">A worked example</h2>
+<p>This is the demo built into the module, and one of its tests:</p>
+<ul><li>Control scores: 0.80, 0.82, 0.79, average about 0.8033.</li><li>Treatment scores: 0.74, 0.71, 0.70, average about 0.7167.</li><li>The difference is about -0.0866, well under -0.02.</li><li>The decision is <code>rollback</code> and <code>rollback_triggered</code> is true.</li></ul>
+<p>The new version is clearly worse, so it is pulled back before it reaches everyone.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r9_release_safety</code></pre></div>
+<p>I ran this and it printed the rollback decision described above. No model is called. Over HTTP, the canary decision is <code>POST /reliability/release/evaluate</code>.</p>
+<h2 id="what-is-simulated-and-some-honest-limits">What is simulated, and some honest limits</h2>
+<ul><li><strong>There is no real traffic splitting.</strong> <code>canary_percent</code> is only a number that is echoed back. Nothing routes ten percent of users anywhere.</li><li><strong>The scores are inputs.</strong> You supply them; the module does not generate or collect them.</li><li><strong>It compares plain averages.</strong> There is no statistical test, so with only a handful of scores a difference can be pure luck. Real canaries use enough samples to tell signal from noise.</li><li><strong>Nothing actually rolls back.</strong> The module returns a decision for a deployment system to carry out.</li><li><strong>A naming quirk.</strong> For both <code>rollback</code> and <code>hold</code>, the <code>next_stage</code> field says <code>canary</code>. For a rollback, <code>rollback_triggered</code> is the clearer field to act on.</li></ul>
+<aside class="callout note"><strong>Note</strong><p>Pair this with <a href="r6.html">R6</a>. R9 decides <em>whether to promote</em> a change using test scores. R6 keeps watching afterwards, so a problem that only shows up later is still caught.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Make the treatment only slightly worse, for example an average about 0.01 lower, and confirm you get <code>hold</code>. 2) Change <code>min_delta</code> to <code>-0.1</code> and see how the same data now behaves. 3) Pass identical lists and note that the decision is <code>promote</code>, because a delta of exactly zero counts as no worse. 4) Use <code>shadow_compare</code> with a shadow average 0.03 below live and check that it is not safe to canary.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Promoting on a handful of samples.</strong> Averages of three scores are noisy. Gather more before you trust them.</li><li><strong>Skipping shadow mode.</strong> It is the cheapest safety net, because no user sees the result.</li><li><strong>A canary that is too big.</strong> A "small" test that hits half your users is not small.</li><li><strong>No agreed rollback threshold.</strong> Decide <code>min_delta</code> before the test, not after you see the numbers.</li><li><strong>Releasing and forgetting.</strong> Keep monitoring after promotion, as in <a href="r6.html">R6</a>.</li><li><strong>Changing many things at once.</strong> If quality drops you will not know which change caused it.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is the difference between shadow mode and a canary?</summary><p>Shadow runs the new version on real inputs but never shows its answers to users, so nobody is affected. A canary serves the new version to a small share of real users, so a bad version can cause limited harm.</p></details>
+<details><summary>When does <code>evaluate_release</code> return <code>hold</code>?</summary><p>When the new version is slightly worse than the current one, but by less than the allowed <code>min_delta</code>. It is not bad enough to roll back and not good enough to promote.</p></details>
+<details><summary>Why is comparing three average scores a weak basis for a real release decision?</summary><p>Model output varies, so with so few samples a difference may be luck. Real rollouts need enough samples, and often a statistical test, to be confident.</p></details>
+<p>You have now seen the four newest reliability modules. Continue with the <a href="foundations.html">Foundations</a> overview.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r8.html"><small>Previous</small>R8: AI supply chain</a><a class="next" href="foundations.html"><small>Next</small>Foundations overview</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-goes-wrong-without-it">What goes wrong without it</a><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#part-1-shadow-comparison">Part 1: shadow comparison</a><a class="l2" href="#part-2-the-canary-decision">Part 2: the canary decision</a><a class="l2" href="#a-worked-example">A worked example</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-is-simulated-and-some-honest-limits">What is simulated, and some honest limits</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

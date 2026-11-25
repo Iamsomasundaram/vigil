@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Responsible AI · Vigil Guide</title>
+<meta name="description" content="Flag harmful text with a simple moderation filter, and measure whether outcomes are fair across groups.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html" aria-current=page>Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="responsible-ai">Responsible AI</h1>
+<p><strong>The question this page answers:</strong> before I ship an AI feature, how do I check that it does not produce harmful text and does not treat groups of people unfairly?</p>
+<p>Two separate checks live in <code>levels/foundations/responsible_ai.py</code> (spec F23):</p>
+<ol><li><strong>Moderation</strong>: does a piece of text contain content a policy would block?</li><li><strong>Fairness</strong>: do different groups receive positive outcomes at similar rates?</li></ol>
+<div class="fan" role="img"><div class="node">A batch of samples</div><span class="arr">→</span><div class="lane"><div class="node">Moderate the texts</div><div class="node">Measure outcome rates per group</div></div><span class="arr">→</span><div class="node">One report with a ship or do-not-ship flag</div></div>
+<aside class="callout note"><strong>Note</strong><p>Both checks are <strong>illustrative</strong> and run offline. The moderation filter is a short word list, and the code comments say plainly that it is "not a production classifier". Treat this page as a way to learn the <em>shape</em> of responsible-AI checks, not as a safety guarantee.</p></aside>
+<h2 id="check-1-moderation">Check 1: Moderation</h2>
+<p>Moderation looks for categories of content you do not want to pass through. Vigil's version is a small set of word patterns, one list per category:</p>
+<div class="code"><div class="code-cap">levels/foundations/responsible_ai.py · _MODERATION_PATTERNS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_MODERATION_PATTERNS: list[tuple[str, str]] = [
+    (<span class="t-s">&quot;hate&quot;</span>, r<span class="t-s">&quot;\b(kill|exterminate|inferior race|subhuman)\b&quot;</span>),
+    (<span class="t-s">&quot;harassment&quot;</span>, r<span class="t-s">&quot;\b(idiot|stupid|worthless|loser)\b&quot;</span>),
+    (<span class="t-s">&quot;self_harm&quot;</span>, r<span class="t-s">&quot;\b(suicide|self[- ]harm|hurt myself)\b&quot;</span>),
+    (<span class="t-s">&quot;violence&quot;</span>, r<span class="t-s">&quot;\b(bomb|shoot up|massacre)\b&quot;</span>),
+    (<span class="t-s">&quot;sexual&quot;</span>, r<span class="t-s">&quot;\b(explicit sexual|nsfw)\b&quot;</span>),
+]</code></pre></div>
+<p><code>moderate_text</code> lowercases the text, looks for any match and returns the categories, the matched words and an action:</p>
+<div class="code"><div class="code-cap">levels/foundations/responsible_ai.py · moderate_text</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> moderate_text(text: str) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Flag policy-relevant categories in text via lightweight patterns.&quot;&quot;&quot;</span>
+    lowered = text.lower()
+    categories: list[str] = []
+    spans: list[str] = []
+    <span class="t-k">for</span> label, pattern <span class="t-k">in</span> _MODERATION_PATTERNS:
+        <span class="t-k">for</span> m <span class="t-k">in</span> re.finditer(pattern, lowered):
+            categories.append(label)
+            spans.append(m.group(<span class="t-n">0</span>))
+    unique = sorted(set(categories))
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;flagged&quot;</span>: bool(unique),
+        <span class="t-s">&quot;categories&quot;</span>: unique,
+        <span class="t-s">&quot;matched_spans&quot;</span>: sorted(set(spans)),
+        <span class="t-s">&quot;action&quot;</span>: <span class="t-s">&quot;block&quot;</span> <span class="t-k">if</span> unique <span class="t-k">else</span> <span class="t-s">&quot;allow&quot;</span>,
+    }</code></pre></div>
+<p>Running it offline on <code>You stupid loser</code> flags the <code>harassment</code> category, lists <code>stupid</code> and <code>loser</code> as the matched spans, and returns the action <code>block</code>. Clean text returns <code>allow</code>.</p>
+<h3 id="why-a-word-list-is-not-enough">Why a word list is not enough</h3>
+<p>A list like this is easy to understand and easy to fool, in both directions:</p>
+<ul><li><strong>False positives.</strong> The sentence <code>This exploit will kill the process</code> is flagged as <code>hate</code> and blocked, because the word <code>kill</code> is on the list. In security work, "kill", "attack" and "bomb" appear in perfectly normal text.</li><li><strong>False negatives.</strong> Anything harmful that avoids the listed words, or hides them with odd spelling, sails through.</li><li><strong>No context.</strong> The filter cannot tell a quotation from a threat.</li></ul>
+<p>Production systems use trained classifiers or provider moderation services, plus human review. The lesson here is the <em>placement</em>: moderation runs on inputs and outputs, and its result decides allow or block.</p>
+<h2 id="check-2-fairness">Check 2: Fairness</h2>
+<p>If your system makes yes or no decisions that affect groups of people, such as who gets flagged, approved or escalated, you should check whether the outcomes are even. Vigil computes the simplest standard measure: <strong>selection rate parity</strong>.</p>
+<div class="code"><div class="code-cap">levels/foundations/responsible_ai.py · fairness_report</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> fairness_report(outcomes: list[dict[str, Any]]) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Compute selection-rate parity across groups (demographic parity).
+
+    Each outcome: {&quot;group&quot;: str, &quot;positive&quot;: bool}. Returns per-group selection
+    rates plus the disparate-impact ratio (min/max) and an 80%-rule flag.
+    &quot;&quot;&quot;</span>
+    <span class="t-k">if</span> <span class="t-k">not</span> outcomes:
+        <span class="t-k">return</span> {
+            <span class="t-s">&quot;groups&quot;</span>: {},
+            <span class="t-s">&quot;min_rate&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;max_rate&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;disparate_impact_ratio&quot;</span>: <span class="t-n">1.0</span>,
+            <span class="t-s">&quot;passes_80pct_rule&quot;</span>: <span class="t-k">True</span>,
+            <span class="t-s">&quot;n&quot;</span>: <span class="t-n">0</span>,
+        }
+
+    counts: dict[str, dict[str, int]] = {}
+    <span class="t-k">for</span> o <span class="t-k">in</span> outcomes:
+        g = str(o.get(<span class="t-s">&quot;group&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>))
+        counts.setdefault(g, {<span class="t-s">&quot;pos&quot;</span>: <span class="t-n">0</span>, <span class="t-s">&quot;total&quot;</span>: <span class="t-n">0</span>})
+        counts[g][<span class="t-s">&quot;total&quot;</span>] += <span class="t-n">1</span>
+        <span class="t-k">if</span> bool(o.get(<span class="t-s">&quot;positive&quot;</span>)):
+            counts[g][<span class="t-s">&quot;pos&quot;</span>] += <span class="t-n">1</span>
+
+    rates = {g: (c[<span class="t-s">&quot;pos&quot;</span>] / c[<span class="t-s">&quot;total&quot;</span>] <span class="t-k">if</span> c[<span class="t-s">&quot;total&quot;</span>] <span class="t-k">else</span> <span class="t-n">0.0</span>) <span class="t-k">for</span> g, c <span class="t-k">in</span> counts.items()}
+    values = list(rates.values())
+    max_rate = max(values) <span class="t-k">if</span> values <span class="t-k">else</span> <span class="t-n">0.0</span>
+    min_rate = min(values) <span class="t-k">if</span> values <span class="t-k">else</span> <span class="t-n">0.0</span>
+    ratio = (min_rate / max_rate) <span class="t-k">if</span> max_rate &gt; <span class="t-n">0</span> <span class="t-k">else</span> <span class="t-n">1.0</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;groups&quot;</span>: {g: round(r, <span class="t-n">4</span>) <span class="t-k">for</span> g, r <span class="t-k">in</span> rates.items()},
+        <span class="t-s">&quot;min_rate&quot;</span>: round(min_rate, <span class="t-n">4</span>),
+        <span class="t-s">&quot;max_rate&quot;</span>: round(max_rate, <span class="t-n">4</span>),
+        <span class="t-s">&quot;disparate_impact_ratio&quot;</span>: round(ratio, <span class="t-n">4</span>),
+        <span class="t-s">&quot;passes_80pct_rule&quot;</span>: ratio &gt;= <span class="t-n">0.8</span>,
+        <span class="t-s">&quot;n&quot;</span>: len(outcomes),
+    }</code></pre></div>
+<p>Each outcome is a group name and a yes or no. The function works out:</p>
+<ol><li>the <strong>selection rate</strong> for each group: positives divided by total,</li><li>the <strong>disparate-impact ratio</strong>: the lowest group's rate divided by the highest, and</li><li>whether that ratio reaches <strong>0.8</strong>, often called the "80% rule", a common rule of thumb for spotting a gap.</li></ol>
+<h3 id="a-worked-example">A worked example</h3>
+<p>Take the demo data in the module's own <code>main()</code>: group A has two out of two positive, group B has one out of two. The selection rates are <code>1.0</code> and <code>0.5</code>. The ratio is <code>0.5 / 1.0 = 0.5</code>, which is below <code>0.8</code>, so <code>passes_80pct_rule</code> is false.</p>
+<h2 id="the-combined-report">The combined report</h2>
+<p><code>responsible_ai_report</code> runs both checks over a batch and sets a <code>safe_to_ship</code> flag that is true only if <strong>no text was flagged and the fairness check passed</strong>. With the demo's two texts and the data above, one text is flagged and the ratio fails, so <code>safe_to_ship</code> is false.</p>
+<p>This is also available from the API as <code>POST /foundations/responsible-ai</code>.</p>
+<h2 id="what-this-does-not-tell-you">What this does not tell you</h2>
+<ul><li><strong>Parity is one definition of fairness among several.</strong> Two groups can have equal rates and still be treated unfairly in other ways, and sometimes different rates are legitimate. The ratio is a flag to investigate, not a verdict.</li><li><strong>Small samples mislead.</strong> Two outcomes per group, as in the demo, show the mechanism but prove nothing.</li><li><strong>You must supply the groups and outcomes.</strong> The module cannot discover who is affected.</li><li><strong>A passing result is not clearance.</strong> It means this one test did not fail.</li></ul>
+<aside class="callout warning"><strong>Warning</strong><p>Do not use these checks as legal or compliance evidence. Treat a fail as a prompt to look closer, and a pass as only the start.</p></aside>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/responsible_ai.py
+python levels/foundations/responsible_ai.py --text <span class="t-s">&quot;This tool is great&quot;</span> --text <span class="t-s">&quot;You stupid loser&quot;</span></code></pre></div>
+<p>You should see a JSON report with the per-text moderation results, the fairness figures and <code>safe_to_ship</code>.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Add a harmless sentence containing a listed word, such as one about killing a process, and note the false positive. 2) Add a sentence of genuinely harmful content that avoids every listed word and see it pass. 3) Build outcomes where both groups have the same rate and confirm the ratio is <code>1.0</code>.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Treating a short word list as a safety system.</strong></li><li><strong>Moderating only the user's input.</strong> Check the model's output too.</li><li><strong>Testing fairness on a handful of cases.</strong></li><li><strong>Reading a pass as "fair".</strong> It only means this test did not fail.</li><li><strong>Letting a flag silently pass.</strong> Decide in advance what happens on a block: refuse, rewrite, or send to a person.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why is <code>This exploit will kill the process</code> a problem for this filter?</summary><p>It contains a listed word, so it is blocked, but it is harmless technical language. That is a false positive.</p></details>
+<details><summary>What is the disparate-impact ratio?</summary><p>The lowest group's selection rate divided by the highest group's. A value under 0.8 fails the 80% rule of thumb.</p></details>
+<details><summary>When is <code>safe_to_ship</code> true?</summary><p>Only when no text was flagged and the fairness ratio is at least 0.8.</p></details>
+<p>Next: <a href="semantic-cache.html">Semantic caching</a> cuts cost and delay by reusing answers to similar questions.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="privacy.html"><small>Previous</small>Privacy and safe logging</a><a class="next" href="semantic-cache.html"><small>Next</small>Semantic caching</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#check-1-moderation">Check 1: Moderation</a><a class="l3" href="#why-a-word-list-is-not-enough">Why a word list is not enough</a><a class="l2" href="#check-2-fairness">Check 2: Fairness</a><a class="l3" href="#a-worked-example">A worked example</a><a class="l2" href="#the-combined-report">The combined report</a><a class="l2" href="#what-this-does-not-tell-you">What this does not tell you</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

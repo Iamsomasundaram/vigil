@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L3: Routing · Vigil Guide</title>
+<meta name="description" content="The model decides which analysis track a CVE needs, and plain Python runs that track.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html" aria-current=page>L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-3-routing">Level 3: Routing</h1>
+<p><strong>The question this level answers:</strong> not every CVE deserves the same amount of work, so who decides how much each one gets?</p>
+<p>In <a href="l2.html">Level 2</a> every CVE got the full committee: four specialists and a moderator. That is right for Log4Shell and wasteful for a minor information leak. L3 adds a <strong>router</strong> at the front. It reads the CVE, picks one of four <strong>tracks</strong>, and only that track runs.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Think of a hospital triage desk. A nurse looks at each arrival and sends them to resuscitation, a normal clinic, a waiting room, or a senior doctor who needs to look first. The nurse does not treat anyone; they only decide <strong>where the patient goes</strong>.</p>
+<div class="flow" role="img"><div class="node"><b>CVE</b><small>input</small></div><span class="arr">→</span><div class="node"><b>Router</b><small>picks a track</small></div><span class="arr">→</span><div class="node"><b>One track runs</b><small>four to choose from</small></div><span class="arr">→</span><div class="node"><b>Typed result</b></div></div>
+<p>The four tracks, as defined in the code:</p>
+<div class='table'><table><thead><tr><th>Track</th><th>When the router picks it</th><th>What runs</th></tr></thead><tbody><tr><td><code>critical_response</code></td><td>CVSS 9 or above, or actively exploited</td><td>Two analyses in parallel, then a synthesis call</td></tr><tr><td><code>standard_patch</code></td><td>A patch exists, moderate impact, no active exploitation</td><td>One focused remediation call</td></tr><tr><td><code>low_risk_monitor</code></td><td>Low severity, no known exploits, limited reach</td><td>One lightweight summary with a review date</td></tr><tr><td><code>needs_human_review</code></td><td>Novel, ambiguous or too little public data</td><td>A brief for a human analyst. Automation stops here</td></tr></tbody></table></div>
+<h2 id="the-key-insight-the-model-as-control-flow">The key insight: the model as control flow</h2>
+<p>In ordinary code you write <code>if cvss_score &gt;= 9.0:</code>. That is a lookup table, and it misses nuance. A CVSS 7.5 flaw that attackers are using right now can be more urgent than a CVSS 9.0 that nobody has exploited. A router that reads the description and context can weigh that.</p>
+<p>But the model does not run anything. It returns a <strong>typed decision</strong>, and ordinary Python acts on it. That keeps the dangerous part (running code) deterministic and the fuzzy part (judgement) inside the model.</p>
+<h2 id="part-1-the-decision-as-a-schema">Part 1: the decision, as a schema</h2>
+<div class="code"><div class="code-cap">levels/l3_routing.py · RoutingDecision</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> RoutingDecision(_Base):
+    <span class="t-s">&quot;&quot;&quot;Router agent output: which track to run and why.&quot;&quot;&quot;</span>
+    track: Literal[
+        <span class="t-s">&quot;critical_response&quot;</span>,  <span class="t-c"># Actively exploited or CVSS ≥9; run full analysis</span>
+        <span class="t-s">&quot;standard_patch&quot;</span>,     <span class="t-c"># Patch available, moderate impact; focus on remediation</span>
+        <span class="t-s">&quot;low_risk_monitor&quot;</span>,   <span class="t-c"># Low severity, no known exploits; log and review later</span>
+        <span class="t-s">&quot;needs_human_review&quot;</span>, <span class="t-c"># Ambiguous, poorly documented, or novel threat class</span>
+    ]
+    reason:        str = Field(description=<span class="t-s">&quot;One sentence: why this track was chosen&quot;</span>)
+    urgency_hours: int = Field(ge=<span class="t-n">0</span>, description=<span class="t-s">&quot;Estimated hours before action required&quot;</span>)
+    confidence:    Literal[<span class="t-s">&quot;High&quot;</span>, <span class="t-s">&quot;Medium&quot;</span>, <span class="t-s">&quot;Low&quot;</span>]</code></pre></div>
+<p>The whole level hinges on <code>track</code>. Because it is a <code>Literal</code> of four exact strings, the model cannot answer "kind of critical" or invent a fifth track. Alongside it the router gives a one-sentence <code>reason</code>, an <code>urgency_hours</code> estimate, and a <code>confidence</code>.</p>
+<h2 id="part-2-the-router">Part 2: the router</h2>
+<div class="code"><div class="code-cap">levels/l3_routing.py · run_router</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_router(cve_id: str) -&gt; RoutingDecision:
+    <span class="t-s">&quot;&quot;&quot;
+    Ask the LLM: &#x27;Given this CVE, which response track should we follow?&#x27;
+
+    The model reasons about severity, exploitation status, patch availability,
+    and affected ecosystem — then returns a structured RoutingDecision.
+
+    Crucially, the `track` field isn&#x27;t a score or probability; it&#x27;s a named
+    decision that maps directly onto a code path. This makes routing
+    deterministic once the LLM has decided.
+    &quot;&quot;&quot;</span>
+    payload, usage = <span class="t-k">await</span> acomplete_json(
+        client=client,
+        task=<span class="t-s">&quot;route&quot;</span>,
+        schema_model=RoutingDecision,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are a security triage specialist. Your job is to classify incoming CVEs &quot;</span>
+                    <span class="t-s">&quot;and route them to the correct response track. &quot;</span>
+                    <span class="t-s">&quot;Be decisive — pick the single most appropriate track. &quot;</span>
+                    <span class="t-s">&quot;Prefer &#x27;critical_response&#x27; for anything actively exploited in the wild. &quot;</span>
+                    <span class="t-s">&quot;Use &#x27;needs_human_review&#x27; only when key facts are genuinely unknown or contradictory.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">f&quot;Classify this CVE and decide which response track it requires: {cve_id}\n\n&quot;</span>
+                    <span class="t-s">&quot;Tracks:\n&quot;</span>
+                    <span class="t-s">&quot;  critical_response  — CVSS ≥9 OR actively exploited in the wild\n&quot;</span>
+                    <span class="t-s">&quot;  standard_patch     — patch available, moderate impact, no active exploitation\n&quot;</span>
+                    <span class="t-s">&quot;  low_risk_monitor   — CVSS &lt;5, no known exploits, limited blast radius\n&quot;</span>
+                    <span class="t-s">&quot;  needs_human_review — novel, ambiguous, or insufficient public data\n&quot;</span>
+                ),
+            },
+        ],
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">512</span>,
+    )
+    _usage[<span class="t-s">&quot;prompt_tokens&quot;</span>] += usage.prompt_tokens
+    _usage[<span class="t-s">&quot;completion_tokens&quot;</span>] += usage.completion_tokens
+    <span class="t-k">return</span> RoutingDecision.model_validate(payload)</code></pre></div>
+<p>Three things to notice:</p>
+<ul><li>The system prompt tells the router to be <strong>decisive</strong>, to prefer <code>critical_response</code> for anything actively exploited, and to use <code>needs_human_review</code> only when key facts are genuinely unknown. That wording shapes how often each track is chosen.</li><li>The temperature is low (<code>0.1</code>) and the reply is capped at 512 tokens, because a routing decision is short and should be steady.</li><li>The call goes through <code>acomplete_json</code> from <code>vigil/inference.py</code>, the shared seam that other parts of the project use to talk to model providers. The track handlers below still call the OpenAI client directly.</li></ul>
+<h2 id="part-3-the-dispatch-table">Part 3: the dispatch table</h2>
+<p>Instead of a chain of <code>if / elif</code>, the four handlers live in a dictionary:</p>
+<div class="code"><div class="code-cap">levels/l3_routing.py · TRACK_HANDLERS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>TRACK_HANDLERS = {
+    <span class="t-s">&quot;critical_response&quot;</span>:  handle_critical,
+    <span class="t-s">&quot;standard_patch&quot;</span>:     handle_standard_patch,
+    <span class="t-s">&quot;low_risk_monitor&quot;</span>:   handle_low_risk,
+    <span class="t-s">&quot;needs_human_review&quot;</span>: handle_human_review,
+}</code></pre></div>
+<p>Adding a fifth track later means writing one handler and adding one line here. Nothing else changes.</p>
+<h2 id="part-4-the-pipeline">Part 4: the pipeline</h2>
+<div class="code"><div class="code-cap">levels/l3_routing.py · analyse_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> analyse_cve(cve_id: str) -&gt; tuple[RoutingDecision, _Base]:
+    <span class="t-s">&quot;&quot;&quot;
+    Full L3 pipeline: route → dispatch → handle.
+
+    Step 1: Router agent reads the CVE and returns a RoutingDecision.
+    Step 2: The track field selects a handler from TRACK_HANDLERS.
+    Step 3: The handler runs its specific pipeline and returns a typed report.
+
+    The caller receives both objects so it can display the routing reasoning
+    alongside the final report — transparency about why a track was chosen
+    is important for trust and auditability.
+    &quot;&quot;&quot;</span>
+    _reset_usage()
+    console.print(<span class="t-s">&quot;\n[dim]  Running router agent...[/dim]&quot;</span>)
+
+    start_router = time.perf_counter()
+    routing = <span class="t-k">await</span> run_router(cve_id)
+    router_ms = int((time.perf_counter() - start_router) * <span class="t-n">1000</span>)
+
+    console.print(
+        <span class="t-s">f&quot;[dim]  Routed to [bold]{routing.track}[/bold] &quot;</span>
+        <span class="t-s">f&quot;(confidence: {routing.confidence}, {router_ms}ms)[/dim]&quot;</span>
+    )
+    console.print(<span class="t-s">f&quot;[dim]  Running {routing.track} handler...[/dim]&quot;</span>)
+
+    <span class="t-c"># ── Key line: LLM output drives Python control flow ────────────────────</span>
+    handler = TRACK_HANDLERS[routing.track]    <span class="t-c"># look up the right function</span>
+    result  = <span class="t-k">await</span> handler(cve_id, routing)   <span class="t-c"># run it</span>
+
+    <span class="t-k">return</span> routing, result</code></pre></div>
+<p>Find the two lines that matter:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>handler = TRACK_HANDLERS[routing.track]    <span class="t-c"># look up the right function</span>
+result  = <span class="t-k">await</span> handler(cve_id, routing)   <span class="t-c"># run it</span></code></pre></div>
+<p>That is "the LLM's output drives Python control flow" in two lines. The function returns <strong>both</strong> the routing decision and the track's result, so a user can see <em>why</em> a track was chosen alongside what it found. Transparency about the reasoning is what makes the decision auditable.</p>
+<p>Notice too that each handler receives <code>routing</code>, and uses <code>routing.reason</code> in its own prompt. The specialist is told why it was chosen, so it does not redo the triage.</p>
+<h2 id="the-critical-track-reuses-level-2">The critical track reuses Level 2</h2>
+<div class="code"><div class="code-cap">levels/l3_routing.py · handle_critical</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> handle_critical(cve_id: str, routing: RoutingDecision) -&gt; CriticalReport:
+    <span class="t-s">&quot;&quot;&quot;
+    Critical track: runs two agents in parallel (mirroring L2&#x27;s fan-out),
+    then asks a synthesis agent to produce actionable output.
+
+    We fan out exploitability + impact simultaneously, then a third call
+    synthesises them into a CriticalReport. Total latency ≈ max(call1, call2) + call3.
+    &quot;&quot;&quot;</span>
+
+    <span class="t-c"># ── Sub-agent 1: Exploitability ───────────────────────────────────────────</span>
+    <span class="t-k">async</span> <span class="t-k">def</span> _exploitability() -&gt; str:
+        r = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;You are a penetration tester. Assess exploitability.&quot;</span>},
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: <span class="t-s">f&quot;How easy is {cve_id} to exploit? Any public PoC or active exploitation?&quot;</span>},
+            ],
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">400</span>,
+        )
+        _track(r)
+        <span class="t-k">return</span> r.choices[<span class="t-n">0</span>].message.content
+
+    <span class="t-c"># ── Sub-agent 2: Impact ───────────────────────────────────────────────────</span>
+    <span class="t-k">async</span> <span class="t-k">def</span> _impact() -&gt; str:
+        r = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;You are a security architect. Assess blast radius and CIA triad impact.&quot;</span>},
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: <span class="t-s">f&quot;If {cve_id} is exploited, what breaks? How widely?&quot;</span>},
+            ],
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">400</span>,
+        )
+        _track(r)
+        <span class="t-k">return</span> r.choices[<span class="t-n">0</span>].message.content
+
+    <span class="t-c"># Run both sub-agents in parallel — L2&#x27;s asyncio.gather() pattern applied here</span>
+    exploitability_text, impact_text = <span class="t-k">await</span> asyncio.gather(_exploitability(), _impact())
+
+    <span class="t-c"># ── Synthesis: combine both analyses into a structured CriticalReport ─────</span>
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are a security incident commander. Synthesise the specialist findings &quot;</span>
+                    <span class="t-s">&quot;into a clear, actionable critical response report.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">f&quot;CVE: {cve_id}\n&quot;</span>
+                    <span class="t-s">f&quot;Router classification: {routing.reason}\n\n&quot;</span>
+                    <span class="t-s">f&quot;Exploitability analysis:\n{exploitability_text}\n\n&quot;</span>
+                    <span class="t-s">f&quot;Impact analysis:\n{impact_text}\n\n&quot;</span>
+                    <span class="t-s">&quot;Produce the critical response report.&quot;</span>
+                ),
+            },
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;CriticalReport&quot;</span>,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(CriticalReport),
+            },
+        },
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">2048</span>,
+    )
+    _track(response)
+    <span class="t-k">return</span> CriticalReport.model_validate(
+        json.loads(response.choices[<span class="t-n">0</span>].message.content)
+    )</code></pre></div>
+<p>Read the comments in the function: it runs exploitability and impact <strong>in parallel</strong> with <code>asyncio.gather</code> (the same trick as L2), then makes a third call to synthesise a <code>CriticalReport</code>. The cheap tracks make one call. Routing is how the expensive pattern is kept for the threats that deserve it.</p>
+<h2 id="the-safety-valve-human-review">The safety valve: human review</h2>
+<div class="code"><div class="code-cap">levels/l3_routing.py · handle_human_review</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> handle_human_review(cve_id: str, routing: RoutingDecision) -&gt; HumanReviewFlag:
+    <span class="t-s">&quot;&quot;&quot;
+    Human review track: automation stops here.
+    The output is a structured brief for a human analyst — not a final decision.
+
+    This is an important safety pattern: when the AI is uncertain, it doesn&#x27;t
+    guess and act. It escalates with a clear explanation of what it knows and
+    what questions need human judgement.
+    &quot;&quot;&quot;</span>
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are a security triage coordinator. &quot;</span>
+                    <span class="t-s">&quot;This CVE requires human review before any automated action. &quot;</span>
+                    <span class="t-s">&quot;Prepare a clear brief for the analyst.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">f&quot;CVE: {cve_id}\n&quot;</span>
+                    <span class="t-s">f&quot;Reason flagged for review: {routing.reason}\n\n&quot;</span>
+                    <span class="t-s">&quot;List what is known, what is uncertain, and what questions the analyst must answer.&quot;</span>
+                ),
+            },
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;HumanReviewFlag&quot;</span>,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(HumanReviewFlag),
+            },
+        },
+        temperature=<span class="t-n">0.2</span>,   <span class="t-c"># Slightly higher — we want the questions to be varied and thorough</span>
+        max_tokens=<span class="t-n">1024</span>,
+    )
+    _track(response)
+    <span class="t-k">return</span> HumanReviewFlag.model_validate(
+        json.loads(response.choices[<span class="t-n">0</span>].message.content)
+    )</code></pre></div>
+<p>This handler does not decide anything. Its output is a brief: what is known, what is uncertain, and the questions a person must answer. This is an important safety pattern. <strong>When the model is unsure, it escalates instead of guessing and acting.</strong></p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l3_routing.py CVE-2021-44228
+python levels/l3_routing.py CVE-2014-0160</code></pre></div>
+<p>The command prints a line saying the router is running, then which track it chose with its confidence, then a <strong>Router Decision</strong> panel (track, reason, act-within hours, confidence), and finally an analysis panel whose layout depends on the track. Try a famous critical CVE and a less well-known one and compare which tracks they land in. I have not captured sample output here, because the choice is the model's and can vary between runs.</p>
+<aside class="callout warning"><strong>Warning</strong><p>The router is an LLM, so it can mis-route. A wrong <code>low_risk_monitor</code> on a dangerous CVE is worse than a wasted full analysis. That is why a <code>confidence</code> field and a human-review track exist, and why later reliability work (<a href="r2.html">R2 evaluation</a>) measures routing quality against known answers.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the same CVE three times and note whether the track ever changes. 2) Edit the router's system prompt to say "Prefer <code>standard_patch</code> whenever a patch exists" and see which CVEs move. 3) Add a fifth track, for example <code>vendor_followup</code>: add a value to the <code>Literal</code>, a handler function, and one line in <code>TRACK_HANDLERS</code>.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Trusting the router blindly.</strong> It is one model's judgement. Log its <code>reason</code> and <code>confidence</code>, and measure it.</li><li><strong>Letting the model run code.</strong> The model only chooses a name. Your dictionary decides what that name does.</li><li><strong>Too many tracks.</strong> Each one needs a handler and tests. Start with a few that are clearly different.</li><li><strong>No escape hatch.</strong> A router with no "I don't know" route will force a guess. Keep a human-review track.</li><li><strong>Forgetting the router's own cost.</strong> Routing adds one call to every CVE. It pays off only when it saves more than it costs.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does the router return a <code>Literal</code> track instead of free text?</summary><p>Free text would need parsing and could contain surprises. A <code>Literal</code> guarantees one of four exact values, so a dictionary lookup is always safe.</p></details>
+<details><summary>What is the difference between the router and a track handler?</summary><p>The router only decides where a CVE goes. The handler does the actual analysis for that track.</p></details>
+<details><summary>Why does the <code>needs_human_review</code> handler produce questions instead of a verdict?</summary><p>It is the case where automation is least trustworthy. Escalating with a clear brief is safer than a confident guess.</p></details>
+<details><summary>How does L3 reuse L2?</summary><p>The critical track runs two analyses in parallel with <code>asyncio.gather</code>, the same fan-out idea as L2.</p></details>
+<p>Next: <a href="l4.html">Level 4</a> stops the model answering from memory and lets it look things up.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l2.html"><small>Previous</small>L2: Parallel agents</a><a class="next" href="l4.html"><small>Next</small>L4: Tool use</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#the-key-insight-the-model-as-control-flow">The key insight: the model as control flow</a><a class="l2" href="#part-1-the-decision-as-a-schema">Part 1: the decision, as a schema</a><a class="l2" href="#part-2-the-router">Part 2: the router</a><a class="l2" href="#part-3-the-dispatch-table">Part 3: the dispatch table</a><a class="l2" href="#part-4-the-pipeline">Part 4: the pipeline</a><a class="l2" href="#the-critical-track-reuses-level-2">The critical track reuses Level 2</a><a class="l2" href="#the-safety-valve-human-review">The safety valve: human review</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

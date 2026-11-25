@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reliability overview · Vigil Guide</title>
+<meta name="description" content="Why an agent that works in a demo is not yet an agent you can trust, and the nine layers Vigil adds.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html" aria-current=page>Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="reliability-from-it-works-to-i-can-trust-it">Reliability: from "it works" to "I can trust it"</h1>
+<p><strong>The question this track answers:</strong> the agent worked when I tried it. Why would I let it act on real systems?</p>
+<p>A demo only proves that one run went well. Real use brings runs you never tried: poisoned input, a data source that is down, a prompt change that quietly makes answers worse, a bill that doubles. This track adds the layers that turn a clever demo into something you can depend on.</p>
+<h2 id="why-agents-need-more-than-a-good-prompt">Why agents need more than a good prompt</h2>
+<p>A normal program fails in ways you can predict and test. An agent adds three new problems:</p>
+<ul><li><strong>It reads untrusted text and may obey it.</strong> A CVE description is written by outsiders. If it says "ignore your instructions", a naive agent may comply.</li><li><strong>Its output is not deterministic.</strong> The same input can give different answers, so "the test passed once" means little.</li><li><strong>It depends on things outside your control.</strong> The model, the NVD feed and the EPSS service can all be slow, wrong or down.</li></ul>
+<p>Each problem needs its own defence. That is why this track has several modules, not one.</p>
+<h2 id="the-trust-ladder">The trust ladder</h2>
+<p>Think of reliability as a ladder. Each rung answers one question, and you should not trust an agent more than the rungs you have built.</p>
+<div class="flow" role="img"><div class="node"><b>R1 Guardrails</b><small>can it be tricked?</small></div><span class="arr">→</span><div class="node"><b>R2 Evaluation</b><small>is it good, and still good?</small></div><span class="arr">→</span><div class="node"><b>R3 Observability</b><small>what did it actually do?</small></div><span class="arr">→</span><div class="node"><b>R4 Resilience</b><small>what if a source fails?</small></div><span class="arr">→</span><div class="node"><b>R5 Cost control</b><small>can it run up a bill?</small></div></div>
+<p>R1 to R5 are the foundation and each has its own page here. R6 to R9 cover running agents over time and releasing changes safely; they have their own pages.</p>
+<h2 id="the-nine-modules-at-a-glance">The nine modules at a glance</h2>
+<div class='table'><table><thead><tr><th>Module</th><th>One line</th><th>Where the code lives</th></tr></thead><tbody><tr><td><a href="r1.html">R1: Guardrails</a></td><td>Detect and contain prompt injection, restrict tools, and enforce policy on the model's answer</td><td><code>reliability/r1_guardrails.py</code></td></tr><tr><td><a href="r2.html">R2: Evaluation</a></td><td>Score the agent on a fixed set of cases and fail a change that makes it worse</td><td><code>reliability/r2_evaluation.py</code></td></tr><tr><td><a href="r3.html">R3: Observability</a></td><td>Record a tree of timed steps for each run so you can see what happened</td><td><code>reliability/r3_observability.py</code></td></tr><tr><td><a href="r4.html">R4: Resilience</a></td><td>Retry, time out, break circuits and degrade gracefully when a source fails</td><td><code>reliability/r4_resilience.py</code></td></tr><tr><td><a href="r5.html">R5: Cost control</a></td><td>Budget caps, response caching and per-feature cost attribution</td><td><code>reliability/r5_cost_control.py</code></td></tr><tr><td><a href="r6.html">R6: Online evaluation and drift</a></td><td>Monitor live quality, latency and cost samples to detect drift</td><td><code>reliability/r6_online_eval_drift.py</code></td></tr><tr><td><a href="r7.html">R7: Action governance</a></td><td>Permissions, sandboxing and approval rules for agent actions</td><td><code>reliability/r7_action_governance.py</code></td></tr><tr><td><a href="r8.html">R8: Supply chain</a></td><td>AI supply chain and dependency security checks</td><td><code>reliability/r8_supply_chain.py</code></td></tr><tr><td><a href="r9.html">R9: Release safety</a></td><td>Shadow, canary and rollback for releasing a new version</td><td><code>reliability/r9_release_safety.py</code></td></tr></tbody></table></div>
+<h2 id="how-the-modules-connect">How the modules connect</h2>
+<p>The modules are not isolated. R2's adversarial check reuses R1's scanner. R4 wraps the same three data tools that R1 defines. Reading them in order will make those links visible.</p>
+<aside class="callout note"><strong>Note</strong><p>These are <strong>learning implementations</strong>. They are small and readable on purpose, and each one has known limits that its page states. They show the shape of a real defence; they are not a finished security product. Treat each as a starting point, not a guarantee.</p></aside>
+<h2 id="how-to-read-this-track">How to read this track</h2>
+<ol><li>Read each page, then run the offline demo it names. Most of this track runs without an API key, because the demos use fixtures or stand-in model calls.</li><li>Run the matching tests, for example <code>python -m pytest tests/test_guardrails.py -q</code>. The tests are the clearest statement of what each module promises.</li><li>Break something on purpose and watch the layer react. Each page has a "Try it" box for this.</li></ol>
+<aside class="callout tip"><strong>Tip</strong><p>Run these modules from the repository root. Where a page shows a command such as <code>python -m reliability.r4_resilience</code>, use the <code>-m</code> form: it makes Python find the <code>reliability</code> package.</p></aside>
+<p>Start with <a href="r1.html">R1: Guardrails</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="a4.html"><small>Previous</small>A4: Multi-agent</a><a class="next" href="r1.html"><small>Next</small>R1: Guardrails</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#why-agents-need-more-than-a-good-prompt">Why agents need more than a good prompt</a><a class="l2" href="#the-trust-ladder">The trust ladder</a><a class="l2" href="#the-nine-modules-at-a-glance">The nine modules at a glance</a><a class="l2" href="#how-the-modules-connect">How the modules connect</a><a class="l2" href="#how-to-read-this-track">How to read this track</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

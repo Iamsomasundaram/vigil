@@ -29,7 +29,7 @@ from pathlib import Path
 DOCS = Path(__file__).resolve().parent
 ROOT = DOCS.parent
 SRC = DOCS / "src"
-SECTIONS = ["Start here", "Levels", "Practice", "Reference"]
+SECTIONS = ["Start here", "Levels", "Architectures", "Reliability", "Foundations", "Practice", "Reference"]
 
 sys.path.insert(0, str(DOCS))
 

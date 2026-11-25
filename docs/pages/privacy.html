@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy and safe logging · Vigil Guide</title>
+<meta name="description" content="Redact emails, IP addresses and secrets before they reach a prompt or a log, and understand what pattern matching cannot catch.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html" aria-current=page>Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="privacy-and-safe-logging">Privacy and safe logging</h1>
+<p><strong>The question this page answers:</strong> how do I stop sensitive data from leaking into model prompts and log files?</p>
+<p>AI systems create two quiet leaks. The first is <strong>prompts</strong>: whatever you send goes to an outside provider. The second is <strong>logs</strong>: debugging output tends to record everything, and logs are widely shared and kept for a long time. A key pasted into a prompt or a customer email left in a log can end up somewhere you never intended.</p>
+<div class="flow" role="img"><div class="node"><b>Raw text</b></div><span class="arr">→</span><div class="node"><b>Redact</b><small>replace sensitive patterns</small></div><span class="arr">→</span><div class="node"><b>Safe text</b><small>for prompts and logs</small></div></div>
+<p>The F15 module, <code>levels/foundations/privacy.py</code>, redacts a small set of common patterns. It runs offline.</p>
+<aside class="callout warning"><strong>Warning</strong><p>This is a <strong>teaching-grade, pattern-based</strong> redactor. It catches the formats it knows and nothing else. It is <strong>not</strong> a compliance tool, and it must not be your only protection for personal data. The limits are listed plainly below.</p></aside>
+<h2 id="what-it-looks-for">What it looks for</h2>
+<p>Each rule is a name, a regular expression and a placeholder:</p>
+<div class="code"><div class="code-cap">levels/foundations/privacy.py · _PATTERNS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
+    (<span class="t-s">&quot;email&quot;</span>, re.compile(r<span class="t-s">&quot;\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b&quot;</span>), <span class="t-s">&quot;&lt;REDACTED_EMAIL&gt;&quot;</span>),
+    (<span class="t-s">&quot;ipv4&quot;</span>, re.compile(r<span class="t-s">&quot;\b(?:\d{1,3}\.){3}\d{1,3}\b&quot;</span>), <span class="t-s">&quot;&lt;REDACTED_IP&gt;&quot;</span>),
+    (<span class="t-s">&quot;api_key&quot;</span>, re.compile(r<span class="t-s">&quot;\b(?:sk|pk)-[A-Za-z0-9_-]{16,}\b&quot;</span>), <span class="t-s">&quot;&lt;REDACTED_KEY&gt;&quot;</span>),
+    (<span class="t-s">&quot;token&quot;</span>, re.compile(r<span class="t-s">&quot;\b(?:token|secret|password)\s*[:=]\s*[^\s,;]+&quot;</span>, re.IGNORECASE), <span class="t-s">&quot;&lt;REDACTED_SECRET_FIELD&gt;&quot;</span>),
+]</code></pre></div>
+<div class='table'><table><thead><tr><th>Rule</th><th>Catches</th><th>Becomes</th></tr></thead><tbody><tr><td><code>email</code></td><td>Typical email addresses</td><td><code>&lt;REDACTED_EMAIL&gt;</code></td></tr><tr><td><code>ipv4</code></td><td>Four dotted groups of digits</td><td><code>&lt;REDACTED_IP&gt;</code></td></tr><tr><td><code>api_key</code></td><td>Strings starting <code>sk-</code> or <code>pk-</code> followed by 16 or more characters</td><td><code>&lt;REDACTED_KEY&gt;</code></td></tr><tr><td><code>token</code></td><td><code>token</code>, <code>secret</code> or <code>password</code>, then <code>:</code> or <code>=</code>, then a value</td><td><code>&lt;REDACTED_SECRET_FIELD&gt;</code></td></tr></tbody></table></div>
+<h2 id="redacting-text">Redacting text</h2>
+<div class="code"><div class="code-cap">levels/foundations/privacy.py · redact_text</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> redact_text(text: str) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Redact common sensitive patterns and return findings metadata.&quot;&quot;&quot;</span>
+    out = text
+    findings: list[dict[str, Any]] = []
+
+    <span class="t-k">for</span> kind, pattern, replacement <span class="t-k">in</span> _PATTERNS:
+        matches = list(pattern.finditer(out))
+        <span class="t-k">if</span> <span class="t-k">not</span> matches:
+            continue
+        findings.append({<span class="t-s">&quot;type&quot;</span>: kind, <span class="t-s">&quot;count&quot;</span>: len(matches)})
+        out = pattern.sub(replacement, out)
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;redacted_text&quot;</span>: out,
+        <span class="t-s">&quot;findings&quot;</span>: findings,
+        <span class="t-s">&quot;changed&quot;</span>: out != text,
+    }</code></pre></div>
+<p>It applies each rule in turn and records <em>what kind</em> of thing it found and how many, never the value itself. Recording the type and count lets you monitor leaks without writing the secret into a report.</p>
+<p>Running the built-in demo sentence gives this redacted text, and four findings (one each of email, IP, key and secret field):</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>Contact &lt;REDACTED_EMAIL&gt; from &lt;REDACTED_IP&gt; with &lt;REDACTED_SECRET_FIELD&gt; and key &lt;REDACTED_KEY&gt;</code></pre></div>
+<h2 id="redacting-logs">Redacting logs</h2>
+<p>Log entries are usually nested: dictionaries inside lists inside dictionaries. This helper walks the whole structure and redacts every string it finds, leaving numbers and other values alone:</p>
+<div class="code"><div class="code-cap">levels/foundations/privacy.py · safe_log_snapshot</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> safe_log_snapshot(payload: Any) -&gt; Any:
+    <span class="t-s">&quot;&quot;&quot;Recursively redact strings inside nested log payload objects.&quot;&quot;&quot;</span>
+    <span class="t-k">if</span> isinstance(payload, str):
+        <span class="t-k">return</span> redact_text(payload)[<span class="t-s">&quot;redacted_text&quot;</span>]
+    <span class="t-k">if</span> isinstance(payload, list):
+        <span class="t-k">return</span> [safe_log_snapshot(x) <span class="t-k">for</span> x <span class="t-k">in</span> payload]
+    <span class="t-k">if</span> isinstance(payload, dict):
+        <span class="t-k">return</span> {str(k): safe_log_snapshot(v) <span class="t-k">for</span> k, v <span class="t-k">in</span> payload.items()}
+    <span class="t-k">return</span> payload</code></pre></div>
+<p>The pattern to adopt: <strong>never log a raw payload; log a redacted snapshot of it.</strong></p>
+<h2 id="what-it-does-not-catch">What it does NOT catch</h2>
+<p>Be precise about the gaps, because a false sense of safety is worse than none. I ran this check offline:</p>
+<ul><li><strong>Names, addresses and phone numbers.</strong> The sentence <code>Call Alice Smith on 555-0100, card 4111 1111 1111 1111</code> came back <strong>unchanged</strong>. A person's name and a credit card number pass straight through.</li><li><strong>Secrets in other formats.</strong> Only keys shaped like <code>sk-</code> or <code>pk-</code> and fields named token, secret or password are matched. A cloud key with a different prefix, or a password written as plain prose, is not.</li><li><strong>IPv6 addresses.</strong> Only the dotted IPv4 form is matched.</li><li><strong>Context.</strong> It cannot tell that a free-text sentence describes a person.</li><li><strong>Over-matching.</strong> The IPv4 rule matches any four dotted number groups, so some version numbers can be redacted.</li></ul>
+<p>Real deployments combine pattern rules with a dedicated PII-detection service, access controls, retention limits and policy review. This page teaches the habit and the mechanism.</p>
+<aside class="callout tip"><strong>Tip</strong><p>The safest data is data you never send. Before redacting, ask whether the model needs the sensitive value at all. Often a placeholder like <code>&lt;CUSTOMER_ID&gt;</code> is enough for the task.</p></aside>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/privacy.py
+python levels/foundations/privacy.py <span class="t-s">&quot;Mail ops@example.com about 10.1.2.3&quot;</span></code></pre></div>
+<p>You should see a JSON report with the input length, whether anything changed, the findings, the redacted text and a redacted copy of a sample log payload. The same report is available from the API as <code>POST /foundations/privacy/redact</code>.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run it on a sentence containing a person's name and a phone number and confirm they are not caught. 2) Add a new rule to <code>_PATTERNS</code> for a pattern you care about (for example, a UK postcode) and re-run. 3) Build a nested dictionary with a secret three levels deep and check <code>safe_log_snapshot</code> finds it.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Trusting redaction to be complete.</strong> It only knows its patterns.</li><li><strong>Redacting only prompts.</strong> Logs, traces and error messages leak too.</li><li><strong>Logging the finding's value.</strong> Record the type and count, not the secret.</li><li><strong>Redacting after sending.</strong> It must happen <em>before</em> the data leaves your system.</li><li><strong>Skipping the question of whether the data is needed at all.</strong></li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does the report store the type and count of each finding but not the matched text?</summary><p>Writing the secret into the report would recreate the leak you were trying to prevent.</p></details>
+<details><summary>Does this module protect a customer's name?</summary><p>No. It matches emails, IPv4 addresses, certain key formats and secret-looking fields. Names and card numbers pass through.</p></details>
+<details><summary>Where must redaction happen to be effective?</summary><p>Before the data is sent to the model provider or written to a log.</p></details>
+<p>Next: <a href="responsible-ai.html">Responsible AI</a> looks at harmful content and unfair outcomes.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="factuality.html"><small>Previous</small>Factuality and citations</a><a class="next" href="responsible-ai.html"><small>Next</small>Responsible AI</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-it-looks-for">What it looks for</a><a class="l2" href="#redacting-text">Redacting text</a><a class="l2" href="#redacting-logs">Redacting logs</a><a class="l2" href="#what-it-does-not-catch">What it does NOT catch</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

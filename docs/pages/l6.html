@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L6: Autonomous agent · Vigil Guide</title>
+<meta name="description" content="A background loop that watches a list of CVEs, spots meaningful changes, and raises alerts without being asked.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html" aria-current=page>L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-6-autonomous-agent">Level 6: Autonomous agent</h1>
+<p><strong>The question this level answers:</strong> what changes when the system acts without waiting for you?</p>
+<p>In L0 to L5 a person always starts the run: you ask, the system answers. L6 flips that. You add CVEs to a <strong>watchlist</strong> once. After that a background loop checks them on a schedule, notices when something matters, and leaves an alert for you to review.</p>
+<h2 id="automated-versus-autonomous">Automated versus autonomous</h2>
+<p>The file's own header draws the line, and it is worth remembering:</p>
+<div class='table'><table><thead><tr><th></th><th>Who starts the work?</th><th>Example</th></tr></thead><tbody><tr><td><strong>Automated</strong> (L1 to L5)</td><td>A person or a trigger</td><td>You run a level and read the result</td></tr><tr><td><strong>Autonomous</strong> (L6)</td><td>The system, on its own schedule</td><td>The loop scans the watchlist every interval</td></tr></tbody></table></div>
+<p>The test is simple: does the system <strong>initiate</strong> action, or only <strong>respond</strong> to it?</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Imagine a night-shift analyst with a list of CVEs. Every hour they check the latest numbers, compare them with their notes from last time, and write a note only if something meaningfully changed. When you arrive, the notes are waiting.</p>
+<div class="flow" role="img"><div class="node"><b>Read watchlist</b></div><span class="arr">→</span><div class="node"><b>Fetch live data</b><small>NVD + EPSS</small></div><span class="arr">→</span><div class="node"><b>Compare with last state</b></div><span class="arr">→</span><div class="node"><b>Meaningful change?</b><small>rules in code</small></div><span class="arr">→</span><div class="node"><b>Write alert</b><small>then wait for a human</small></div></div>
+<h2 id="l6-reuses-the-earlier-levels">L6 reuses the earlier levels</h2>
+<p>L6 is built from pieces you have already met:</p>
+<div class='table'><table><thead><tr><th>Earlier level</th><th>How L6 uses it</th></tr></thead><tbody><tr><td>L2, parallel fan-out</td><td><code>asyncio.gather</code> fetches NVD and EPSS together, and scans many CVEs at once</td></tr><tr><td>L4, tools</td><td>The same NVD and EPSS data sources, but called as plain functions, not through a model's tool loop</td></tr><tr><td>L5, memory</td><td>A <code>scan_state</code> table remembers the last known numbers per CVE, so there is something to compare against</td></tr></tbody></table></div>
+<aside class="callout note"><strong>Note</strong><p>The header comment of the file also says L3 routing decides each alert's severity. In the code that decision is a small lookup table, not the L3 routing step. Read the code, not the comment, when they differ.</p></aside>
+<h2 id="the-most-important-design-choice-rules-decide-the-model-words">The most important design choice: rules decide, the model words</h2>
+<p>Here is the key idea of this level. <strong>Deciding that something changed is done in plain Python, not by the model.</strong> Only the writing of the alert is done by the model.</p>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · detect_changes</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> detect_changes(
+    cve_id:      str,
+    last_state:  dict | <span class="t-k">None</span>,
+    current_nvd: dict,
+    current_epss: float,
+) -&gt; ChangeSignal:
+    <span class="t-s">&quot;&quot;&quot;
+    Compare current data against the last known state and classify the change.
+
+    This is a deterministic function — no LLM involved. The thresholds are
+    explicit rules. The LLM is called AFTER this to generate human-readable
+    alert text, but the decision of WHAT changed is made here, in code.
+
+    Why deterministic change detection instead of asking the LLM?
+      Reliability. An LLM might interpret &quot;0.01 → 0.02&quot; as significant
+      on one run and insignificant on another. Code is consistent.
+      The LLM&#x27;s job is to communicate the finding well, not to make it.
+    &quot;&quot;&quot;</span>
+    prev_epss = last_state[<span class="t-s">&quot;epss_score&quot;</span>] <span class="t-k">if</span> last_state <span class="t-k">else</span> <span class="t-n">0.0</span>
+    prev_cvss = last_state[<span class="t-s">&quot;cvss_score&quot;</span>] <span class="t-k">if</span> last_state <span class="t-k">else</span> <span class="t-n">0.0</span>
+    prev_patch = last_state[<span class="t-s">&quot;patch_known&quot;</span>] <span class="t-k">if</span> last_state <span class="t-k">else</span> <span class="t-k">False</span>
+
+    curr_epss  = current_epss
+    curr_cvss  = current_nvd[<span class="t-s">&quot;cvss_score&quot;</span>]
+    curr_patch = current_nvd[<span class="t-s">&quot;patch_known&quot;</span>]
+
+    epss_delta = curr_epss - prev_epss
+
+    <span class="t-c"># Priority order: most severe change wins</span>
+    <span class="t-k">if</span> last_state <span class="t-k">is</span> <span class="t-k">None</span>:
+        change_type = <span class="t-s">&quot;new_cve&quot;</span>
+        summary = <span class="t-s">f&quot;First scan of {cve_id}: EPSS={curr_epss:.3f}, CVSS={curr_cvss}&quot;</span>
+    <span class="t-k">elif</span> curr_epss &gt;= EPSS_CRITICAL_THRESHOLD <span class="t-k">and</span> prev_epss &lt; EPSS_CRITICAL_THRESHOLD:
+        change_type = <span class="t-s">&quot;epss_critical&quot;</span>
+        summary = <span class="t-s">f&quot;EPSS crossed critical threshold: {prev_epss:.3f} → {curr_epss:.3f} (&gt;{EPSS_CRITICAL_THRESHOLD})&quot;</span>
+    <span class="t-k">elif</span> epss_delta &gt;= EPSS_SPIKE_THRESHOLD:
+        change_type = <span class="t-s">&quot;epss_spike&quot;</span>
+        summary = <span class="t-s">f&quot;EPSS spiked by {epss_delta:.3f}: {prev_epss:.3f} → {curr_epss:.3f}&quot;</span>
+    <span class="t-k">elif</span> curr_patch <span class="t-k">and</span> <span class="t-k">not</span> prev_patch:
+        change_type = <span class="t-s">&quot;new_patch&quot;</span>
+        summary = <span class="t-s">f&quot;Patch became available (EPSS={curr_epss:.3f}, CVSS={curr_cvss})&quot;</span>
+    <span class="t-k">elif</span> curr_cvss &gt; prev_cvss <span class="t-k">and</span> (curr_cvss - prev_cvss) &gt;= <span class="t-n">1.0</span>:
+        change_type = <span class="t-s">&quot;severity_increase&quot;</span>
+        summary = <span class="t-s">f&quot;CVSS score increased: {prev_cvss} → {curr_cvss}&quot;</span>
+    <span class="t-k">else</span>:
+        change_type = <span class="t-s">&quot;no_change&quot;</span>
+        summary = <span class="t-s">f&quot;No significant change (EPSS={curr_epss:.3f}, CVSS={curr_cvss})&quot;</span>
+
+    <span class="t-k">return</span> ChangeSignal(
+        cve_id=cve_id,
+        change_type=change_type,
+        previous_epss=prev_epss,
+        current_epss=curr_epss,
+        previous_cvss=prev_cvss,
+        current_cvss=curr_cvss,
+        patch_newly_available=(curr_patch <span class="t-k">and</span> <span class="t-k">not</span> prev_patch),
+        summary=summary,
+    )</code></pre></div>
+<p>Read the order of the <code>if</code> branches. The first match wins:</p>
+<ol><li>no earlier state: <code>new_cve</code></li><li>EPSS crossed 0.50 on this scan: <code>epss_critical</code></li><li>EPSS rose by at least 0.15: <code>epss_spike</code></li><li>a patch signal appeared that was not there before: <code>new_patch</code></li><li>CVSS rose by at least 1.0: <code>severity_increase</code></li><li>otherwise: <code>no_change</code></li></ol>
+<p>The thresholds are two named constants at the top of the file: <code>EPSS_SPIKE_THRESHOLD = 0.15</code> and <code>EPSS_CRITICAL_THRESHOLD = 0.50</code>.</p>
+<p>Why not ask the model "did anything important change?" The docstring explains: a model might treat the same small movement as significant on one run and not on the next. Code gives the same answer every time, can be unit tested, and can be audited. This is a pattern worth copying: <strong>use deterministic code for decisions you must be able to explain, and use the model for language.</strong></p>
+<h2 id="turning-a-change-into-an-alert">Turning a change into an alert</h2>
+<p>Only when the rules find a change does the model get involved:</p>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · generate_alert</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> generate_alert(signal: ChangeSignal) -&gt; AutonomousAlert:
+    <span class="t-s">&quot;&quot;&quot;
+    Given a detected change, ask the LLM to generate a clear, actionable alert.
+
+    The WHAT (change_type, deltas) is already determined by detect_changes().
+    The LLM&#x27;s job here is the HOW: phrase the alert clearly and recommend
+    the right action. This is a single, focused LLM call — not a multi-step chain.
+
+    Severity mapping:
+      epss_critical, new_cve (high EPSS)  → Critical
+      epss_spike, severity_increase       → Warning
+      new_patch, everything else          → Informational
+    &quot;&quot;&quot;</span>
+    severity_map = {
+        <span class="t-s">&quot;epss_critical&quot;</span>:   <span class="t-s">&quot;Critical&quot;</span>,
+        <span class="t-s">&quot;epss_spike&quot;</span>:      <span class="t-s">&quot;Warning&quot;</span>,
+        <span class="t-s">&quot;severity_increase&quot;</span>: <span class="t-s">&quot;Warning&quot;</span>,
+        <span class="t-s">&quot;new_patch&quot;</span>:       <span class="t-s">&quot;Informational&quot;</span>,
+        <span class="t-s">&quot;new_cve&quot;</span>:         <span class="t-s">&quot;Warning&quot;</span> <span class="t-k">if</span> signal.current_epss &gt; <span class="t-n">0.3</span> <span class="t-k">else</span> <span class="t-s">&quot;Informational&quot;</span>,
+        <span class="t-s">&quot;no_change&quot;</span>:       <span class="t-s">&quot;Informational&quot;</span>,
+    }
+    severity = severity_map.get(signal.change_type, <span class="t-s">&quot;Warning&quot;</span>)
+
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are an autonomous security monitoring agent. &quot;</span>
+                    <span class="t-s">&quot;A change has been detected in a tracked CVE. &quot;</span>
+                    <span class="t-s">&quot;Write a clear, concise alert and a specific recommended action. &quot;</span>
+                    <span class="t-s">&quot;Be direct — this alert goes to security engineers who need to act fast.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">f&quot;CVE: {signal.cve_id}\n&quot;</span>
+                    <span class="t-s">f&quot;Change detected: {signal.summary}\n&quot;</span>
+                    <span class="t-s">f&quot;Previous EPSS: {signal.previous_epss:.4f} | Current EPSS: {signal.current_epss:.4f}\n&quot;</span>
+                    <span class="t-s">f&quot;Previous CVSS: {signal.previous_cvss} | Current CVSS: {signal.current_cvss}\n&quot;</span>
+                    <span class="t-s">f&quot;Patch newly available: {signal.patch_newly_available}\n&quot;</span>
+                    <span class="t-s">f&quot;Alert severity: {severity}\n\n&quot;</span>
+                    <span class="t-s">&quot;Generate the alert summary and recommended action.&quot;</span>
+                ),
+            },
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;AutonomousAlert&quot;</span>,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(AutonomousAlert),
+            },
+        },
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">512</span>,
+    )
+
+    alert = AutonomousAlert.model_validate(
+        json.loads(response.choices[<span class="t-n">0</span>].message.content)
+    )
+    <span class="t-c"># Ensure the structured fields match what we detected — LLM fills in text,</span>
+    <span class="t-c"># we control the severity, scores, and type deterministically</span>
+    <span class="t-k">return</span> AutonomousAlert(
+        cve_id=signal.cve_id,
+        alert_type=signal.change_type,
+        severity=severity,
+        summary=alert.summary,
+        recommended_action=alert.recommended_action,
+        epss_now=signal.current_epss,
+        cvss_now=signal.current_cvss,
+        auto_generated=<span class="t-k">True</span>,
+    )</code></pre></div>
+<p>Look at what the code does <strong>after</strong> the model replies. It builds the final alert from the rule-based signal: the severity, the alert type and the scores all come from code. The model supplies only two pieces of text, the summary and the recommended action. So the model cannot talk its way into a higher or lower severity.</p>
+<p>The mapping, from the <code>severity_map</code> inside the function, is:</p>
+<div class='table'><table><thead><tr><th>Change</th><th>Alert severity</th></tr></thead><tbody><tr><td><code>epss_critical</code></td><td>Critical</td></tr><tr><td><code>epss_spike</code>, <code>severity_increase</code></td><td>Warning</td></tr><tr><td><code>new_patch</code>, <code>no_change</code></td><td>Informational</td></tr><tr><td><code>new_cve</code></td><td>Warning if the EPSS score is above 0.3, otherwise Informational</td></tr></tbody></table></div>
+<h2 id="scanning-one-cve">Scanning one CVE</h2>
+<p><code>scan_one</code> runs the whole cycle for one CVE: fetch, compare, save the new baseline, and alert if needed.</p>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · scan_one</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> scan_one(cve_id: str, db_url: str = DB_URL) -&gt; AutonomousAlert | <span class="t-k">None</span>:
+    <span class="t-s">&quot;&quot;&quot;
+    Run a complete scan cycle for one CVE:
+      1. Fetch current NVD + EPSS data in parallel (L2 pattern)
+      2. Load last known state from scan_state table
+      3. Detect whether anything significant changed
+      4. If yes: generate an alert and save it
+      5. Always: update scan_state and last_scanned timestamp
+
+    Returns the generated Alert if one was created, None otherwise.
+
+    CONCURRENCY NOTE: Each call opens and closes its OWN database connection.
+    asyncpg connections are not safe for concurrent operations on the same
+    connection object — overlapping awaits raise &quot;another operation is in
+    progress&quot;. Because scan_all_once() calls this function for every CVE in
+    parallel via asyncio.gather(), each task must own its connection exclusively.
+    Using separate connections (or a pool) is the standard fix.
+    &quot;&quot;&quot;</span>
+    <span class="t-c"># Open a private connection for this task — safe for concurrent callers</span>
+    conn = <span class="t-k">await</span> asyncpg.connect(db_url)
+    <span class="t-k">try</span>:
+        <span class="t-c"># Fetch NVD and EPSS simultaneously — L2&#x27;s parallel pattern applied here.</span>
+        <span class="t-c"># Note: these are pure HTTP calls, not DB operations, so they don&#x27;t touch</span>
+        <span class="t-c"># our connection and are safe to run in parallel.</span>
+        nvd_data, epss_score = <span class="t-k">await</span> asyncio.gather(
+            fetch_current_nvd(cve_id),
+            fetch_current_epss(cve_id),
+        )
+
+        last_state = <span class="t-k">await</span> get_scan_state(conn, cve_id)
+        signal     = detect_changes(cve_id, last_state, nvd_data, epss_score)
+
+        <span class="t-c"># Save the current state as the new baseline, regardless of whether we alert</span>
+        <span class="t-k">await</span> save_scan_state(conn, cve_id, epss_score, nvd_data[<span class="t-s">&quot;cvss_score&quot;</span>], nvd_data[<span class="t-s">&quot;patch_known&quot;</span>])
+        <span class="t-k">await</span> mark_last_scanned(conn, cve_id)
+
+        <span class="t-k">if</span> signal.change_type == <span class="t-s">&quot;no_change&quot;</span>:
+            <span class="t-k">return</span> <span class="t-k">None</span>  <span class="t-c"># Nothing to alert on</span>
+
+        <span class="t-c"># Significant change: ask the LLM to phrase the alert clearly</span>
+        alert    = <span class="t-k">await</span> generate_alert(signal)
+        alert_id = <span class="t-k">await</span> save_alert(conn, alert)
+        console.print(
+            <span class="t-s">f&quot;  [bold {&#x27;red&#x27; if alert.severity == &#x27;Critical&#x27; else &#x27;yellow&#x27;}]&quot;</span>
+            <span class="t-s">f&quot;  ALERT #{alert_id} [{alert.severity}] {cve_id}: {signal.change_type}[/bold {&#x27;red&#x27; if alert.severity == &#x27;Critical&#x27; else &#x27;yellow&#x27;}]&quot;</span>
+        )
+        <span class="t-k">return</span> alert
+    <span class="t-k">finally</span>:
+        <span class="t-k">await</span> conn.close()</code></pre></div>
+<p>Two details matter.</p>
+<ul><li><strong>One connection per task.</strong> Many scans run at the same time, and a database connection cannot be shared by overlapping operations. So each <code>scan_one</code> opens and closes its own. The comment in the code names the error you would otherwise hit.</li><li><strong>The baseline is saved whether or not an alert fires.</strong> That way the next scan always compares against the most recent numbers.</li></ul>
+<h2 id="scanning-the-whole-watchlist">Scanning the whole watchlist</h2>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · scan_all_once</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> scan_all_once(db_url: str = DB_URL) -&gt; dict:
+    <span class="t-s">&quot;&quot;&quot;
+    Run one complete pass over the entire watchlist.
+    Scans all CVEs in parallel (up to a concurrency cap to avoid rate limits).
+
+    Returns a summary dict: how many CVEs scanned, how many alerts generated.
+    This function can be called standalone (e.g. from the CLI) without the
+    background loop running.
+    &quot;&quot;&quot;</span>
+    conn = <span class="t-k">await</span> asyncpg.connect(db_url)
+    <span class="t-k">try</span>:
+        <span class="t-k">await</span> init_db_l6(conn)
+        watchlist = <span class="t-k">await</span> get_watchlist(conn)
+
+        <span class="t-k">if</span> <span class="t-k">not</span> watchlist:
+            <span class="t-c"># Use &quot;alerts_created&quot; (not &quot;alerts&quot;) to match what _monitor_loop reads.</span>
+            <span class="t-k">return</span> {<span class="t-s">&quot;scanned&quot;</span>: <span class="t-n">0</span>, <span class="t-s">&quot;alerts_created&quot;</span>: <span class="t-n">0</span>, <span class="t-s">&quot;message&quot;</span>: <span class="t-s">&quot;Watchlist is empty&quot;</span>}
+
+        console.print(<span class="t-s">f&quot;[dim]  Scanning {len(watchlist)} CVE(s)...[/dim]&quot;</span>)
+
+        <span class="t-c"># Scan all CVEs simultaneously. We cap concurrency at 5 to avoid</span>
+        <span class="t-c"># hammering the NVD API (which rate-limits at 5 req/30s without a key).</span>
+        <span class="t-c">#</span>
+        <span class="t-c"># IMPORTANT: scan_one() opens its own connection per task. We do NOT</span>
+        <span class="t-c"># pass the parent `conn` here — that would share one connection across</span>
+        <span class="t-c"># multiple concurrent DB operations, triggering asyncpg&#x27;s</span>
+        <span class="t-c"># &quot;another operation is in progress&quot; error.</span>
+        sem     = asyncio.Semaphore(<span class="t-n">5</span>)
+        alerts_generated = <span class="t-n">0</span>
+
+        <span class="t-k">async</span> <span class="t-k">def</span> _scan_with_sem(entry):
+            <span class="t-k">async</span> <span class="t-k">with</span> sem:
+                <span class="t-k">return</span> <span class="t-k">await</span> scan_one(entry[<span class="t-s">&quot;cve_id&quot;</span>], db_url)
+
+        results = <span class="t-k">await</span> asyncio.gather(
+            *[_scan_with_sem(entry) <span class="t-k">for</span> entry <span class="t-k">in</span> watchlist],
+            return_exceptions=<span class="t-k">True</span>,  <span class="t-c"># Don&#x27;t let one failure stop the whole scan</span>
+        )
+
+        <span class="t-k">for</span> r <span class="t-k">in</span> results:
+            <span class="t-k">if</span> isinstance(r, Exception):
+                console.print(<span class="t-s">f&quot;[dim red]  scan error: {r}[/dim red]&quot;</span>)
+            <span class="t-k">elif</span> r <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+                alerts_generated += <span class="t-n">1</span>
+
+        <span class="t-k">return</span> {
+            <span class="t-s">&quot;scanned&quot;</span>:        len(watchlist),
+            <span class="t-s">&quot;alerts_created&quot;</span>: alerts_generated,
+            <span class="t-s">&quot;timestamp&quot;</span>:      datetime.now(timezone.utc).isoformat(),
+        }
+    <span class="t-k">finally</span>:
+        <span class="t-k">await</span> conn.close()</code></pre></div>
+<p>The scans run in parallel, but a <strong>semaphore</strong> limits it to 5 at a time, because the public NVD API rate-limits callers. <code>return_exceptions=True</code> means one failing CVE does not stop the others; the error is printed and the scan continues.</p>
+<h2 id="the-loop-and-the-kill-switch">The loop, and the kill switch</h2>
+<p>The loop itself is short. It scans, then waits, then repeats until told to stop:</p>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · _monitor_loop</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> _monitor_loop(db_url: str) -&gt; <span class="t-k">None</span>:
+    <span class="t-s">&quot;&quot;&quot;
+    The perpetual background loop.
+
+    Each iteration: scan everything → sleep → repeat.
+    The sleep uses _stop_event.wait(timeout=...) so the kill switch takes
+    effect immediately rather than waiting out the current sleep interval.
+
+    This function is meant to run as an asyncio.Task — call start_monitor()
+    to create it, stop_monitor() to cancel it.
+    &quot;&quot;&quot;</span>
+    console.print(<span class="t-s">f&quot;[green]  Autonomous monitor started. Scan interval: {SCAN_INTERVAL_SECONDS}s[/green]&quot;</span>)
+
+    <span class="t-k">while</span> <span class="t-k">not</span> _stop_event.is_set():
+        scan_start = time.perf_counter()
+        <span class="t-k">try</span>:
+            summary = <span class="t-k">await</span> scan_all_once(db_url)
+            elapsed = time.perf_counter() - scan_start
+            console.print(
+                <span class="t-s">f&quot;[dim]  Scan complete: {summary[&#x27;scanned&#x27;]} CVEs, &quot;</span>
+                <span class="t-s">f&quot;{summary[&#x27;alerts_created&#x27;]} alerts, {elapsed:.1f}s[/dim]&quot;</span>
+            )
+        <span class="t-k">except</span> Exception <span class="t-k">as</span> e:
+            console.print(<span class="t-s">f&quot;[red]  Monitor loop error: {e}[/red]&quot;</span>)
+
+        <span class="t-c"># Sleep until next interval — but wake up instantly if stop is requested.</span>
+        <span class="t-c"># asyncio.wait_for raises TimeoutError after SCAN_INTERVAL_SECONDS,</span>
+        <span class="t-c"># which we catch as &quot;time to scan again&quot;. If stop fires, the wait returns</span>
+        <span class="t-c"># early and the while condition fails.</span>
+        <span class="t-k">try</span>:
+            <span class="t-k">await</span> asyncio.wait_for(_stop_event.wait(), timeout=SCAN_INTERVAL_SECONDS)
+        <span class="t-k">except</span> asyncio.TimeoutError:
+            <span class="t-k">pass</span>  <span class="t-c"># Expected — means the interval elapsed normally</span>
+
+    console.print(<span class="t-s">&quot;[yellow]  Autonomous monitor stopped.[/yellow]&quot;</span>)</code></pre></div>
+<p>The waiting is done with <code>asyncio.wait_for</code> on a stop event rather than a plain sleep, so a stop request wakes the loop immediately instead of after the full interval. The interval comes from <code>VIGIL_SCAN_INTERVAL</code> in seconds, and the code's default is 3600 (one hour); the comment suggests 60 for demos.</p>
+<p>The emergency brake is <code>stop_monitor</code>:</p>
+<div class="code"><div class="code-cap">levels/l6_autonomous.py · stop_monitor</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> stop_monitor() -&gt; bool:
+    <span class="t-s">&quot;&quot;&quot;
+    Kill switch: immediately stop all autonomous monitoring activity.
+
+    Sets the stop event (causes the loop to exit on its next check),
+    then cancels the task (wakes it from any current sleep immediately).
+    Returns True if a running task was stopped, False if nothing was running.
+    &quot;&quot;&quot;</span>
+    <span class="t-k">global</span> _monitor_task
+
+    <span class="t-k">if</span> <span class="t-k">not</span> is_running():
+        <span class="t-k">return</span> <span class="t-k">False</span>
+
+    _stop_event.set()
+    _monitor_task.cancel()
+    <span class="t-k">try</span>:
+        <span class="t-k">await</span> _monitor_task
+    <span class="t-k">except</span> asyncio.CancelledError:
+        <span class="t-k">pass</span>  <span class="t-c"># Expected — we cancelled it</span>
+
+    _monitor_task = <span class="t-k">None</span>
+    <span class="t-k">return</span> <span class="t-k">True</span></code></pre></div>
+<p>It sets the stop event, cancels the task, waits for it to finish, and reports whether something was actually running. Calling it when nothing is running is harmless. The loop is started by <code>start_monitor</code>, which also does nothing if one is already running.</p>
+<aside class="callout note"><strong>Note</strong><p>The loop is an <code>asyncio.Task</code> inside one Python process, which here means inside the API server. If the server restarts, the loop stops and has to be started again. The code comments say a real deployment would use a proper scheduler.</p></aside>
+<h2 id="human-oversight">Human oversight</h2>
+<p>The code is clear about the limits of its own authority. The agent <strong>detects and alerts; it does not act.</strong> It does not patch systems, open tickets or send email. In the header's words: full autonomy in detection, human authority in response.</p>
+<p>Two controls support that:</p>
+<ul><li><strong>The kill switch</strong>, <code>POST /l6/monitor/stop</code>, stops all autonomous activity.</li><li><strong>Alert acknowledgement</strong>, <code>POST /l6/alerts/{id}/acknowledge</code>, records who reviewed an alert and when, using the <code>acknowledged</code>, <code>acknowledged_at</code> and <code>acknowledged_by</code> columns. Unacknowledged alerts stay visible, so there is a trail of what was reviewed.</li></ul>
+<p>This is the <strong>human-in-the-loop</strong> idea in its simplest form: the system proposes, a person decides. For the wider treatment of limiting what an agent may do, see <a href="r7.html">Action governance</a>.</p>
+<h2 id="what-it-stores">What it stores</h2>
+<p><code>init_db_l6</code> adds three tables next to L5's:</p>
+<div class='table'><table><thead><tr><th>Table</th><th>Purpose</th></tr></thead><tbody><tr><td><code>watchlist</code></td><td>CVEs being monitored, with a soft-delete <code>active</code> flag and <code>last_scanned</code></td></tr><tr><td><code>scan_state</code></td><td>The last known EPSS, CVSS and patch signal per CVE: the baseline for comparison</td></tr><tr><td><code>alerts</code></td><td>Generated alerts and whether a person has acknowledged them</td></tr></tbody></table></div>
+<h2 id="setting-it-up">Setting it up</h2>
+<p>L6 needs the same PostgreSQL setup as <a href="l5.html">Level 5</a>, so follow its "Setting up PostgreSQL" section. In short, <code>docker compose up --build</code> starts the database, and the scripts default to <code>localhost:5432</code>.</p>
+<h2 id="run-it">Run it</h2>
+<p>The command line covers the manual parts:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l6_autonomous.py --add CVE-2021-44228
+python levels/l6_autonomous.py --add CVE-2023-44487
+python levels/l6_autonomous.py --scan
+python levels/l6_autonomous.py --status</code></pre></div>
+<p><code>--scan</code> performs one pass over the watchlist and prints how many CVEs were scanned and how many alerts were generated. <code>--status</code> shows the watchlist and the most recent alerts. There is also <code>--remove</code> to take a CVE off the list.</p>
+<p>The <strong>continuous loop is not started from the command line.</strong> It runs inside the API server:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>curl -X POST http://localhost:8000/l6/monitor/start
+curl http://localhost:8000/l6/monitor/status
+curl -X POST http://localhost:8000/l6/monitor/stop</code></pre></div>
+<p>Other endpoints cover the watchlist (<code>/l6/watchlist</code>), a manual scan (<code>/l6/scan</code>) and alerts (<code>/l6/alerts</code>). The web interface has an L6 page with the same controls.</p>
+<p>What to expect from the code, step by step: the first scan of a CVE has no saved state, so it is classified <code>new_cve</code> and an alert is generated for it, even if the risk is low, because the code only skips alerting on <code>no_change</code>. From the second scan on, an alert appears only if one of the rules fires. Check the values against NVD and EPSS yourself: the numbers are live and change over time.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Add two CVEs and run <code>--scan</code> twice in a row. Compare the alerts after the first and the second scan. Which change types appear? 2) Lower <code>EPSS_SPIKE_THRESHOLD</code> and <code>VIGIL_SCAN_INTERVAL</code>, start the monitor through the API, then watch the console output. 3) Call the kill switch twice and notice that the second call reports nothing was running. 4) Acknowledge an alert through the API and check that <code>--status</code> now marks it reviewed. 5) Add a unit test for <code>detect_changes</code>: it is a pure function, so you can feed it dictionaries and assert the change type, with no database or model.</p></aside>
+<h2 id="common-mistakes-and-limits-to-know-about">Common mistakes and limits to know about</h2>
+<ul><li><strong>Letting the model decide what is significant.</strong> Keep the decision in code, as this level does.</li><li><strong>Alert fatigue.</strong> Every non-<code>no_change</code> result produces an alert and a model call, including the first sighting of each CVE. Too many alerts teach people to ignore them. Tune the thresholds.</li><li><strong>Fetch failures look like data.</strong> <code>fetch_current_epss</code> returns <code>0.0</code> on any error, and <code>scan_one</code> then saves that as the new baseline. A one-off network failure can therefore be recorded as "EPSS is 0", and the next successful scan may look like a spike. Treating "no data" and "zero" as different things is a worthwhile improvement.</li><li><strong>Header comments that describe more than the code does.</strong> The file's header mentions ignoring CVEs that already have "patched" feedback, and a noise band below 0.05. <code>detect_changes</code> implements neither. Always confirm behaviour in the code.</li><li><strong>No kill switch.</strong> Anything that runs on its own needs a documented way to stop it.</li><li><strong>Believing it acts.</strong> This agent only informs. Do not give an autonomous loop write access to production systems without the controls in <a href="r7.html">Action governance</a> and review of its decisions.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is the difference between automated and autonomous in this project?</summary><p>Automated systems run when a person or trigger starts them. An autonomous system starts its own work on a schedule or goal. L6 is autonomous because the loop scans the watchlist without being asked.</p></details>
+<details><summary>Why is change detection plain Python instead of a model call?</summary><p>It must be consistent, testable and explainable. A model might judge the same small change differently on different runs. The model is used only to write the alert text.</p></details>
+<details><summary>Who sets an alert's severity, the code or the model?</summary><p>The code. The final alert takes its severity, type and scores from the rule-based signal, and only the summary and recommended action come from the model.</p></details>
+<details><summary>Why does each scan open its own database connection?</summary><p>Scans run concurrently, and a single connection cannot handle overlapping operations. Each task owns its connection to avoid the "another operation is in progress" error.</p></details>
+<details><summary>What does the kill switch do, and is it safe to call twice?</summary><p>It sets the stop event and cancels the background task, so the loop ends at once. A second call finds nothing running and simply reports that.</p></details>
+<h2 id="what-you-have-built">What you have built</h2>
+<p>Look back at the ladder you have climbed:</p>
+<div class='table'><table><thead><tr><th>Level</th><th>New idea</th><th>What it added</th></tr></thead><tbody><tr><td><a href="l0.html">L0</a></td><td>One call</td><td>A system prompt, a task and a reply</td></tr><tr><td><a href="l1.html">L1</a></td><td>Chaining and structure</td><td>Typed output and context passed between steps</td></tr><tr><td><a href="l2.html">L2</a></td><td>Parallel agents</td><td>Specialists running at once, then a moderator</td></tr><tr><td><a href="l3.html">L3</a></td><td>Routing</td><td>The system chooses the path</td></tr><tr><td><a href="l4.html">L4</a></td><td>Tools</td><td>Live data instead of answers from memory</td></tr><tr><td><a href="l5.html">L5</a></td><td>Memory</td><td>History and feedback carried between runs</td></tr><tr><td>L6</td><td>Autonomy</td><td>A loop that watches, decides and alerts on its own</td></tr></tbody></table></div>
+<p>An AI <em>system</em> waits for you. An AI <em>agent</em> has a goal, uses tools, remembers, and acts without being asked, while a human keeps the brake and the final say. You have now read each of those pieces as running code.</p>
+<p>What this project deliberately does not do is make an agent safe to trust. The next sections look at how agents can be structured, and later ones at how to make them reliable and governed.</p>
+<p>Next: the <a href="architectures.html">Architectures</a> section compares different ways to organise an agent: ReAct, plan-and-execute, reflection and multi-agent.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l5.html"><small>Previous</small>L5: Memory</a><a class="next" href="architectures.html"><small>Next</small>Architectures overview</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#automated-versus-autonomous">Automated versus autonomous</a><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#l6-reuses-the-earlier-levels">L6 reuses the earlier levels</a><a class="l2" href="#the-most-important-design-choice-rules-decide-the-model-words">The most important design choice: rules decide, the model words</a><a class="l2" href="#turning-a-change-into-an-alert">Turning a change into an alert</a><a class="l2" href="#scanning-one-cve">Scanning one CVE</a><a class="l2" href="#scanning-the-whole-watchlist">Scanning the whole watchlist</a><a class="l2" href="#the-loop-and-the-kill-switch">The loop, and the kill switch</a><a class="l2" href="#human-oversight">Human oversight</a><a class="l2" href="#what-it-stores">What it stores</a><a class="l2" href="#setting-it-up">Setting it up</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes-and-limits-to-know-about">Common mistakes and limits to know about</a><a class="l2" href="#check-yourself">Check yourself</a><a class="l2" href="#what-you-have-built">What you have built</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

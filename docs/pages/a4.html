@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A4: Multi-agent · Vigil Guide</title>
+<meta name="description" content="Specialist agents with their own tools work in parallel, and an orchestrator combines their reports.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html" aria-current=page>A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Architectures</p>
+      <h1 id="a4-multi-agent">A4: Multi-agent</h1>
+<p><strong>The question this pattern answers:</strong> when one agent has too many jobs, how do I split the work into focused specialists?</p>
+<p>A single agent asked to be a threat analyst, a risk assessor and a remediation planner at once can blur those roles, and its context grows with every tool result. A4 gives each job to a separate agent with its own prompt, its own tools and its own conversation.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>A small incident team: three specialists each investigate their own angle at the same time, and a lead combines what they found.</p>
+<div class="fan" role="img"><div class="node">One CVE</div><span class="arr">→</span><div class="lane"><div class="node">Threat intel agent</div><div class="node">Impact assessment agent</div><div class="node">Patch and remediation agent</div></div><span class="arr">→</span><div class="node">Orchestrator's final report</div></div>
+<div class='table'><table><thead><tr><th>Agent</th><th>Focus</th><th>Tools it is given</th></tr></thead><tbody><tr><td>Threat intel</td><td>What is it and is it being exploited now?</td><td><code>fetch_nvd_data</code>, <code>check_cisa_kev</code></td></tr><tr><td>Impact assessment</td><td>How likely is exploitation and who is affected?</td><td><code>fetch_epss_score</code>, <code>fetch_nvd_data</code></td></tr><tr><td>Patch and remediation</td><td>Is there a fix and how urgent is it?</td><td><code>fetch_nvd_data</code>, <code>check_cisa_kev</code></td></tr></tbody></table></div>
+<p>Each agent only sees the tools relevant to its job. That keeps it focused and stops it reaching for tools that do not belong to its role.</p>
+<h2 id="how-is-this-different-from-l2">How is this different from L2?</h2>
+<p><a href="l2.html">Level 2</a> also ran parallel specialists and a moderator. A4 goes further:</p>
+<div class='table'><table><thead><tr><th></th><th>L2</th><th>A4</th></tr></thead><tbody><tr><td>Do agents use tools?</td><td>No, they reason from the model's training</td><td>Yes, each calls live NVD, EPSS and CISA KEV</td></tr><tr><td>Agent loop</td><td>One call each</td><td>Each runs its own tool-calling loop</td></tr><tr><td>Synthesis</td><td>A moderator reads four reports</td><td>An orchestrator reads three reports</td></tr></tbody></table></div>
+<h2 id="each-agent-runs-the-same-loop">Each agent runs the same loop</h2>
+<p>One generic function runs any specialist. Only the prompt, tools and output schema change:</p>
+<div class="code"><div class="code-cap">architectures/a4_multi_agent.py · run_agent_with_tools</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_agent_with_tools(
+    agent_name: str,
+    system_prompt: str,
+    user_message: str,
+    tools: list[dict],
+    output_schema: type,
+) -&gt; tuple[Any, list[dict]]:
+    <span class="t-s">&quot;&quot;&quot;
+    Run a single specialist agent through its tool-calling loop.
+
+    Each specialist agent is independent: its own messages list, its own
+    tools, its own conversation thread. Agents cannot see each other.
+
+    Returns: (structured_report, tool_call_log)
+    &quot;&quot;&quot;</span>
+    messages: list[dict] = [
+        {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: system_prompt},
+        {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: user_message},
+    ]
+    tool_log       = []
+    max_iterations = <span class="t-n">8</span>
+
+    <span class="t-k">for</span> _ <span class="t-k">in</span> range(max_iterations):
+        response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=tools,
+            tool_choice=<span class="t-s">&quot;auto&quot;</span>,
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">2048</span>,
+        )
+        _track(response)
+        message = response.choices[<span class="t-n">0</span>].message
+
+        <span class="t-k">if</span> message.tool_calls:
+            messages.append(message.model_dump(exclude_unset=<span class="t-k">True</span>))
+
+            <span class="t-k">for</span> tc <span class="t-k">in</span> message.tool_calls:
+                fn_name   = tc.function.name
+                args      = json.loads(tc.function.arguments)
+                fn        = ALL_TOOL_FUNCTIONS.get(fn_name)
+                result    = <span class="t-k">await</span> fn(**args) <span class="t-k">if</span> fn <span class="t-k">else</span> {<span class="t-s">&quot;error&quot;</span>: <span class="t-s">f&quot;Unknown tool: {fn_name}&quot;</span>}
+                result_str = json.dumps(result)
+
+                console.print(<span class="t-s">f&quot;[dim]    [{agent_name}] → {fn_name}({args})[/dim]&quot;</span>)
+                tool_log.append({<span class="t-s">&quot;agent&quot;</span>: agent_name, <span class="t-s">&quot;tool&quot;</span>: fn_name, <span class="t-s">&quot;arguments&quot;</span>: args, <span class="t-s">&quot;result&quot;</span>: result})
+
+                messages.append({
+                    <span class="t-s">&quot;role&quot;</span>:         <span class="t-s">&quot;tool&quot;</span>,
+                    <span class="t-s">&quot;tool_call_id&quot;</span>: tc.id,
+                    <span class="t-s">&quot;content&quot;</span>:      result_str,
+                })
+            continue
+
+        <span class="t-c"># No more tool calls — produce structured report</span>
+        final = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages + [
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;Produce your final structured report now.&quot;</span>}
+            ],
+            response_format={
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+                <span class="t-s">&quot;json_schema&quot;</span>: {
+                    <span class="t-s">&quot;name&quot;</span>:   output_schema.__name__,
+                    <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                    <span class="t-s">&quot;schema&quot;</span>: _strict_schema(output_schema),
+                },
+            },
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">1024</span>,
+        )
+        _track(final)
+        report = output_schema.model_validate(json.loads(final.choices[<span class="t-n">0</span>].message.content))
+        <span class="t-k">return</span> report, tool_log
+
+    <span class="t-k">raise</span> RuntimeError(<span class="t-s">f&quot;Agent {agent_name} exceeded max iterations&quot;</span>)</code></pre></div>
+<p>Key points:</p>
+<ul><li><strong>Independent threads.</strong> Each call builds its own <code>messages</code> list. Agents cannot see each other's work.</li><li><strong>A tool loop with a cap.</strong> Up to 8 iterations. If the model stops asking for tools, a final call produces the structured report. Past the cap it raises a <code>RuntimeError</code>.</li><li><strong>Unknown tools are handled.</strong> An unknown tool name becomes an error result instead of a crash, and a test (<code>test_a4_run_agent_with_tools_dispatches_unknown_tool_safely</code>) covers it.</li></ul>
+<p>A specialist is just that function with a focused prompt. Here is the threat intel one:</p>
+<div class="code"><div class="code-cap">architectures/a4_multi_agent.py · run_threat_intel_agent</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_threat_intel_agent(cve_id: str) -&gt; tuple[ThreatIntelReport, list[dict]]:
+    <span class="t-k">return</span> <span class="t-k">await</span> run_agent_with_tools(
+        agent_name=<span class="t-s">&quot;threat_intel&quot;</span>,
+        system_prompt=(
+            <span class="t-s">&quot;You are a threat intelligence analyst. Your ONLY focus is: &quot;</span>
+            <span class="t-s">&quot;what is this vulnerability, how does it work, and is it being actively exploited right now? &quot;</span>
+            <span class="t-s">&quot;Use fetch_nvd_data for the official description and severity. &quot;</span>
+            <span class="t-s">&quot;Use check_cisa_kev to determine if CISA has confirmed active exploitation. &quot;</span>
+            <span class="t-s">&quot;Do not speculate about impact or remediation — that is handled by other agents.&quot;</span>
+        ),
+        user_message=<span class="t-s">f&quot;Provide threat intelligence for {cve_id}.&quot;</span>,
+        tools=THREAT_INTEL_TOOLS,
+        output_schema=ThreatIntelReport,
+    )</code></pre></div>
+<p>Note the sentence "Do not speculate about impact or remediation, that is handled by other agents." Telling a specialist what <em>not</em> to do is how you keep roles clean.</p>
+<p>Its tool menu is a short list of tool definitions in the standard function-calling format:</p>
+<div class="code"><div class="code-cap">architectures/a4_multi_agent.py · THREAT_INTEL_TOOLS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>THREAT_INTEL_TOOLS: list[dict] = [
+    {
+        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;function&quot;</span>,
+        <span class="t-s">&quot;function&quot;</span>: {
+            <span class="t-s">&quot;name&quot;</span>:        <span class="t-s">&quot;fetch_nvd_data&quot;</span>,
+            <span class="t-s">&quot;description&quot;</span>: <span class="t-s">&quot;Get CVE description, CVSS score and severity from NVD.&quot;</span>,
+            <span class="t-s">&quot;parameters&quot;</span>: {
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;object&quot;</span>,
+                <span class="t-s">&quot;properties&quot;</span>: {<span class="t-s">&quot;cve_id&quot;</span>: {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;string&quot;</span>}},
+                <span class="t-s">&quot;required&quot;</span>: [<span class="t-s">&quot;cve_id&quot;</span>], <span class="t-s">&quot;additionalProperties&quot;</span>: <span class="t-k">False</span>,
+            },
+        },
+    },
+    {
+        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;function&quot;</span>,
+        <span class="t-s">&quot;function&quot;</span>: {
+            <span class="t-s">&quot;name&quot;</span>:        <span class="t-s">&quot;check_cisa_kev&quot;</span>,
+            <span class="t-s">&quot;description&quot;</span>: <span class="t-s">&quot;Check if this CVE is in CISA&#x27;s Known Exploited Vulnerabilities catalog.&quot;</span>,
+            <span class="t-s">&quot;parameters&quot;</span>: {
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;object&quot;</span>,
+                <span class="t-s">&quot;properties&quot;</span>: {<span class="t-s">&quot;cve_id&quot;</span>: {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;string&quot;</span>}},
+                <span class="t-s">&quot;required&quot;</span>: [<span class="t-s">&quot;cve_id&quot;</span>], <span class="t-s">&quot;additionalProperties&quot;</span>: <span class="t-k">False</span>,
+            },
+        },
+    },
+]</code></pre></div>
+<h2 id="fan-out-then-fan-in">Fan-out, then fan-in</h2>
+<div class="code"><div class="code-cap">architectures/a4_multi_agent.py · analyse_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> analyse_cve(
+    cve_id: str,
+) -&gt; tuple[ThreatIntelReport, ImpactReport, RemediationReport, MultiAgentReport, list[dict]]:
+    <span class="t-s">&quot;&quot;&quot;
+    Full Multi-Agent pipeline:
+      1. Dispatch three specialist agents in parallel
+      2. Collect their reports
+      3. Orchestrator synthesises the final assessment
+
+    The three agents run concurrently — the total time is roughly max(agent_times)
+    rather than sum(agent_times).
+    &quot;&quot;&quot;</span>
+    _reset_usage()
+    console.print(<span class="t-s">f&quot;\n[dim]  Dispatching three specialist agents for {cve_id}...[/dim]&quot;</span>)
+    start = time.perf_counter()
+
+    <span class="t-c"># ── Fan-out: all three agents run concurrently ─────────────────────────────</span>
+    (threat, threat_log), (impact, impact_log), (remediation, remediation_log) = (
+        <span class="t-k">await</span> asyncio.gather(
+            run_threat_intel_agent(cve_id),
+            run_impact_agent(cve_id),
+            run_remediation_agent(cve_id),
+        )
+    )
+
+    console.print(<span class="t-s">&quot;[dim]  All agents complete. Orchestrator synthesising...[/dim]&quot;</span>)
+
+    <span class="t-c"># ── Fan-in: orchestrator synthesises ──────────────────────────────────────</span>
+    final = <span class="t-k">await</span> synthesise_reports(cve_id, threat, impact, remediation)
+
+    elapsed   = time.perf_counter() - start
+    all_tools = threat_log + impact_log + remediation_log
+    console.print(<span class="t-s">f&quot;[dim]  Completed in {elapsed:.1f}s ({len(all_tools)} total tool calls across 3 agents)[/dim]&quot;</span>)
+
+    <span class="t-k">return</span> threat, impact, remediation, final, all_tools</code></pre></div>
+<p>The three agents start together with <code>asyncio.gather</code> (the same tool as in <a href="l2.html">L2</a> and <a href="a3.html">A3</a>), so the wall-clock time is roughly the slowest agent rather than the sum. Then <code>synthesise_reports</code> makes one model call that receives all three reports as JSON and writes the final <code>MultiAgentReport</code>. The orchestrator calls <strong>no tools</strong>; it only combines what the specialists found.</p>
+<aside class="callout note"><strong>Note</strong><p>The file's introduction says the orchestrator "dynamically describes each agent's specific subtask". In the code, each specialist's task text is fixed (for example, "Provide threat intelligence for CVE-..."). The orchestrator's real job here is synthesis. Dynamic task decomposition would be a good extension.</p></aside>
+<h2 id="the-collaborate-function">The <code>collaborate</code> function</h2>
+<p><code>collaborate</code> returns a <code>Consensus</code> object with a transcript, in three modes: <code>handoff</code>, <code>debate</code> and <code>blackboard</code>. Read it with care, because it is easy to misread.</p>
+<p>It first runs the normal <code>analyse_cve</code>. Then it <strong>builds the transcript from the finished reports</strong> using fixed message templates. For example, in <code>debate</code> mode the messages are strings like "Round 1: Active exploit=True. Prioritize speed." filled in with values from the reports. <strong>No extra model calls happen, and the agents do not actually talk to each other.</strong> The transcript shows what a handoff, debate or blackboard exchange <em>would look like</em> in the data model, which is useful for learning the shapes and for building a UI, but it is not real inter-agent negotiation.</p>
+<p>It does compute one real signal: <code>disagreement_noted</code> is true when the threat agent says the CVE is actively exploited but the remediation agent rates urgency as medium or low. That mismatch is worth a human's attention. Agent communication is described in <code>specs/E3-agent-communication.md</code>.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python architectures/a4_multi_agent.py CVE-2021-44228</code></pre></div>
+<p>You should see three agents dispatched, their tool calls printed as they happen (tagged with the agent's name), a line saying the orchestrator is synthesising, and the final report. It needs an OpenAI key and internet access.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Compare the three agents' tool calls in the printed log. Did each stay within its role? 2) Add a fourth agent, such as a "compliance" specialist, with its own prompt, tool list and report class. How much code did that take? 3) Make two prompts disagree on purpose and check whether <code>disagreement_noted</code> fires.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Splitting too early.</strong> Several agents cost several times as much. If one prompt can do the job, keep it simple.</li><li><strong>Overlapping roles.</strong> If two agents do similar work you pay twice for the same answer. Draw clear boundaries in the prompts.</li><li><strong>Assuming independence means diversity.</strong> Agents that share one model share its blind spots. Three agents agreeing is not three independent confirmations.</li><li><strong>No orchestrator rules.</strong> The synthesis prompt says urgency must reflect CVSS, EPSS and active exploitation together. Without a rule like that, a synthesiser can drift towards whichever report is most dramatic.</li><li><strong>Mistaking templates for conversation.</strong> See the <code>collaborate</code> section above.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why give each specialist only a subset of the tools?</summary><p>It keeps each one focused on its role and avoids it using tools that belong to another agent's job.</p></details>
+<details><summary>Why does the total time roughly equal the slowest agent and not the sum?</summary><p>The three agents run concurrently with <code>asyncio.gather</code>. Only the orchestrator step waits for all of them.</p></details>
+<details><summary>Do the agents in <code>collaborate</code> really debate?</summary><p>No. The transcript is built from fixed templates using the finished reports. It illustrates the structure of a debate without any extra model calls.</p></details>
+<p>You have now seen four architectures. Next, the track that makes any of them safe to run: <a href="reliability.html">Reliability</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="a3.html"><small>Previous</small>A3: Reflection</a><a class="next" href="reliability.html"><small>Next</small>Reliability overview</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#how-is-this-different-from-l2">How is this different from L2?</a><a class="l2" href="#each-agent-runs-the-same-loop">Each agent runs the same loop</a><a class="l2" href="#fan-out-then-fan-in">Fan-out, then fan-in</a><a class="l2" href="#the-collaborate-function">The collaborate function</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

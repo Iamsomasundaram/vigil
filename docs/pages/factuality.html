@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factuality and citations · Vigil Guide</title>
+<meta name="description" content="Check each claim in an answer against the evidence, and abstain when it is unsupported.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html" aria-current=page>Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="factuality-and-citations">Factuality and citations</h1>
+<p><strong>The question this page answers:</strong> how do I know an answer is backed by the evidence I gave the model, and not something it made up?</p>
+<p>A model can produce a fluent, confident sentence that no source supports. This is often called a <strong>hallucination</strong>. Retrieval (<a href="retrieval.html">the previous page</a>) gives the model real passages, but it does not <em>force</em> the model to stay inside them. So we check afterwards.</p>
+<div class="flow" role="img"><div class="node"><b>Answer text</b></div><span class="arr">→</span><div class="node"><b>Split into claims</b></div><span class="arr">→</span><div class="node"><b>Compare each claim to the evidence</b></div><span class="arr">→</span><div class="node"><b>Supported or unsupported</b></div><span class="arr">→</span><div class="node"><b>Abstain or accept</b></div></div>
+<p>The idea is <strong>faithfulness</strong>: the share of claims in an answer that the evidence supports.</p>
+<aside class="callout note"><strong>Note</strong><p><code>levels/foundations/factuality.py</code> is a <strong>lexical</strong> checker: it measures word overlap between a claim and the evidence. It runs offline with no API key. It is a clear way to learn the idea, but it is a rough heuristic, not a fact-checker. The limits are spelled out below.</p></aside>
+<h2 id="step-1-break-the-answer-into-claims">Step 1: Break the answer into claims</h2>
+<p>A long answer is checked one sentence at a time, because one false sentence should not hide inside nine true ones:</p>
+<div class="code"><div class="code-cap">levels/foundations/factuality.py · split_claims</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> split_claims(answer_text: str) -&gt; list[str]:
+    <span class="t-s">&quot;&quot;&quot;Split free-form answer text into sentence-like claims.&quot;&quot;&quot;</span>
+    raw = re.split(r<span class="t-s">&quot;[.!?]\s+|\n+&quot;</span>, answer_text.strip())
+    claims = [s.strip(<span class="t-s">&quot; -\t&quot;</span>) <span class="t-k">for</span> s <span class="t-k">in</span> raw <span class="t-k">if</span> s.strip()]
+    <span class="t-k">return</span> claims</code></pre></div>
+<p>It splits on sentence endings and newlines. A real system might use a model to extract atomic claims; this splitter simply treats each sentence as a claim.</p>
+<h2 id="step-2-reduce-text-to-comparable-terms">Step 2: Reduce text to comparable terms</h2>
+<div class="code"><div class="code-cap">levels/foundations/factuality.py · _tokens</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _tokens(text: str) -&gt; set[str]:
+    terms = re.findall(r<span class="t-s">&quot;[A-Za-z0-9_\-]+&quot;</span>, text.lower())
+    out = {t <span class="t-k">for</span> t <span class="t-k">in</span> terms <span class="t-k">if</span> t <span class="t-k">not</span> <span class="t-k">in</span> _STOP}
+    <span class="t-c"># Expand common security shorthand so lexical support checks are less brittle.</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;rce&quot;</span> <span class="t-k">in</span> out:
+        out.update({<span class="t-s">&quot;remote&quot;</span>, <span class="t-s">&quot;code&quot;</span>, <span class="t-s">&quot;execution&quot;</span>})
+    <span class="t-k">if</span> <span class="t-s">&quot;dos&quot;</span> <span class="t-k">in</span> out:
+        out.update({<span class="t-s">&quot;denial&quot;</span>, <span class="t-s">&quot;service&quot;</span>})
+    <span class="t-k">return</span> out</code></pre></div>
+<p>It lowercases, drops filler words and keeps the rest. It also expands two security abbreviations so they can match the long form: <code>rce</code> becomes <code>remote code execution</code> and <code>dos</code> becomes <code>denial service</code>. Without that, a claim saying "RCE" would fail against evidence saying "remote code execution".</p>
+<h2 id="step-3-score-each-claim-against-the-evidence">Step 3: Score each claim against the evidence</h2>
+<p>A claim's support is the fraction of its terms found in the <em>best-matching</em> evidence snippet. The check then compares that to a threshold, which defaults to <code>0.45</code>:</p>
+<div class="code"><div class="code-cap">levels/foundations/factuality.py · factuality_check</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> factuality_check(
+    *,
+    answer_text: str,
+    evidence_snippets: list[str],
+    support_threshold: float = <span class="t-n">0.45</span>,
+) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Label claims as supported/unsupported based on lexical overlap with evidence.&quot;&quot;&quot;</span>
+    claims = split_claims(answer_text)
+    results: list[dict[str, Any]] = []
+    supported = <span class="t-n">0</span>
+
+    <span class="t-k">for</span> claim <span class="t-k">in</span> claims:
+        score, excerpt = _best_evidence(claim, evidence_snippets)
+        ok = score &gt;= support_threshold
+        <span class="t-k">if</span> ok:
+            supported += <span class="t-n">1</span>
+        results.append(
+            {
+                <span class="t-s">&quot;claim&quot;</span>: claim,
+                <span class="t-s">&quot;supported&quot;</span>: ok,
+                <span class="t-s">&quot;support_score&quot;</span>: round(score, <span class="t-n">4</span>),
+                <span class="t-s">&quot;evidence_excerpt&quot;</span>: excerpt <span class="t-k">if</span> ok <span class="t-k">else</span> <span class="t-s">&quot;&quot;</span>,
+            }
+        )
+
+    total = len(claims)
+    faithfulness = (supported / total) <span class="t-k">if</span> total <span class="t-k">else</span> <span class="t-n">0.0</span>
+    unsupported_claims = [r[<span class="t-s">&quot;claim&quot;</span>] <span class="t-k">for</span> r <span class="t-k">in</span> results <span class="t-k">if</span> <span class="t-k">not</span> r[<span class="t-s">&quot;supported&quot;</span>]]
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;faithfulness_score&quot;</span>: round(faithfulness, <span class="t-n">4</span>),
+        <span class="t-s">&quot;supported_claims&quot;</span>: supported,
+        <span class="t-s">&quot;total_claims&quot;</span>: total,
+        <span class="t-s">&quot;unsupported_claims&quot;</span>: unsupported_claims,
+        <span class="t-s">&quot;abstain_recommended&quot;</span>: len(unsupported_claims) &gt; <span class="t-n">0</span>,
+        <span class="t-s">&quot;results&quot;</span>: results,
+    }</code></pre></div>
+<p>The report gives you:</p>
+<ul><li><code>faithfulness_score</code>: supported claims divided by total claims.</li><li><code>unsupported_claims</code>: the sentences that failed.</li><li><code>abstain_recommended</code>: true as soon as <strong>any</strong> claim is unsupported. The safest behaviour for a system that must be right is to refuse, or to ask for review, rather than ship an unsupported statement.</li><li>A per-claim result with the matching evidence excerpt, which is your <strong>citation</strong>.</li></ul>
+<h3 id="a-worked-example">A worked example</h3>
+<p>Using the default demo evidence and one added false sentence, I ran this check offline:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">from</span> levels.foundations.factuality <span class="t-k">import</span> factuality_check
+
+report = factuality_check(
+    answer_text=<span class="t-s">&quot;Log4j has remote code execution and patch 2.17.1 is available. It was created by aliens.&quot;</span>,
+    evidence_snippets=[
+        <span class="t-s">&quot;CVE-2021-44228 allows remote code execution in Apache Log4j.&quot;</span>,
+        <span class="t-s">&quot;Patch to Log4j 2.17.1 or later is recommended.&quot;</span>,
+    ],
+)</code></pre></div>
+<p>The result: the first sentence scored <code>0.5</code>, above the <code>0.45</code> threshold, so it is supported. The second scored <code>0.0</code>. So <code>faithfulness_score</code> is <code>0.5</code>, <code>unsupported_claims</code> contains <code>It was created by aliens.</code>, and <code>abstain_recommended</code> is true.</p>
+<h2 id="what-this-checker-cannot-do">What this checker cannot do</h2>
+<p>Be clear-eyed about a word-overlap method:</p>
+<ul><li><strong>It cannot detect contradiction.</strong> "Log4j has <strong>no</strong> remote code execution" shares almost every word with the evidence, so it can score as supported. Overlap measures <em>topic</em>, not <em>truth</em>.</li><li><strong>It cannot detect paraphrase.</strong> A correct claim worded differently from the evidence may score low.</li><li><strong>The threshold is a judgment call.</strong> <code>0.45</code> is a default. Raise it and you reject more; lower it and you let more through.</li><li><strong>It only knows the evidence you give it.</strong> If the evidence is wrong or incomplete, a "supported" claim can still be false.</li></ul>
+<p>Production systems use stronger methods, for example a model that judges whether the evidence entails the claim, but the workflow is the same: split, compare, decide, cite.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/factuality.py</code></pre></div>
+<p>You should see a table with each claim, whether it is supported, its score and the evidence excerpt, followed by the full JSON report. Pass <code>--answer</code> and repeat <code>--evidence</code> to try your own text, and <code>--threshold</code> to move the cut-off.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Raise <code>--threshold</code> to <code>0.9</code> and watch supported claims turn unsupported. 2) Write a claim that <em>contradicts</em> the evidence using the same words (for example, adding the word "not") and see whether the checker catches it. It should not, and seeing that is the point. 3) Reword a true claim with synonyms and see its score fall.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Treating a high score as proof of truth.</strong> It means the words overlap with the evidence.</li><li><strong>Checking the whole answer at once.</strong> Check claim by claim.</li><li><strong>Ignoring abstention.</strong> A system that always answers will sometimes answer without support.</li><li><strong>Giving the checker no evidence.</strong> With no snippets, every claim is unsupported.</li><li><strong>Forgetting citations.</strong> Showing the user the matching excerpt lets them verify for themselves.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is faithfulness?</summary><p>The share of an answer's claims that the supplied evidence supports.</p></details>
+<details><summary>Why does this checker fail to catch "Log4j has no remote code execution"?</summary><p>It measures shared words, and that sentence shares nearly all of them with the evidence. It cannot tell that "no" reverses the meaning.</p></details>
+<details><summary>When should a system abstain?</summary><p>When a claim has no adequate support in the evidence, especially in high-stakes work. Vigil's <code>abstain_recommended</code> flag is true if any claim is unsupported.</p></details>
+<p>Next: <a href="privacy.html">Privacy and safe logging</a> keeps secrets and personal data out of prompts and logs.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="retrieval.html"><small>Previous</small>Retrieval and RAG</a><a class="next" href="privacy.html"><small>Next</small>Privacy and safe logging</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#step-1-break-the-answer-into-claims">Step 1: Break the answer into claims</a><a class="l2" href="#step-2-reduce-text-to-comparable-terms">Step 2: Reduce text to comparable terms</a><a class="l2" href="#step-3-score-each-claim-against-the-evidence">Step 3: Score each claim against the evidence</a><a class="l3" href="#a-worked-example">A worked example</a><a class="l2" href="#what-this-checker-cannot-do">What this checker cannot do</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3: Observability · Vigil Guide</title>
+<meta name="description" content="Record a tree of timed, token-counted steps for every run, so you can see what the agent actually did.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html" aria-current=page>R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r3-observability">R3: Observability</h1>
+<p><strong>The question this module answers:</strong> the agent gave a wrong or slow answer. What exactly happened?</p>
+<p>An agent run is a chain of decisions: calls to the model, calls to tools, retries. If all you keep is the final answer, debugging is guesswork. <strong>Observability</strong> means recording enough about each run that you can replay it in your head afterwards.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Each run gets a <strong>trace</strong>: a record of one request from start to finish. A trace is made of <strong>spans</strong>: one per step, such as "call the model" or "fetch NVD data". Spans nest, so you get a tree that shows what called what, how long each took, and how many tokens it used.</p>
+<div class="flow" role="img"><div class="node"><b>Trace</b><small>one run, one id</small></div><span class="arr">→</span><div class="node"><b>Span</b><small>the whole analysis</small></div><span class="arr">→</span><div class="node"><b>Span</b><small>model call, with tokens</small></div><span class="arr">→</span><div class="node"><b>Span</b><small>tool call</small></div></div>
+<p>This is the same model used by industry tracing tools, in a tiny in-process version with no outside service.</p>
+<h2 id="using-it">Using it</h2>
+<p>You open spans with a <code>with</code> block. The inner block becomes a child of the outer one automatically:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">from</span> reliability <span class="t-k">import</span> r3_observability <span class="t-k">as</span> r3
+
+tracer = r3.Tracer()
+<span class="t-k">with</span> tracer.span(<span class="t-s">&quot;analyse&quot;</span>, cve_id=<span class="t-s">&quot;CVE-2021-44228&quot;</span>):
+    <span class="t-k">with</span> tracer.span(<span class="t-s">&quot;llm.tool_loop&quot;</span>, model=<span class="t-s">&quot;gpt-4o-mini&quot;</span>) <span class="t-k">as</span> s:
+        s.add_tokens(<span class="t-n">950</span>)
+    <span class="t-k">with</span> tracer.span(<span class="t-s">&quot;tool.call&quot;</span>, tool=<span class="t-s">&quot;fetch_nvd_data&quot;</span>):
+        <span class="t-k">pass</span>
+
+r3.render_trace_tree(tracer.to_trace())</code></pre></div>
+<p>Running exactly that prints a tree like this (the millisecond figures and the trace id will differ on your machine):</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>analyse [0.1ms] status=ok
+├── llm.tool_loop [0.0ms] status=ok tokens=950 model=gpt-4o-mini
+└── tool.call [0.0ms] status=ok tool=fetch_nvd_data
+trace_id=a91107fb-2a3a-4d4d-bdc1-68d9b9c96856  total=0.1ms  tokens=950  cost=$0.000142</code></pre></div>
+<p>Because the code inside the blocks here does nothing, the times are near zero. In a real run each span would show real latency.</p>
+<h2 id="how-it-works">How it works</h2>
+<p>Spans are managed by a <code>Tracer</code>. A small stack tracks which span is currently open, and the span on top of it becomes the parent of the next one. When a block exits, the span is closed, timed and stored. If the block raised an error, the span is marked <code>error</code> and the error still propagates, so tracing never swallows an exception.</p>
+<p>You can also wrap whole functions, sync or async, with a decorator, so you do not edit every call site:</p>
+<div class="code"><div class="code-cap">reliability/r3_observability.py · traced</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> traced(
+    tracer: Tracer,
+    name: str | <span class="t-k">None</span> = <span class="t-k">None</span>,
+    attr_builder: Callable[..., dict[str, Any]] | <span class="t-k">None</span> = <span class="t-k">None</span>,
+) -&gt; Callable[[Callable[..., Any]], Callable[..., Any]]:
+    <span class="t-k">def</span> decorator(fn: Callable[..., Any]) -&gt; Callable[..., Any]:
+        span_name = name <span class="t-k">or</span> fn.__name__
+
+        <span class="t-k">if</span> inspect.iscoroutinefunction(fn):
+            <span class="t-k">async</span> <span class="t-k">def</span> async_wrapper(*args: Any, **kwargs: Any) -&gt; Any:
+                attrs = attr_builder(*args, **kwargs) <span class="t-k">if</span> attr_builder <span class="t-k">else</span> {}
+                <span class="t-k">with</span> tracer.span(span_name, **attrs):
+                    <span class="t-k">return</span> <span class="t-k">await</span> fn(*args, **kwargs)
+
+            <span class="t-k">return</span> async_wrapper
+
+        <span class="t-k">def</span> sync_wrapper(*args: Any, **kwargs: Any) -&gt; Any:
+            attrs = attr_builder(*args, **kwargs) <span class="t-k">if</span> attr_builder <span class="t-k">else</span> {}
+            <span class="t-k">with</span> tracer.span(span_name, **attrs):
+                <span class="t-k">return</span> fn(*args, **kwargs)
+
+        <span class="t-k">return</span> sync_wrapper
+
+    <span class="t-k">return</span> decorator</code></pre></div>
+<h2 id="what-a-trace-stores">What a trace stores</h2>
+<p>Each span records: a unique id, its parent's id, a name, string attributes, start time, duration in milliseconds, a status of <code>ok</code> or <code>error</code>, and an optional token count. A finished trace adds the root span id, total duration, total tokens and an estimated cost.</p>
+<p><code>add_tokens</code> attributes tokens to the span that is currently open, so you can see <em>which step</em> spent them instead of just a grand total.</p>
+<h2 id="keeping-and-finding-traces">Keeping and finding traces</h2>
+<ul><li><strong>In memory:</strong> every finished trace is kept in <code>TRACE_STORE</code>, a small store that holds the latest 200 and drops the oldest. Fetch one with <code>get_trace(trace_id)</code>. It is lost when the process stops.</li><li><strong>On disk:</strong> <code>export_trace_jsonl(trace, path)</code> appends one trace per line to a file, and <code>load_trace_jsonl(path, trace_id)</code> finds one again. JSON Lines is easy to search with ordinary tools.</li></ul>
+<p>The API exposes the same idea at <code>GET /r3/trace/{trace_id}</code>.</p>
+<h2 id="limits-to-know-about">Limits to know about</h2>
+<aside class="callout warning"><strong>Warning</strong><p>1) <strong>The cost figure is rough.</strong> <code>to_trace</code> multiplies the total tokens by a single hard-coded price (0.15 dollars per million, the input price of <code>gpt-4o-mini</code>). It does not separate input from output tokens or look up the model, so it usually understates. For real cost attribution use <a href="r5.html">R5</a>. 2) <strong>One stack per tracer.</strong> If several concurrent tasks share a single <code>Tracer</code>, their spans can interleave on that stack and get the wrong parent. Give each task its own <code>Tracer</code>, or run the steps one after another. 3) <strong>Everything is in-process.</strong> There is no sampling, no shipping to a collector, and no protection for sensitive data. Do not put secrets or personal data in attributes.</p></aside>
+<aside class="callout warning"><strong>Warning</strong><p>A span attribute must not be called <code>name</code>. <code>Tracer.span(self, name, **attributes)</code> already uses that word for the span's own name, so <code>tracer.span(&quot;tool.call&quot;, name=&quot;x&quot;)</code> raises <code>TypeError: got multiple values for argument &#x27;name&#x27;</code>. Use another key, such as <code>tool</code>.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the snippet above, then add a nested span inside <code>tool.call</code> and watch the tree deepen. 2) Raise an error inside a span with <code>raise RuntimeError(&quot;boom&quot;)</code> inside a <code>try</code> block, and look at its <code>status</code>. 3) Export the trace with <code>r3.export_trace_jsonl(trace, &quot;traces.jsonl&quot;)</code> and open the file in your editor.</p></aside>
+<p>The behaviours above are pinned by <code>tests/test_observability.py</code>. Run them with <code>python -m pytest tests/test_observability.py -q</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Tracing only the happy path.</strong> Failures are what you most need to see. Errors are recorded automatically, so keep spans around the risky calls.</li><li><strong>Too much detail in attributes.</strong> Large prompts and responses bloat traces and may hold sensitive text. Record sizes and ids, not full content.</li><li><strong>Sharing one tracer across concurrent tasks.</strong> See the limits above.</li><li><strong>Treating the cost number as a bill.</strong> It is an approximation. Use R5 for costs.</li><li><strong>Never reading the traces.</strong> A trace you do not look at is just disk space. Check them when something is slow or odd.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is the difference between a trace and a span?</summary><p>A trace is the record of one whole run. A span is one timed step inside it, and spans nest to form a tree.</p></details>
+<details><summary>Why attribute tokens to a span instead of only keeping a total?</summary><p>You can then see which step is expensive, such as the model call or one particular tool, and fix the right thing.</p></details>
+<details><summary>Why does the span's error status not hide the exception?</summary><p>The span is marked <code>error</code> and the exception keeps propagating, so tracing observes failures without changing program behaviour.</p></details>
+<p>Next: <a href="r4.html">R4: Resilience</a> makes the agent keep working when a data source does not.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r2.html"><small>Previous</small>R2: Evaluation</a><a class="next" href="r4.html"><small>Next</small>R4: Resilience</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#using-it">Using it</a><a class="l2" href="#how-it-works">How it works</a><a class="l2" href="#what-a-trace-stores">What a trace stores</a><a class="l2" href="#keeping-and-finding-traces">Keeping and finding traces</a><a class="l2" href="#limits-to-know-about">Limits to know about</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

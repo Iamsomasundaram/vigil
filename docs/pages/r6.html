@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R6: Online evaluation and drift · Vigil Guide</title>
+<meta name="description" content="Keep scoring a live system, and notice when quality, speed or cost slowly gets worse.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html" aria-current=page>R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r6-online-evaluation-and-drift">R6: Online evaluation and drift</h1>
+<p><strong>The question this module answers:</strong> the system passed its tests last month. How do I know it is still good <em>today</em>?</p>
+<h2 id="what-goes-wrong-without-it">What goes wrong without it</h2>
+<p>Offline evaluation, covered in <a href="r2.html">R2</a>, checks the system against a fixed set of examples before release. That is necessary, but it only describes the day you ran it. In production the world moves:</p>
+<ul><li>A provider quietly updates the model behind the name you call.</li><li>Someone edits a prompt, or the data you retrieve changes.</li><li>Real users ask things your test set never covered.</li><li>Responses get slower, or longer and therefore more expensive.</li></ul>
+<p>None of these throws an error. The system keeps answering, just a bit worse each week. This is called <strong>drift</strong>, and the only defence is to keep measuring the live system and compare it with what you promised.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Think of a car dashboard. You do not wait for the engine to fail; you watch a few gauges all the time and a warning light tells you when one leaves its safe range.</p>
+<div class="flow" role="img"><div class="node"><b>Each real request</b><small>scored</small></div><span class="arr">→</span><div class="node"><b>Rolling window</b><small>last 200 samples</small></div><span class="arr">→</span><div class="node"><b>Compare with the targets</b><small>SLOs</small></div><span class="arr">→</span><div class="node"><b>Recommended action</b></div></div>
+<p>Three terms matter:</p>
+<ul><li><strong>Online evaluation</strong>: scoring real traffic as it happens, as opposed to a fixed test set.</li><li><strong>SLO</strong> (service level objective): a target you commit to, such as "average quality at least 0.7".</li><li><strong>Rolling window</strong>: only the most recent samples count, so old good days cannot hide a bad week.</li></ul>
+<h2 id="part-1-the-targets">Part 1: the targets</h2>
+<p>The module ships three default SLOs:</p>
+<div class="code"><div class="code-cap">reliability/r6_online_eval_drift.py · _DEFAULT_SLO</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_DEFAULT_SLO = {
+    <span class="t-s">&quot;min_quality&quot;</span>: <span class="t-n">0.7</span>,
+    <span class="t-s">&quot;max_latency_ms&quot;</span>: <span class="t-n">4000.0</span>,
+    <span class="t-s">&quot;max_cost_usd&quot;</span>: <span class="t-n">0.02</span>,
+}</code></pre></div>
+<p>Quality is a score from 0 to 1. Latency is in milliseconds. Cost is in US dollars per interaction. These numbers are teaching defaults; a real team would choose its own. You can override any of them when you ask for a report.</p>
+<h2 id="part-2-recording-samples">Part 2: recording samples</h2>
+<p>Each real interaction becomes one sample:</p>
+<div class="code"><div class="code-cap">reliability/r6_online_eval_drift.py · record_sample</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> record_sample(*, quality: float, latency_ms: float, cost_usd: float) -&gt; <span class="t-k">None</span>:
+    <span class="t-s">&quot;&quot;&quot;Record one production interaction&#x27;s online-eval sample.&quot;&quot;&quot;</span>
+    _WINDOW.append(
+        {
+            <span class="t-s">&quot;quality&quot;</span>: max(<span class="t-n">0.0</span>, min(<span class="t-n">1.0</span>, float(quality))),
+            <span class="t-s">&quot;latency_ms&quot;</span>: max(<span class="t-n">0.0</span>, float(latency_ms)),
+            <span class="t-s">&quot;cost_usd&quot;</span>: max(<span class="t-n">0.0</span>, float(cost_usd)),
+        }
+    )
+    <span class="t-k">if</span> len(_WINDOW) &gt; _MAX_WINDOW:
+        del _WINDOW[: len(_WINDOW) - _MAX_WINDOW]</code></pre></div>
+<p>Notice three things:</p>
+<ul><li><strong>The module does not score quality itself.</strong> You pass <code>quality</code> in. In a real system it might come from user ratings, an automated judge, or a rule check. Here it is simply an input, so the module is about <em>monitoring</em>, not <em>judging</em>.</li><li><strong>Values are clamped.</strong> Quality is forced into 0 to 1, and latency and cost cannot go below zero.</li><li><strong>The window is capped at 200.</strong> Older samples fall off the front. The window is a plain Python list in memory, so it is <strong>lost when the process restarts</strong> and is not shared between processes. That is a teaching simplification.</li></ul>
+<h2 id="part-3-the-report">Part 3: the report</h2>
+<div class="code"><div class="code-cap">reliability/r6_online_eval_drift.py · drift_report</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> drift_report(*, baseline_quality: float = <span class="t-n">0.8</span>, slo: dict[str, float] | <span class="t-k">None</span> = <span class="t-k">None</span>) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Compute drift signals and SLO breaches over the rolling window.&quot;&quot;&quot;</span>
+    active_slo = {**_DEFAULT_SLO, **(slo <span class="t-k">or</span> {})}
+    n = len(_WINDOW)
+    <span class="t-k">if</span> n == <span class="t-n">0</span>:
+        <span class="t-k">return</span> {
+            <span class="t-s">&quot;n_samples&quot;</span>: <span class="t-n">0</span>,
+            <span class="t-s">&quot;slo&quot;</span>: active_slo,
+            <span class="t-s">&quot;avg_quality&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;avg_latency_ms&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;avg_cost_usd&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;quality_drift&quot;</span>: <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;breaches&quot;</span>: [],
+            <span class="t-s">&quot;sustained_drift&quot;</span>: <span class="t-k">False</span>,
+            <span class="t-s">&quot;recommended_action&quot;</span>: <span class="t-s">&quot;collect_more_samples&quot;</span>,
+        }
+
+    qualities = [s[<span class="t-s">&quot;quality&quot;</span>] <span class="t-k">for</span> s <span class="t-k">in</span> _WINDOW]
+    latencies = [s[<span class="t-s">&quot;latency_ms&quot;</span>] <span class="t-k">for</span> s <span class="t-k">in</span> _WINDOW]
+    costs = [s[<span class="t-s">&quot;cost_usd&quot;</span>] <span class="t-k">for</span> s <span class="t-k">in</span> _WINDOW]
+
+    avg_quality = _mean(qualities)
+    avg_latency = _mean(latencies)
+    avg_cost = _mean(costs)
+    quality_drift = round(avg_quality - baseline_quality, <span class="t-n">4</span>)
+
+    breaches: list[str] = []
+    <span class="t-k">if</span> avg_quality &lt; active_slo[<span class="t-s">&quot;min_quality&quot;</span>]:
+        breaches.append(<span class="t-s">&quot;quality_below_slo&quot;</span>)
+    <span class="t-k">if</span> avg_latency &gt; active_slo[<span class="t-s">&quot;max_latency_ms&quot;</span>]:
+        breaches.append(<span class="t-s">&quot;latency_above_slo&quot;</span>)
+    <span class="t-k">if</span> avg_cost &gt; active_slo[<span class="t-s">&quot;max_cost_usd&quot;</span>]:
+        breaches.append(<span class="t-s">&quot;cost_above_slo&quot;</span>)
+
+    <span class="t-c"># Sustained drift: recent half meaningfully worse than earlier half.</span>
+    sustained = <span class="t-k">False</span>
+    <span class="t-k">if</span> n &gt;= <span class="t-n">10</span>:
+        half = n // <span class="t-n">2</span>
+        early = _mean(qualities[:half])
+        recent = _mean(qualities[half:])
+        sustained = (early - recent) &gt;= <span class="t-n">0.1</span>
+
+    <span class="t-k">if</span> <span class="t-s">&quot;quality_below_slo&quot;</span> <span class="t-k">in</span> breaches <span class="t-k">or</span> sustained:
+        action = <span class="t-s">&quot;rollback_or_human_review&quot;</span>
+    <span class="t-k">elif</span> breaches:
+        action = <span class="t-s">&quot;investigate&quot;</span>
+    <span class="t-k">else</span>:
+        action = <span class="t-s">&quot;healthy&quot;</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;n_samples&quot;</span>: n,
+        <span class="t-s">&quot;slo&quot;</span>: active_slo,
+        <span class="t-s">&quot;avg_quality&quot;</span>: avg_quality,
+        <span class="t-s">&quot;avg_latency_ms&quot;</span>: avg_latency,
+        <span class="t-s">&quot;avg_cost_usd&quot;</span>: avg_cost,
+        <span class="t-s">&quot;quality_drift&quot;</span>: quality_drift,
+        <span class="t-s">&quot;breaches&quot;</span>: breaches,
+        <span class="t-s">&quot;sustained_drift&quot;</span>: sustained,
+        <span class="t-s">&quot;recommended_action&quot;</span>: action,
+    }</code></pre></div>
+<p>Read it in four steps.</p>
+<p><strong>1. Averages.</strong> It averages quality, latency and cost over the window.</p>
+<p><strong>2. Breaches.</strong> If an average crosses its SLO, it adds a name to <code>breaches</code>: <code>quality_below_slo</code>, <code>latency_above_slo</code> or <code>cost_above_slo</code>.</p>
+<p><strong>3. Quality drift.</strong> <code>quality_drift</code> is the average quality minus a <code>baseline_quality</code> you supply, which defaults to 0.8. A negative number means worse than the baseline.</p>
+<p><strong>4. Sustained drift.</strong> With at least 10 samples, it splits the window in half and compares the first half with the second. If the later half is worse by <strong>0.1 or more</strong>, <code>sustained_drift</code> is true. This is how it tells a <strong>bad moment</strong> from a <strong>trend</strong>: one terrible sample barely moves a half-window average, but a lasting decline does.</p>
+<p>The last step turns this into a single recommendation:</p>
+<div class='table'><table><thead><tr><th>Situation</th><th><code>recommended_action</code></th></tr></thead><tbody><tr><td>Quality below SLO, or sustained drift</td><td><code>rollback_or_human_review</code></td></tr><tr><td>Some other SLO breached (latency or cost)</td><td><code>investigate</code></td></tr><tr><td>Nothing wrong</td><td><code>healthy</code></td></tr><tr><td>No samples yet</td><td><code>collect_more_samples</code></td></tr></tbody></table></div>
+<p>Notice that <strong>sustained drift triggers the strongest action even when the average still passes the SLO</strong>. That is the point: the average can look fine while the trend is heading somewhere bad.</p>
+<h2 id="a-worked-example">A worked example</h2>
+<p>This comes from the module's tests. Six samples at quality 0.9, then six at 0.6:</p>
+<ul><li>The average is 0.75, which is above the 0.7 SLO, so there is <strong>no breach</strong>.</li><li>The first half averages 0.9 and the second 0.6, a fall of 0.3, which is over 0.1. So <code>sustained_drift</code> is true.</li><li>The result is <code>rollback_or_human_review</code>, even though the headline average looked acceptable.</li></ul>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r6_online_eval_drift
+python -m reliability.r6_online_eval_drift --samples 30</code></pre></div>
+<p>The demo feeds in made-up samples whose quality falls by 0.02 each time, then prints the report as JSON. No model is called and nothing costs money. With the default 12 samples, the run I checked reported an average quality of 0.74, no breaches, <code>sustained_drift</code> true and the action <code>rollback_or_human_review</code>. Your numbers should match, because the demo uses fixed inputs.</p>
+<p>The same logic is available over HTTP as <code>POST /reliability/drift/sample</code> and <code>POST /reliability/drift/report</code> when the API is running.</p>
+<h2 id="what-is-simulated">What is simulated</h2>
+<ul><li>The samples in the demo are invented. Nothing here watches real traffic.</li><li>Quality scores are supplied by the caller.</li><li>The window lives in memory only.</li><li>There is no alerting service. The module returns a recommendation; it does not page anyone or roll anything back.</li></ul>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Feed in 12 samples all at quality 0.75 and check the action is <code>healthy</code>. 2) Add samples with <code>latency_ms=6000</code> until <code>latency_above_slo</code> appears, and note which action you get. 3) Pass <code>slo={&quot;min_quality&quot;: 0.9}</code> to <code>drift_report</code> and see how the same data now breaches. 4) Record only 9 samples that decline steadily and confirm <code>sustained_drift</code> stays false, because the check needs at least 10.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Watching only the average.</strong> A steady slide can hide under a passing average. Check the trend too.</li><li><strong>A tiny window.</strong> Too few samples make the numbers jumpy and create false alarms.</li><li><strong>A huge window.</strong> Too many old samples dilute a real problem so it appears late.</li><li><strong>No baseline.</strong> Without a reference quality, "drift" has no meaning. Choose and record one.</li><li><strong>Scoring with a weak signal.</strong> Drift detection is only as good as the quality score you feed it.</li><li><strong>Acting on one number.</strong> Look at quality, latency and cost together before you roll back.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why monitor a live system when you already ran an offline evaluation?</summary><p>The offline test describes one moment against fixed examples. Models, prompts, data and user behaviour change afterwards, and degradation is usually silent, so you need continuous measurement.</p></details>
+<details><summary>How does the module tell a one-off dip from a real trend?</summary><p>It compares the average of the earlier half of the window with the later half. A drop of at least 0.1, with at least 10 samples, counts as sustained drift. A single bad sample barely changes a half-window average.</p></details>
+<details><summary>Why can the action be <code>rollback_or_human_review</code> while no SLO is breached?</summary><p>Sustained drift is checked separately from the SLOs. A falling trend can be serious even if the overall average still passes.</p></details>
+<p>Next: <a href="r7.html">R7</a> limits what an agent is allowed to <em>do</em>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r5.html"><small>Previous</small>R5: Cost control</a><a class="next" href="r7.html"><small>Next</small>R7: Action governance</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-goes-wrong-without-it">What goes wrong without it</a><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#part-1-the-targets">Part 1: the targets</a><a class="l2" href="#part-2-recording-samples">Part 2: recording samples</a><a class="l2" href="#part-3-the-report">Part 3: the report</a><a class="l2" href="#a-worked-example">A worked example</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-is-simulated">What is simulated</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

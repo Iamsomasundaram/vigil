@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model selection · Vigil Guide</title>
+<meta name="description" content="Choose a model tier from your constraints, and see how a request maps onto the Claude Messages API.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html" aria-current=page>Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="model-selection-and-the-claude-bridge">Model selection (and the Claude bridge)</h1>
+<p><strong>The question this topic answers:</strong> which model should do this job, and what changes if it is a different provider's?</p>
+<p>Models come in tiers. Small, fast ones are cheap and good at simple jobs. Larger ones reason better, cost more and answer more slowly. Using the biggest model for everything wastes money; using the smallest for everything gives poor answers where it matters. This topic shows a transparent way to think about the trade-off.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Think of hiring. You would not use a senior consultant to sort the post, nor a junior to sign off a contract with large consequences. Match the person to the task. For models, the facts that matter are: how hard the task is, how fast you need the answer, how many requests you will make, how tight the budget is, and how bad a wrong answer would be.</p>
+<div class="flow" role="img"><div class="node"><b>Task facts</b><small>difficulty, speed, volume, cost, stakes</small></div><span class="arr">→</span><div class="node"><b>Scoring</b><small>points per tier</small></div><span class="arr">→</span><div class="node"><b>Recommended tier</b><small>plus reasons</small></div></div>
+<h2 id="the-tier-profiles">The tier profiles</h2>
+<p>The module describes three Claude tiers as plain data:</p>
+<div class="code"><div class="code-cap">levels/foundations/model_selection.py · _CLAUDE_TIERS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_CLAUDE_TIERS: dict[str, dict[str, Any]] = {
+    <span class="t-s">&quot;haiku&quot;</span>: {
+        <span class="t-s">&quot;name&quot;</span>: <span class="t-s">&quot;Claude Haiku&quot;</span>,
+        <span class="t-s">&quot;strengths&quot;</span>: [<span class="t-s">&quot;low latency&quot;</span>, <span class="t-s">&quot;high throughput&quot;</span>, <span class="t-s">&quot;low cost&quot;</span>],
+        <span class="t-s">&quot;best_for&quot;</span>: [<span class="t-s">&quot;classification&quot;</span>, <span class="t-s">&quot;routing&quot;</span>, <span class="t-s">&quot;high-volume simple tasks&quot;</span>],
+        <span class="t-s">&quot;relative_cost&quot;</span>: <span class="t-n">1</span>,
+        <span class="t-s">&quot;relative_capability&quot;</span>: <span class="t-n">2</span>,
+        <span class="t-s">&quot;relative_latency&quot;</span>: <span class="t-n">1</span>,
+    },
+    <span class="t-s">&quot;sonnet&quot;</span>: {
+        <span class="t-s">&quot;name&quot;</span>: <span class="t-s">&quot;Claude Sonnet&quot;</span>,
+        <span class="t-s">&quot;strengths&quot;</span>: [<span class="t-s">&quot;balanced capability/cost&quot;</span>, <span class="t-s">&quot;tool use&quot;</span>, <span class="t-s">&quot;coding&quot;</span>],
+        <span class="t-s">&quot;best_for&quot;</span>: [<span class="t-s">&quot;agents&quot;</span>, <span class="t-s">&quot;RAG synthesis&quot;</span>, <span class="t-s">&quot;most production workloads&quot;</span>],
+        <span class="t-s">&quot;relative_cost&quot;</span>: <span class="t-n">3</span>,
+        <span class="t-s">&quot;relative_capability&quot;</span>: <span class="t-n">4</span>,
+        <span class="t-s">&quot;relative_latency&quot;</span>: <span class="t-n">2</span>,
+    },
+    <span class="t-s">&quot;opus&quot;</span>: {
+        <span class="t-s">&quot;name&quot;</span>: <span class="t-s">&quot;Claude Opus&quot;</span>,
+        <span class="t-s">&quot;strengths&quot;</span>: [<span class="t-s">&quot;deepest reasoning&quot;</span>, <span class="t-s">&quot;complex planning&quot;</span>, <span class="t-s">&quot;hardest tasks&quot;</span>],
+        <span class="t-s">&quot;best_for&quot;</span>: [<span class="t-s">&quot;multi-step planning&quot;</span>, <span class="t-s">&quot;ambiguous analysis&quot;</span>, <span class="t-s">&quot;high-stakes reasoning&quot;</span>],
+        <span class="t-s">&quot;relative_cost&quot;</span>: <span class="t-n">5</span>,
+        <span class="t-s">&quot;relative_capability&quot;</span>: <span class="t-n">5</span>,
+        <span class="t-s">&quot;relative_latency&quot;</span>: <span class="t-n">4</span>,
+    },
+}</code></pre></div>
+<aside class="callout warning"><strong>Warning</strong><p>The numbers here are <strong>relative teaching proxies</strong>, as the code comment says, not billing figures, benchmarks or measured latency. They only rank the tiers against each other. For real prices and capabilities, use the provider's current documentation.</p></aside>
+<h2 id="the-recommender">The recommender</h2>
+<div class="code"><div class="code-cap">levels/foundations/model_selection.py · recommend_model</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> recommend_model(
+    *,
+    task_complexity: str = <span class="t-s">&quot;medium&quot;</span>,
+    latency_sensitive: bool = <span class="t-k">False</span>,
+    cost_sensitive: bool = <span class="t-k">False</span>,
+    high_volume: bool = <span class="t-k">False</span>,
+    high_stakes: bool = <span class="t-k">False</span>,
+) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Recommend a Claude tier from task/operational constraints.
+
+    Heuristic teaching model; real selection should be evaluation-driven.
+    &quot;&quot;&quot;</span>
+    scores = {<span class="t-s">&quot;haiku&quot;</span>: <span class="t-n">0.0</span>, <span class="t-s">&quot;sonnet&quot;</span>: <span class="t-n">0.0</span>, <span class="t-s">&quot;opus&quot;</span>: <span class="t-n">0.0</span>}
+    reasons: list[str] = []
+
+    <span class="t-k">if</span> task_complexity == <span class="t-s">&quot;low&quot;</span>:
+        scores[<span class="t-s">&quot;haiku&quot;</span>] += <span class="t-n">2.0</span>
+        reasons.append(<span class="t-s">&quot;low complexity favors Haiku&quot;</span>)
+    <span class="t-k">elif</span> task_complexity == <span class="t-s">&quot;high&quot;</span>:
+        scores[<span class="t-s">&quot;opus&quot;</span>] += <span class="t-n">2.0</span>
+        reasons.append(<span class="t-s">&quot;high complexity favors Opus reasoning&quot;</span>)
+    <span class="t-k">else</span>:
+        scores[<span class="t-s">&quot;sonnet&quot;</span>] += <span class="t-n">2.0</span>
+        reasons.append(<span class="t-s">&quot;medium complexity favors balanced Sonnet&quot;</span>)
+
+    <span class="t-k">if</span> latency_sensitive:
+        scores[<span class="t-s">&quot;haiku&quot;</span>] += <span class="t-n">1.5</span>
+        reasons.append(<span class="t-s">&quot;latency sensitivity favors Haiku&quot;</span>)
+    <span class="t-k">if</span> cost_sensitive:
+        scores[<span class="t-s">&quot;haiku&quot;</span>] += <span class="t-n">1.0</span>
+        scores[<span class="t-s">&quot;sonnet&quot;</span>] += <span class="t-n">0.5</span>
+        reasons.append(<span class="t-s">&quot;cost sensitivity favors cheaper tiers&quot;</span>)
+    <span class="t-k">if</span> high_volume:
+        scores[<span class="t-s">&quot;haiku&quot;</span>] += <span class="t-n">1.0</span>
+        reasons.append(<span class="t-s">&quot;high volume favors throughput of Haiku&quot;</span>)
+    <span class="t-k">if</span> high_stakes:
+        scores[<span class="t-s">&quot;opus&quot;</span>] += <span class="t-n">1.5</span>
+        reasons.append(<span class="t-s">&quot;high-stakes correctness favors Opus&quot;</span>)
+
+    <span class="t-c"># Sonnet stays the safe default for balanced production use.</span>
+    scores[<span class="t-s">&quot;sonnet&quot;</span>] += <span class="t-n">0.75</span>
+
+    recommended = max(scores, key=<span class="t-k">lambda</span> k: scores[k])
+    ranked = sorted(scores.items(), key=<span class="t-k">lambda</span> kv: kv[<span class="t-n">1</span>], reverse=<span class="t-k">True</span>)
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;recommended&quot;</span>: recommended,
+        <span class="t-s">&quot;recommended_name&quot;</span>: _CLAUDE_TIERS[recommended][<span class="t-s">&quot;name&quot;</span>],
+        <span class="t-s">&quot;ranked&quot;</span>: [{<span class="t-s">&quot;tier&quot;</span>: t, <span class="t-s">&quot;score&quot;</span>: round(s, <span class="t-n">3</span>)} <span class="t-k">for</span> t, s <span class="t-k">in</span> ranked],
+        <span class="t-s">&quot;reasons&quot;</span>: reasons,
+        <span class="t-s">&quot;escalation_hint&quot;</span>: <span class="t-s">&quot;Start on the cheaper tier; escalate to a higher tier only when evals show it is needed.&quot;</span>,
+    }</code></pre></div>
+<p>Read it as a scoring sheet:</p>
+<ul><li>Task complexity gives the first points: low favours Haiku, medium favours Sonnet, high favours Opus.</li><li>Latency sensitivity, cost sensitivity and high volume push towards the cheaper, faster tier.</li><li>High stakes pushes towards Opus.</li><li>Sonnet always gets a small bonus, so it is the safe default when nothing else is decisive.</li></ul>
+<p>The answer includes the winner, a ranked list with scores, the reasons that fired, and an <strong>escalation hint</strong>: start on the cheaper tier and move up only when evaluations show you need to.</p>
+<h2 id="worked-examples">Worked examples</h2>
+<p>These come from running the function offline; the scores follow directly from the rules above.</p>
+<div class='table'><table><thead><tr><th>Inputs</th><th>Result (score)</th></tr></thead><tbody><tr><td>Low complexity, latency sensitive</td><td>Haiku (3.5), then Sonnet (0.75), then Opus (0)</td></tr><tr><td>Defaults (medium complexity)</td><td>Sonnet (2.75), then Haiku (0), then Opus (0)</td></tr><tr><td>High complexity, high stakes</td><td>Opus (3.5), then Sonnet (0.75), then Haiku (0)</td></tr></tbody></table></div>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/model_selection.py --complexity low --latency
+python levels/foundations/model_selection.py --complexity high --high-stakes</code></pre></div>
+<p>Each prints a JSON recommendation. It needs no key and makes no model call. Over the API it is <code>POST /foundations/model-select</code>.</p>
+<aside class="callout note"><strong>Note</strong><p>The command-line flags cover complexity, latency, cost and high stakes. The <code>high_volume</code> input exists in the function but has no flag, so call the function directly to use it.</p></aside>
+<h2 id="bridging-to-another-provider">Bridging to another provider</h2>
+<p>Most of Vigil talks to OpenAI-style APIs. Claude's Messages API has a slightly different shape, and the module <code>vigil/claude_provider.py</code> shows the difference without touching the rest of the code. The key difference: Claude takes the system prompt as a <strong>separate top-level field</strong>, not as a message with a <code>system</code> role.</p>
+<div class="code"><div class="code-cap">vigil/claude_provider.py · map_messages_to_claude</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> map_messages_to_claude(messages: list[dict[str, Any]]) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Convert OpenAI-style chat messages into Claude Messages API shape.
+
+    Claude takes the system prompt as a top-level `system` parameter, not a role.
+    Returns a dict with `system` (str) and `messages` (user/assistant only).
+    &quot;&quot;&quot;</span>
+    system_parts: list[str] = []
+    claude_messages: list[dict[str, Any]] = []
+
+    <span class="t-k">for</span> m <span class="t-k">in</span> messages:
+        role = m.get(<span class="t-s">&quot;role&quot;</span>)
+        content = m.get(<span class="t-s">&quot;content&quot;</span>, <span class="t-s">&quot;&quot;</span>)
+        <span class="t-k">if</span> role == <span class="t-s">&quot;system&quot;</span>:
+            <span class="t-k">if</span> content:
+                system_parts.append(str(content))
+        <span class="t-k">elif</span> role <span class="t-k">in</span> (<span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;assistant&quot;</span>):
+            claude_messages.append(
+                {
+                    <span class="t-s">&quot;role&quot;</span>: role,
+                    <span class="t-s">&quot;content&quot;</span>: [{<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;text&quot;</span>, <span class="t-s">&quot;text&quot;</span>: str(content)}],
+                }
+            )
+        <span class="t-c"># tool/function roles are intentionally ignored in this teaching bridge.</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;system&quot;</span>: <span class="t-s">&quot;\n\n&quot;</span>.join(system_parts).strip(),
+        <span class="t-s">&quot;messages&quot;</span>: claude_messages,
+    }</code></pre></div>
+<p>So this list:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>[
+    {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;You are a security analyst.&quot;</span>},
+    {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;Explain CVE-2021-44228.&quot;</span>},
+]</code></pre></div>
+<p>becomes a <code>system</code> string plus a list of <code>user</code> and <code>assistant</code> messages whose content is a list of text blocks. The mapping is pure code, so it can be tested offline, and it is exposed at <code>POST /claude/map-messages</code>.</p>
+<p>The function that actually calls the API, <code>acomplete_claude</code>, imports the <code>anthropic</code> package only when called, and fails with a clear message if it is missing (<code>pip install -e &quot;.[claude]&quot;</code>). The default model name comes from the <code>ANTHROPIC_MODEL</code> environment variable, with a fallback written in the code. Model names change over time, so check that default against the provider's current list before relying on it.</p>
+<aside class="callout note"><strong>Note</strong><p>In this teaching bridge, tool and function messages are deliberately ignored by the mapper.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Call <code>recommend_model</code> with <code>cost_sensitive=True</code> and <code>high_volume=True</code> and read which reasons fired. 2) Find inputs where Sonnet and Haiku tie or nearly tie and see which wins. 3) Add a fourth tier to <code>_CLAUDE_TIERS</code> and see what else you must change. 4) Map a three-message conversation with <code>map_messages_to_claude</code> and inspect the output shape.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Picking a model by reputation.</strong> Choose by measured results on your own task.</li><li><strong>Using the biggest model by default.</strong> Start small, then escalate when evidence says so.</li><li><strong>Reading the relative scores as real numbers.</strong> They are teaching proxies.</li><li><strong>Mixing up the system prompt placement across providers.</strong> This is exactly what the mapper handles.</li><li><strong>Hard-coding a model name.</strong> Keep it in configuration, because names and availability change.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does Sonnet get a bonus no matter what?</summary><p>It is the balanced default for most production work, so it should win when no constraint clearly points elsewhere.</p></details>
+<details><summary>What does the escalation hint recommend?</summary><p>Start on the cheaper tier and move up only when evaluations show it is necessary.</p></details>
+<details><summary>How does the Claude Messages API treat the system prompt differently from the chat format used in L0?</summary><p>It is a top-level <code>system</code> parameter rather than a message with the <code>system</code> role.</p></details>
+<p>Next: <a href="finetuning.html">Fine-tuning decisions</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="prompt-lifecycle.html"><small>Previous</small>Prompt lifecycle</a><a class="next" href="finetuning.html"><small>Next</small>Fine-tuning decisions</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#the-tier-profiles">The tier profiles</a><a class="l2" href="#the-recommender">The recommender</a><a class="l2" href="#worked-examples">Worked examples</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#bridging-to-another-provider">Bridging to another provider</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

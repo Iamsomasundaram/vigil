@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R8: AI supply chain · Vigil Guide</title>
+<meta name="description" content="Check that the prompts, policies and tool definitions in use are exactly the ones you approved, and gate promotion on it.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html" aria-current=page>R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r8-ai-supply-chain">R8: AI supply chain</h1>
+<p><strong>The question this module answers:</strong> how do I know the prompt, model policy and tool definitions the agent runs on are the ones we reviewed, and that nobody changed them?</p>
+<h2 id="what-goes-wrong-without-it">What goes wrong without it</h2>
+<p>In an AI system, a lot of the "code" is not code. It is text and settings that steer behaviour: system prompts, tool schemas, routing policies. They are easy to edit, rarely reviewed as carefully as source code, and a small change can matter a great deal.</p>
+<ul><li>An edited system prompt that says "ignore previous safety rules" turns a careful agent into a risky one.</li><li>A changed model policy can silently route sensitive data to a different, unapproved model.</li><li>A modified tool schema can make the agent call a tool with different arguments.</li></ul>
+<p>This is the <strong>AI supply chain</strong>: everything your system depends on that you did not write in the main program. Ordinary software has had supply-chain attacks for years; AI adds new, softer targets.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Food packaging has a tamper seal. If the seal is broken, you do not eat it, however good it looks. R8 puts a seal on each important artifact: a <strong>checksum</strong>.</p>
+<div class="flow" role="img"><div class="node"><b>Artifact</b><small>prompt, policy or schema</small></div><span class="arr">→</span><div class="node"><b>Fingerprint</b><small>SHA-256</small></div><span class="arr">→</span><div class="node"><b>Compare to the recorded one</b></div><span class="arr">→</span><div class="node"><b>Verified, or violation</b></div></div>
+<p>A <strong>checksum</strong> (here, a SHA-256 hash) is a fixed-length fingerprint computed from content. Change even one character and the fingerprint changes completely. If today's fingerprint does not match the one recorded when the artifact was approved, something changed.</p>
+<h2 id="part-1-the-manifest">Part 1: the manifest</h2>
+<p>A <strong>manifest</strong> is a list of the artifacts you track. Here it is <code>data/manifests/ai_artifacts.json</code>. Each entry records a name, a type, an environment, a provenance, the content itself and the expected checksum. The seeded manifest tracks three artifacts: a prompt, a model policy and a tool schema, all marked as coming from this repository.</p>
+<h2 id="part-2-computing-the-fingerprint">Part 2: computing the fingerprint</h2>
+<div class="code"><div class="code-cap">reliability/r8_supply_chain.py · _checksum</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _checksum(content: str) -&gt; str:
+    <span class="t-k">return</span> hashlib.sha256(content.encode(<span class="t-s">&quot;utf-8&quot;</span>)).hexdigest()</code></pre></div>
+<p>The content is turned into JSON with sorted keys before hashing, so the same data always gives the same fingerprint no matter how the keys were ordered.</p>
+<h2 id="part-3-verifying">Part 3: verifying</h2>
+<div class="code"><div class="code-cap">reliability/r8_supply_chain.py · verify_artifacts</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> verify_artifacts(path: str = _DEFAULT_MANIFEST) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Verify each tracked artifact&#x27;s checksum against its recorded value.&quot;&quot;&quot;</span>
+    manifest = load_manifest(path)
+    results: list[dict[str, Any]] = []
+    violations = <span class="t-n">0</span>
+
+    <span class="t-k">for</span> art <span class="t-k">in</span> manifest.get(<span class="t-s">&quot;artifacts&quot;</span>, []):
+        name = art.get(<span class="t-s">&quot;name&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>)
+        recorded = art.get(<span class="t-s">&quot;checksum&quot;</span>, <span class="t-s">&quot;&quot;</span>)
+        content = json.dumps(art.get(<span class="t-s">&quot;content&quot;</span>, <span class="t-s">&quot;&quot;</span>), sort_keys=<span class="t-k">True</span>)
+        actual = _checksum(content)
+        ok = actual == recorded
+        <span class="t-k">if</span> <span class="t-k">not</span> ok:
+            violations += <span class="t-n">1</span>
+        results.append(
+            {
+                <span class="t-s">&quot;name&quot;</span>: name,
+                <span class="t-s">&quot;type&quot;</span>: art.get(<span class="t-s">&quot;type&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>),
+                <span class="t-s">&quot;env&quot;</span>: art.get(<span class="t-s">&quot;env&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>),
+                <span class="t-s">&quot;provenance&quot;</span>: art.get(<span class="t-s">&quot;provenance&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>),
+                <span class="t-s">&quot;recorded_checksum&quot;</span>: recorded[:<span class="t-n">16</span>],
+                <span class="t-s">&quot;actual_checksum&quot;</span>: actual[:<span class="t-n">16</span>],
+                <span class="t-s">&quot;verified&quot;</span>: ok,
+            }
+        )
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;manifest_path&quot;</span>: path,
+        <span class="t-s">&quot;n_artifacts&quot;</span>: len(results),
+        <span class="t-s">&quot;violations&quot;</span>: violations,
+        <span class="t-s">&quot;integrity_ok&quot;</span>: violations == <span class="t-n">0</span>,
+        <span class="t-s">&quot;artifacts&quot;</span>: results,
+    }</code></pre></div>
+<p>For every artifact it recomputes the fingerprint and compares it with the recorded one. It reports each result and counts <code>violations</code>. <code>integrity_ok</code> is true only when there are zero. Only the first 16 characters of each checksum are shown in the report, to keep it readable.</p>
+<h2 id="part-4-the-promotion-gate">Part 4: the promotion gate</h2>
+<p>Verification alone is not enough, because an untampered artifact can still be a bad one. Promotion needs both:</p>
+<div class="code"><div class="code-cap">reliability/r8_supply_chain.py · can_promote</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> can_promote(*, path: str = _DEFAULT_MANIFEST, eval_passed: bool) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Promotion requires both integrity verification and passing evals.&quot;&quot;&quot;</span>
+    integrity = verify_artifacts(path)
+    allowed = integrity[<span class="t-s">&quot;integrity_ok&quot;</span>] <span class="t-k">and</span> bool(eval_passed)
+    reasons: list[str] = []
+    <span class="t-k">if</span> <span class="t-k">not</span> integrity[<span class="t-s">&quot;integrity_ok&quot;</span>]:
+        reasons.append(<span class="t-s">&quot;integrity_violation&quot;</span>)
+    <span class="t-k">if</span> <span class="t-k">not</span> eval_passed:
+        reasons.append(<span class="t-s">&quot;eval_gate_failed&quot;</span>)
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;allowed&quot;</span>: allowed,
+        <span class="t-s">&quot;integrity_ok&quot;</span>: integrity[<span class="t-s">&quot;integrity_ok&quot;</span>],
+        <span class="t-s">&quot;eval_passed&quot;</span>: bool(eval_passed),
+        <span class="t-s">&quot;reasons&quot;</span>: reasons <span class="t-k">or</span> [<span class="t-s">&quot;ok&quot;</span>],
+    }</code></pre></div>
+<div class="fan" role="img"><div class="node">A candidate release</div><span class="arr">→</span><div class="lane"><div class="node">Integrity check passes</div><div class="node">Evaluation passes</div></div><span class="arr">→</span><div class="node">Promote only if both pass</div></div>
+<p>If integrity fails the reason is <code>integrity_violation</code>. If the evaluation gate fails the reason is <code>eval_gate_failed</code>. Both can appear together. This links R8 to <a href="r2.html">R2</a>: the <code>eval_passed</code> flag is meant to come from an evaluation run.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r8_supply_chain</code></pre></div>
+<p>This prints the verification report for the seeded manifest. On the repository as it stands, I ran it and it listed 3 artifacts with 0 violations and <code>integrity_ok</code> true. Over HTTP the same functions are <code>GET /reliability/supply-chain/verify</code> and <code>POST /reliability/supply-chain/promote</code>.</p>
+<p>To see a violation, copy the manifest, change one word in the <code>content</code> of an artifact without updating its <code>checksum</code>, and run <code>python -m reliability.r8_supply_chain --path your-copy.json</code>. The tests do this with a deliberately wrong checksum (<code>deadbeef</code>), and expect one violation.</p>
+<h2 id="what-is-simulated-and-an-honest-limit">What is simulated, and an honest limit</h2>
+<ul><li><strong>The checksum is stored next to the content, in the same file.</strong> That protects against <em>accidental</em> edits and careless changes, but not against someone who can edit the file: they can change the content and recompute the checksum too. Real supply-chain security needs the trusted fingerprints held somewhere the attacker cannot write, or <strong>cryptographic signatures</strong> from a key they do not have. The spec for this module explicitly leaves enterprise key infrastructure out of scope.</li><li><strong>The manifest is a small seeded example</strong>, with three artifacts, not a real inventory of everything your system uses.</li><li><strong>There is no check of third-party packages, model weights or downloaded files.</strong> Only the artifacts listed in the manifest are verified.</li><li><strong>Nothing blocks a release.</strong> <code>can_promote</code> returns a decision for a pipeline to enforce.</li><li><strong><code>eval_passed</code> is supplied by the caller.</strong> This module does not run an evaluation.</li></ul>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the verification, then edit one artifact's content in a copy of the manifest and run it again with <code>--path</code>. Which field of the report shows the problem? 2) Call <code>can_promote(eval_passed=False)</code> on the good manifest and read the reasons. 3) Break the manifest <em>and</em> fail the eval and confirm both reasons appear. 4) Add a fourth artifact to a copy and generate its checksum by hashing the JSON-with-sorted-keys form, as <code>verify_artifacts</code> does.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Tracking only code.</strong> Prompts, tool schemas and model policies are part of behaviour; track them too.</li><li><strong>Believing a stored hash is a signature.</strong> A hash in the same place as the data does not stop a determined attacker.</li><li><strong>Verifying once at build time.</strong> Verify at the moment of promotion and again at run time where you can.</li><li><strong>Treating "untampered" as "good".</strong> Integrity says nothing about quality, which is why the gate also needs an evaluation.</li><li><strong>No provenance.</strong> Record where each artifact came from, so a surprise is traceable.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is a checksum, and what does it tell you?</summary><p>A fixed-length fingerprint computed from content. If the recomputed value differs from the recorded one, the content changed since it was recorded. It does not say whether the change was good or bad.</p></details>
+<details><summary>Why does <code>can_promote</code> need an evaluation result as well as an integrity check?</summary><p>An artifact can be unchanged and still poor. Integrity answers "is it the same as approved?", evaluation answers "is it good enough?".</p></details>
+<details><summary>Why does this module not stop a determined attacker who can edit the manifest?</summary><p>The expected checksum sits in the same file as the content, so they can change both. Real protection needs signatures or fingerprints stored where they cannot write.</p></details>
+<p>Next: <a href="r9.html">R9</a> covers rolling out a change gradually and backing out safely.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r7.html"><small>Previous</small>R7: Action governance</a><a class="next" href="r9.html"><small>Next</small>R9: Release safety</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-goes-wrong-without-it">What goes wrong without it</a><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#part-1-the-manifest">Part 1: the manifest</a><a class="l2" href="#part-2-computing-the-fingerprint">Part 2: computing the fingerprint</a><a class="l2" href="#part-3-verifying">Part 3: verifying</a><a class="l2" href="#part-4-the-promotion-gate">Part 4: the promotion gate</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-is-simulated-and-an-honest-limit">What is simulated, and an honest limit</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

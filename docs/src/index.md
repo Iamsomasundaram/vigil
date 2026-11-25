@@ -11,7 +11,7 @@ Vigil is a small, real project that grows from **one call to a language model** 
 
 You do not need to know any AI to start. You do need to be comfortable reading basic Python.
 
-> **Note** This guide is a work in progress. Levels L0 to L2 are fully written. L3 to L6 are still being turned into guide pages; until then, each level file in `levels/` has a long explanatory comment at the top, and the [learning path](learning-path.md) lists everything.
+> **Note** The guide covers all seven levels, the four agent architectures, the reliability modules (R1 to R9) and the foundations track. Pages describe what the code does and call out where it is simplified or where its comments disagree with it.
 
 ## The idea in one picture
 

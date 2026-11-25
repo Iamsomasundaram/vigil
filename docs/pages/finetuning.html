@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fine-tuning decisions · Vigil Guide</title>
+<meta name="description" content="Decide between prompting, few-shot, retrieval and fine-tuning, and check a training dataset before spending on it.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html" aria-current=page>Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="fine-tuning-and-build-versus-tune-decisions">Fine-tuning and build-versus-tune decisions</h1>
+<p><strong>The question this topic answers:</strong> my model is not good enough yet. Should I change the prompt, add examples, add retrieval, or train it?</p>
+<p>Fine-tuning means continuing a model's training on your own examples. It is powerful and often reached for too early. It costs money and time, it needs good data, and a tuned model is harder to change than a prompt. This topic gives you a decision model and a dataset checker, and it <strong>does not train anything</strong>.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>There is a ladder of ways to adapt a model, from cheapest and easiest to change at the bottom to heaviest at the top. Climb only as far as the evidence forces you to.</p>
+<div class="flow" role="img"><div class="node"><b>Prompt only</b><small>cheapest</small></div><span class="arr">→</span><div class="node"><b>Few-shot</b><small>add examples</small></div><span class="arr">→</span><div class="node"><b>RAG</b><small>add knowledge</small></div><span class="arr">→</span><div class="node"><b>LoRA fine-tune</b><small>small adapter</small></div><span class="arr">→</span><div class="node"><b>Full fine-tune</b><small>heaviest</small></div></div>
+<p>The module lists them in this order, cheapest first:</p>
+<div class="code"><div class="code-cap">levels/foundations/finetuning.py · _APPROACHES</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_APPROACHES = [<span class="t-s">&quot;prompt_only&quot;</span>, <span class="t-s">&quot;few_shot&quot;</span>, <span class="t-s">&quot;rag&quot;</span>, <span class="t-s">&quot;fine_tune_lora&quot;</span>, <span class="t-s">&quot;full_fine_tune&quot;</span>]</code></pre></div>
+<p>Three terms help:</p>
+<ul><li><strong>RAG (retrieval-augmented generation):</strong> look up relevant documents at question time and give them to the model. Update the documents, not the model. See <a href="retrieval.html">retrieval</a>.</li><li><strong>LoRA:</strong> a <em>parameter-efficient</em> way to fine-tune that trains a small add-on (an adapter) instead of the whole model.</li><li><strong>Full fine-tune:</strong> update all the model's weights. The heaviest option.</li></ul>
+<h2 id="the-advisor">The advisor</h2>
+<div class="code"><div class="code-cap">levels/foundations/finetuning.py · recommend_approach</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> recommend_approach(
+    *,
+    task_stability: str = <span class="t-s">&quot;stable&quot;</span>,
+    data_volume: int = <span class="t-n">0</span>,
+    needs_fresh_knowledge: bool = <span class="t-k">False</span>,
+    strict_format: bool = <span class="t-k">False</span>,
+    latency_sensitive: bool = <span class="t-k">False</span>,
+    domain_shift: str = <span class="t-s">&quot;low&quot;</span>,
+) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Recommend an adaptation strategy from task characteristics.
+
+    Heuristic teaching model, not a substitute for empirical evaluation.
+    &quot;&quot;&quot;</span>
+    reasons: list[str] = []
+    scores: dict[str, float] = {a: <span class="t-n">0.0</span> <span class="t-k">for</span> a <span class="t-k">in</span> _APPROACHES}
+
+    <span class="t-c"># Fresh/changing knowledge favors retrieval over baked-in weights.</span>
+    <span class="t-k">if</span> needs_fresh_knowledge:
+        scores[<span class="t-s">&quot;rag&quot;</span>] += <span class="t-n">2.0</span>
+        reasons.append(<span class="t-s">&quot;fresh knowledge favors RAG over weight updates&quot;</span>)
+    <span class="t-k">else</span>:
+        scores[<span class="t-s">&quot;fine_tune_lora&quot;</span>] += <span class="t-n">0.5</span>
+
+    <span class="t-c"># Strict output format and stable behavior favor fine-tuning.</span>
+    <span class="t-k">if</span> strict_format <span class="t-k">and</span> task_stability == <span class="t-s">&quot;stable&quot;</span>:
+        scores[<span class="t-s">&quot;fine_tune_lora&quot;</span>] += <span class="t-n">1.5</span>
+        reasons.append(<span class="t-s">&quot;strict, stable format is a strong fine-tune signal&quot;</span>)
+    <span class="t-k">elif</span> strict_format:
+        scores[<span class="t-s">&quot;few_shot&quot;</span>] += <span class="t-n">1.0</span>
+        reasons.append(<span class="t-s">&quot;strict format but unstable task favors few-shot first&quot;</span>)
+
+    <span class="t-c"># Data volume gates fine-tuning viability.</span>
+    <span class="t-k">if</span> data_volume &gt;= <span class="t-n">1000</span>:
+        scores[<span class="t-s">&quot;fine_tune_lora&quot;</span>] += <span class="t-n">1.5</span>
+        reasons.append(<span class="t-s">&quot;sufficient labeled data supports LoRA fine-tuning&quot;</span>)
+    <span class="t-k">elif</span> data_volume &gt;= <span class="t-n">100</span>:
+        scores[<span class="t-s">&quot;few_shot&quot;</span>] += <span class="t-n">1.0</span>
+        reasons.append(<span class="t-s">&quot;small data suits few-shot exemplars&quot;</span>)
+    <span class="t-k">else</span>:
+        scores[<span class="t-s">&quot;prompt_only&quot;</span>] += <span class="t-n">1.0</span>
+        reasons.append(<span class="t-s">&quot;little/no data favors prompt engineering first&quot;</span>)
+
+    <span class="t-c"># Latency-sensitive deployments prefer smaller tuned models over long prompts.</span>
+    <span class="t-k">if</span> latency_sensitive:
+        scores[<span class="t-s">&quot;fine_tune_lora&quot;</span>] += <span class="t-n">0.5</span>
+        scores[<span class="t-s">&quot;prompt_only&quot;</span>] += <span class="t-n">0.5</span>
+        reasons.append(<span class="t-s">&quot;latency pressure favors shorter prompts or tuned models&quot;</span>)
+
+    <span class="t-c"># Large domain shift can justify heavier tuning.</span>
+    <span class="t-k">if</span> domain_shift == <span class="t-s">&quot;high&quot;</span> <span class="t-k">and</span> data_volume &gt;= <span class="t-n">1000</span>:
+        scores[<span class="t-s">&quot;full_fine_tune&quot;</span>] += <span class="t-n">1.0</span>
+        reasons.append(<span class="t-s">&quot;large domain shift with ample data may justify full fine-tune&quot;</span>)
+
+    <span class="t-c"># Baseline: prompt_only always slightly favored (start simple).</span>
+    scores[<span class="t-s">&quot;prompt_only&quot;</span>] += <span class="t-n">0.5</span>
+
+    recommended = max(scores, key=<span class="t-k">lambda</span> k: scores[k])
+    ranked = sorted(scores.items(), key=<span class="t-k">lambda</span> kv: kv[<span class="t-n">1</span>], reverse=<span class="t-k">True</span>)
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;recommended&quot;</span>: recommended,
+        <span class="t-s">&quot;ranked&quot;</span>: [{<span class="t-s">&quot;approach&quot;</span>: a, <span class="t-s">&quot;score&quot;</span>: round(s, <span class="t-n">3</span>)} <span class="t-k">for</span> a, s <span class="t-k">in</span> ranked],
+        <span class="t-s">&quot;reasons&quot;</span>: reasons,
+        <span class="t-s">&quot;guidance&quot;</span>: _guidance_for(recommended),
+    }</code></pre></div>
+<p>Read it as a scoring sheet again. The rules, in plain words:</p>
+<ul><li><strong>Fresh or changing knowledge</strong> points to retrieval, because retrieval updates faster than training.</li><li><strong>A strict output format on a stable task</strong> points to LoRA fine-tuning.</li><li><strong>Data volume</strong> is a gate: 1,000 or more examples supports LoRA, 100 or more suits few-shot, and less points to prompt engineering.</li><li><strong>Latency pressure</strong> gives small points to LoRA and prompt-only (shorter prompts or smaller tuned models).</li><li><strong>High domain shift with 1,000+ examples</strong> can justify a full fine-tune.</li><li>Prompt-only always gets a small baseline bonus: start simple.</li></ul>
+<p>The result lists the recommendation, a ranked scoreboard, the reasons, and one sentence of guidance.</p>
+<h2 id="worked-examples">Worked examples</h2>
+<p>These come from running the function offline.</p>
+<div class='table'><table><thead><tr><th>Situation</th><th>Recommended</th><th>Scoreboard highlights</th></tr></thead><tbody><tr><td>1,500 examples, strict stable format, no fresh knowledge</td><td>LoRA fine-tune</td><td>LoRA 3.5, prompt-only 0.5</td></tr><tr><td>No data, no special needs (defaults)</td><td>Prompt only</td><td>Prompt-only 1.5, LoRA 0.5</td></tr><tr><td>1,500 examples, strict format, <strong>and</strong> fresh knowledge needed</td><td>LoRA fine-tune</td><td>LoRA 3.0, RAG 2.0</td></tr></tbody></table></div>
+<aside class="callout warning"><strong>Warning</strong><p>Look at the third row. Even with fresh knowledge needed, LoRA still wins because the data and format points outweigh the retrieval points. A person would probably want retrieval here. This is a <strong>limit of the heuristic</strong>, not a rule of nature, and it is a good reminder that these scores are a starting point for discussion. The function's own docstring says it is not a substitute for empirical evaluation. The test suite shows RAG winning for fresh knowledge in a smaller-data case; try varying <code>data_volume</code> yourself.</p></aside>
+<h2 id="checking-a-dataset-before-you-train">Checking a dataset before you train</h2>
+<p>If you do decide to tune, bad data wastes the whole run. This function checks a chat-style dataset for common problems:</p>
+<div class="code"><div class="code-cap">levels/foundations/finetuning.py · validate_finetune_dataset</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> validate_finetune_dataset(records: list[dict[str, Any]]) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Validate a chat-style fine-tuning dataset for common quality issues.&quot;&quot;&quot;</span>
+    total = len(records)
+    valid = <span class="t-n">0</span>
+    issues: list[str] = []
+    seen: set[str] = set()
+    duplicates = <span class="t-n">0</span>
+    empty_completions = <span class="t-n">0</span>
+    role_errors = <span class="t-n">0</span>
+
+    <span class="t-k">for</span> i, rec <span class="t-k">in</span> enumerate(records, <span class="t-n">1</span>):
+        msgs = rec.get(<span class="t-s">&quot;messages&quot;</span>) <span class="t-k">if</span> isinstance(rec, dict) <span class="t-k">else</span> <span class="t-k">None</span>
+        <span class="t-k">if</span> <span class="t-k">not</span> isinstance(msgs, list) <span class="t-k">or</span> len(msgs) &lt; <span class="t-n">2</span>:
+            role_errors += <span class="t-n">1</span>
+            continue
+
+        roles = [m.get(<span class="t-s">&quot;role&quot;</span>) <span class="t-k">for</span> m <span class="t-k">in</span> msgs <span class="t-k">if</span> isinstance(m, dict)]
+        <span class="t-k">if</span> <span class="t-s">&quot;user&quot;</span> <span class="t-k">not</span> <span class="t-k">in</span> roles <span class="t-k">or</span> <span class="t-s">&quot;assistant&quot;</span> <span class="t-k">not</span> <span class="t-k">in</span> roles:
+            role_errors += <span class="t-n">1</span>
+            continue
+
+        assistant_text = <span class="t-s">&quot; &quot;</span>.join(
+            str(m.get(<span class="t-s">&quot;content&quot;</span>, <span class="t-s">&quot;&quot;</span>)).strip()
+            <span class="t-k">for</span> m <span class="t-k">in</span> msgs
+            <span class="t-k">if</span> isinstance(m, dict) <span class="t-k">and</span> m.get(<span class="t-s">&quot;role&quot;</span>) == <span class="t-s">&quot;assistant&quot;</span>
+        ).strip()
+        <span class="t-k">if</span> <span class="t-k">not</span> assistant_text:
+            empty_completions += <span class="t-n">1</span>
+            continue
+
+        fingerprint = json.dumps(msgs, sort_keys=<span class="t-k">True</span>)
+        <span class="t-k">if</span> fingerprint <span class="t-k">in</span> seen:
+            duplicates += <span class="t-n">1</span>
+            continue
+        seen.add(fingerprint)
+        valid += <span class="t-n">1</span>
+
+    <span class="t-k">if</span> role_errors:
+        issues.append(<span class="t-s">f&quot;{role_errors} record(s) missing valid user/assistant roles&quot;</span>)
+    <span class="t-k">if</span> empty_completions:
+        issues.append(<span class="t-s">f&quot;{empty_completions} record(s) with empty assistant content&quot;</span>)
+    <span class="t-k">if</span> duplicates:
+        issues.append(<span class="t-s">f&quot;{duplicates} duplicate record(s)&quot;</span>)
+
+    quality = round(valid / total, <span class="t-n">4</span>) <span class="t-k">if</span> total <span class="t-k">else</span> <span class="t-n">0.0</span>
+    ready = total &gt;= <span class="t-n">10</span> <span class="t-k">and</span> quality &gt;= <span class="t-n">0.9</span> <span class="t-k">and</span> duplicates == <span class="t-n">0</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;total&quot;</span>: total,
+        <span class="t-s">&quot;valid&quot;</span>: valid,
+        <span class="t-s">&quot;duplicates&quot;</span>: duplicates,
+        <span class="t-s">&quot;empty_completions&quot;</span>: empty_completions,
+        <span class="t-s">&quot;role_errors&quot;</span>: role_errors,
+        <span class="t-s">&quot;quality_score&quot;</span>: quality,
+        <span class="t-s">&quot;ready_to_train&quot;</span>: ready,
+        <span class="t-s">&quot;issues&quot;</span>: issues,
+    }</code></pre></div>
+<p>Each record should look like <code>{&quot;messages&quot;: [...]}</code>, with at least one <code>user</code> and one <code>assistant</code> message. The validator counts records that:</p>
+<ul><li>lack valid user and assistant roles,</li><li>have an empty assistant reply, or</li><li>are exact duplicates of an earlier record.</li></ul>
+<p>It then reports <code>quality_score</code> (valid records divided by total) and <code>ready_to_train</code>, which is true only when there are <strong>at least 10 records</strong>, a quality score of <strong>0.9 or more</strong>, and <strong>no duplicates</strong>. Those thresholds are teaching defaults, written in the code; real projects need far more data and richer checks.</p>
+<p>A record with an empty answer, for example, is reported like this:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>{&quot;total&quot;: 1, &quot;valid&quot;: 0, &quot;empty_completions&quot;: 1,
+ &quot;quality_score&quot;: 0.0, &quot;ready_to_train&quot;: false,
+ &quot;issues&quot;: [&quot;1 record(s) with empty assistant content&quot;]}</code></pre></div>
+<aside class="callout note"><strong>Note</strong><p>The validator checks structure only. It cannot tell whether your labels are <em>correct</em>, whether the data is representative, or whether it contains private information. See <a href="privacy.html">privacy</a> for the last point.</p></aside>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/finetuning.py --data-volume 1500
+python levels/foundations/finetuning.py --data-volume 50 --fresh-knowledge</code></pre></div>
+<p>Each prints a JSON recommendation, with no key and no cost. Over the API the advisor is <code>POST /foundations/adaptation/recommend</code> and the dataset check is <code>POST /foundations/finetune/validate</code>.</p>
+<aside class="callout note"><strong>Note</strong><p>In the command-line script, <code>--strict-format</code> defaults to on, so it is always on. Call the function directly to test the other case.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Hold everything else fixed and change <code>data_volume</code> through 0, 50, 100, 500, 1000. Where does the recommendation flip? 2) Find inputs that make RAG win. 3) Build a five-record dataset with one duplicate and one empty answer and read the issues. 4) Make a clean ten-record dataset and see <code>ready_to_train</code> become true.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Fine-tuning to add knowledge.</strong> Tuning is better at <em>style and format</em> than at facts. Use retrieval for facts.</li><li><strong>Skipping the cheap rungs.</strong> Try a better prompt and a few examples first.</li><li><strong>Tuning without an evaluation set.</strong> You cannot tell if it helped. See <a href="r2.html">R2</a>.</li><li><strong>Training on unchecked data.</strong> Duplicates, empties and private data cost you twice.</li><li><strong>Treating a heuristic as a verdict.</strong></li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why is fine-tuning usually a poor way to give a model fresh facts?</summary><p>Facts change, and retraining is slow and expensive. Retrieval lets you update the documents instead.</p></details>
+<details><summary>What is LoRA, in one sentence?</summary><p>A parameter-efficient fine-tuning method that trains a small adapter instead of the whole model.</p></details>
+<details><summary>What would make <code>ready_to_train</code> false even for a clean dataset?</summary><p>Having fewer than 10 records.</p></details>
+<p>Next: <a href="retrieval.html">Retrieval</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="model-selection.html"><small>Previous</small>Model selection</a><a class="next" href="retrieval.html"><small>Next</small>Retrieval and RAG</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#the-advisor">The advisor</a><a class="l2" href="#worked-examples">Worked examples</a><a class="l2" href="#checking-a-dataset-before-you-train">Checking a dataset before you train</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

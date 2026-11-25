@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A2: Plan-and-Execute · Vigil Guide</title>
+<meta name="description" content="Decide every step first, then carry them out, with optional human approval in between.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html" aria-current=page>A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Architectures</p>
+      <h1 id="a2-plan-and-execute">A2: Plan-and-Execute</h1>
+<p><strong>The question this pattern answers:</strong> what if I want to see, and approve, what the agent intends to do <em>before</em> it does anything?</p>
+<p><a href="a1.html">A1</a> decides each step after seeing the last result. That is flexible but hard to predict. Plan-and-Execute does the opposite: it separates <strong>thinking</strong> from <strong>doing</strong> completely.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>A good project lead writes the plan first, shares it, gets sign-off, and only then starts work.</p>
+<div class="flow" role="img"><div class="node"><b>Phase 1: Plan</b><small>one model call, no tools</small></div><span class="arr">→</span><div class="node"><b>Review</b><small>optional human gate</small></div><span class="arr">→</span><div class="node"><b>Phase 2: Execute</b><small>run each step</small></div><span class="arr">→</span><div class="node"><b>Synthesise</b><small>one model call, final report</small></div></div>
+<p>The agent that plans cannot act. The code that acts does not decide. That separation is the defining feature.</p>
+<h2 id="why-bother">Why bother?</h2>
+<ul><li><strong>Human oversight.</strong> "The agent plans to isolate this host. Approve?" is better than finding out afterwards.</li><li><strong>A cheap failure.</strong> If the plan is bad you throw it away having paid for one planning call, not a whole run.</li><li><strong>An inspectable procedure.</strong> The plan is data you can log, diff and test.</li></ul>
+<h2 id="the-plan-is-a-typed-object">The plan is a typed object</h2>
+<div class="code"><div class="code-cap">architectures/a2_plan_execute.py · PlanStep</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> PlanStep(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    A single step in the investigation plan.
+
+    step_type distinguishes between steps that call tools and the final
+    synthesis step that uses accumulated results to write the report.
+    &quot;&quot;&quot;</span>
+    step:        int
+    description: str  = Field(description=<span class="t-s">&quot;What this step does and why it is needed&quot;</span>)
+    step_type:   Literal[<span class="t-s">&quot;tool_call&quot;</span>, <span class="t-s">&quot;synthesise&quot;</span>]
+    tool_name:   str  = Field(description=<span class="t-s">&quot;Tool to call (empty string if step_type is synthesise)&quot;</span>)</code></pre></div>
+<div class="code"><div class="code-cap">architectures/a2_plan_execute.py · InvestigationPlan</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> InvestigationPlan(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    The complete plan produced by the planner LLM call.
+
+    The plan is produced BEFORE any execution. Each step is a discrete unit
+    that the executor will carry out in order.
+    &quot;&quot;&quot;</span>
+    goal:        str            = Field(description=<span class="t-s">&quot;Restatement of the investigation goal&quot;</span>)
+    steps:       list[PlanStep] = Field(description=<span class="t-s">&quot;Ordered steps to achieve the goal&quot;</span>)
+    reasoning:   str            = Field(description=<span class="t-s">&quot;Why these steps, in this order?&quot;</span>)</code></pre></div>
+<p>Each step is either a <code>tool_call</code> (name a tool) or the final <code>synthesise</code>. Because the plan has a schema (the same idea as <a href="l1.html">L1</a>), code can read it, validate it and even let a person edit it.</p>
+<h2 id="phase-1-make-the-plan">Phase 1: make the plan</h2>
+<div class="code"><div class="code-cap">architectures/a2_plan_execute.py · create_plan</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> create_plan(cve_id: str) -&gt; InvestigationPlan:
+    <span class="t-s">&quot;&quot;&quot;
+    Phase 1: ask the LLM to produce a complete investigation plan.
+
+    The planner has no tools — it cannot DO anything here.
+    It only produces a structured list of steps to execute later.
+
+    This separation is the defining feature of Plan-and-Execute:
+    the agent that plans is different from the agent that acts.
+    &quot;&quot;&quot;</span>
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are an investigation planner for a CVE intelligence system. &quot;</span>
+                    <span class="t-s">&quot;Your ONLY job is to produce a step-by-step plan for investigating a CVE. &quot;</span>
+                    <span class="t-s">&quot;Do NOT execute any steps yourself — just plan. &quot;</span>
+                    <span class="t-s">&quot;\n\n&quot;</span>
+                    <span class="t-s">&quot;Available tools for the executor to use:\n&quot;</span>
+                    <span class="t-s">&quot;  fetch_nvd_data   — get CVSS score, severity, description from NVD\n&quot;</span>
+                    <span class="t-s">&quot;  fetch_epss_score — get exploitation probability (0–1) from EPSS\n&quot;</span>
+                    <span class="t-s">&quot;  check_cisa_kev   — check if CVE is in CISA&#x27;s active exploit catalog\n&quot;</span>
+                    <span class="t-s">&quot;\n&quot;</span>
+                    <span class="t-s">&quot;Each step must be one of: tool_call (call a tool) or synthesise (final report). &quot;</span>
+                    <span class="t-s">&quot;The last step must always be synthesise. &quot;</span>
+                    <span class="t-s">&quot;Think about what information is needed and in what order.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: <span class="t-s">f&quot;Create an investigation plan for {cve_id}.&quot;</span>,
+            },
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;InvestigationPlan&quot;</span>,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(InvestigationPlan),
+            },
+        },
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">1024</span>,
+    )
+    _track(response)
+    <span class="t-k">return</span> InvestigationPlan.model_validate(json.loads(response.choices[<span class="t-n">0</span>].message.content))</code></pre></div>
+<p>Note what is <em>missing</em>: the call passes no <code>tools</code>. The planner can only describe steps, never run them. The prompt names the three tools, says the last step must be <code>synthesise</code>, and says "do NOT execute any steps yourself".</p>
+<h2 id="phase-2-execute-the-plan">Phase 2: execute the plan</h2>
+<div class="code"><div class="code-cap">architectures/a2_plan_execute.py · execute_plan</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> execute_plan(
+    cve_id: str,
+    plan: InvestigationPlan,
+) -&gt; tuple[PlanExecuteReport, list[dict]]:
+    <span class="t-s">&quot;&quot;&quot;
+    Phase 2: execute each step in the plan.
+
+    The executor is responsible for:
+    - Calling the right tool for each tool_call step
+    - Passing all accumulated observations to the synthesis step
+    - Producing the structured final report
+
+    The executor does NOT re-plan — it executes what the planner decided.
+    If a tool fails, the result includes the error and execution continues.
+    &quot;&quot;&quot;</span>
+    observations: list[dict] = []  <span class="t-c"># Accumulates results from every step</span>
+    execution_log: list[dict] = []
+
+    <span class="t-k">for</span> step <span class="t-k">in</span> plan.steps:
+        console.print(
+            <span class="t-s">f&quot;[dim]  Step {step.step}: {step.step_type}&quot;</span>
+            + (<span class="t-s">f&quot; → {step.tool_name}&quot;</span> <span class="t-k">if</span> step.tool_name <span class="t-k">else</span> <span class="t-s">&quot;&quot;</span>)
+            + <span class="t-s">f&quot; | {step.description[:60]}[/dim]&quot;</span>
+        )
+
+        <span class="t-k">if</span> step.step_type == <span class="t-s">&quot;tool_call&quot;</span>:
+            <span class="t-c"># Validate the tool exists before calling it</span>
+            <span class="t-k">if</span> step.tool_name <span class="t-k">not</span> <span class="t-k">in</span> TOOL_FUNCTIONS:
+                result = {<span class="t-s">&quot;error&quot;</span>: <span class="t-s">f&quot;Unknown tool: {step.tool_name}&quot;</span>}
+            <span class="t-k">else</span>:
+                fn     = TOOL_FUNCTIONS[step.tool_name]
+                result = <span class="t-k">await</span> fn(cve_id)
+
+            observations.append({
+                <span class="t-s">&quot;step&quot;</span>:      step.step,
+                <span class="t-s">&quot;tool&quot;</span>:      step.tool_name,
+                <span class="t-s">&quot;result&quot;</span>:    result,
+            })
+            execution_log.append({
+                <span class="t-s">&quot;step&quot;</span>:        step.step,
+                <span class="t-s">&quot;description&quot;</span>: step.description,
+                <span class="t-s">&quot;tool&quot;</span>:        step.tool_name,
+                <span class="t-s">&quot;result&quot;</span>:      result,
+                <span class="t-s">&quot;status&quot;</span>:      <span class="t-s">&quot;error&quot;</span> <span class="t-k">if</span> <span class="t-s">&quot;error&quot;</span> <span class="t-k">in</span> result <span class="t-k">else</span> <span class="t-s">&quot;ok&quot;</span>,
+            })
+
+        <span class="t-k">elif</span> step.step_type == <span class="t-s">&quot;synthesise&quot;</span>:
+            <span class="t-c"># The synthesis step uses all collected observations to produce</span>
+            <span class="t-c"># the final report. No tool is called here — the LLM synthesises.</span>
+            obs_json = json.dumps(observations, indent=<span class="t-n">2</span>)
+
+            final_response = <span class="t-k">await</span> client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {
+                        <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                        <span class="t-s">&quot;content&quot;</span>: (
+                            <span class="t-s">&quot;You are a CVE analyst. Produce a final structured risk report &quot;</span>
+                            <span class="t-s">&quot;based only on the data provided. Do not invent any values.&quot;</span>
+                        ),
+                    },
+                    {
+                        <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                        <span class="t-s">&quot;content&quot;</span>: (
+                            <span class="t-s">f&quot;CVE under investigation: {cve_id}\n\n&quot;</span>
+                            <span class="t-s">f&quot;Data collected from {len(observations)} steps:\n{obs_json}\n\n&quot;</span>
+                            <span class="t-s">&quot;Produce the final risk report.&quot;</span>
+                        ),
+                    },
+                ],
+                response_format={
+                    <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+                    <span class="t-s">&quot;json_schema&quot;</span>: {
+                        <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;PlanExecuteReport&quot;</span>,
+                        <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                        <span class="t-s">&quot;schema&quot;</span>: _strict_schema(PlanExecuteReport),
+                    },
+                },
+                temperature=<span class="t-n">0.1</span>,
+                max_tokens=<span class="t-n">2048</span>,
+            )
+            _track(final_response)
+            report = PlanExecuteReport.model_validate(
+                json.loads(final_response.choices[<span class="t-n">0</span>].message.content)
+            )
+            execution_log.append({
+                <span class="t-s">&quot;step&quot;</span>:        step.step,
+                <span class="t-s">&quot;description&quot;</span>: step.description,
+                <span class="t-s">&quot;tool&quot;</span>:        <span class="t-s">&quot;synthesise&quot;</span>,
+                <span class="t-s">&quot;status&quot;</span>:      <span class="t-s">&quot;ok&quot;</span>,
+            })
+            <span class="t-k">return</span> report, execution_log
+
+    <span class="t-k">raise</span> RuntimeError(<span class="t-s">&quot;Plan had no synthesise step — cannot produce final report&quot;</span>)</code></pre></div>
+<p>What the executor does, in order:</p>
+<ol><li>Loops over the steps <strong>one at a time</strong>.</li><li>For a <code>tool_call</code> step it looks the name up in <code>TOOL_FUNCTIONS</code> and calls it directly with the CVE ID. <strong>No model call is involved.</strong> An unknown tool name is recorded as an error result and the run continues.</li><li>It collects every result into <code>observations</code> and writes an entry to an <code>execution_log</code>.</li><li>At the <code>synthesise</code> step it makes one model call, passing all observations, and returns the structured <code>PlanExecuteReport</code>.</li><li>If the plan never contains a <code>synthesise</code> step it raises a <code>RuntimeError</code>.</li></ol>
+<p>That means a whole run costs <strong>two model calls</strong>: one to plan and one to synthesise. The data fetching in between is ordinary code.</p>
+<aside class="callout note"><strong>Note</strong><p>The file's introduction mentions re-planning and running independent steps in parallel as benefits of the pattern. The code does neither: the executor says it "does NOT re-plan", and it runs steps sequentially. Treat those as things the pattern <em>allows</em>, and a good exercise to add yourself.</p></aside>
+<h2 id="human-in-the-loop-gates">Human-in-the-loop gates</h2>
+<p>The same file contains a second, gated way to run the pipeline. It adds approval points so a person can stop, edit or reject the plan. The decision data comes from <code>vigil/models.py</code>:</p>
+<div class='table'><table><thead><tr><th>Object</th><th>What it holds</th></tr></thead><tbody><tr><td><code>ApprovalGate</code></td><td>A pending question: the gate type (<code>plan</code>, <code>action</code> or <code>clarification</code>), a payload to review and a risk level</td></tr><tr><td><code>HumanDecision</code></td><td>The answer: <code>approve</code>, <code>reject</code>, <code>edit</code> or <code>request_changes</code>, with who decided and why</td></tr><tr><td><code>PausedRun</code></td><td>Where the run is: <code>pending_plan_approval</code>, <code>pending_action_approval</code>, <code>executing</code>, <code>done</code> or <code>aborted</code></td></tr></tbody></table></div>
+<p>The flow, as written in <code>start_gated_run</code> and <code>submit_human_decision</code>:</p>
+<ol><li><code>start_gated_run</code> makes the plan and <strong>pauses</strong> at a plan gate. Nothing has executed yet.</li><li>A person approves, edits the plan, requests changes, or rejects. Rejecting ends the run as <code>aborted</code>.</li><li>If the plan contains a step judged high-risk, a second <strong>action gate</strong> asks for approval of that specific step.</li><li>Only then does <code>execute_plan</code> run, and the run becomes <code>done</code>.</li><li>Every decision is appended to an audit list.</li></ol>
+<p>What counts as "high-risk" is a simple keyword check:</p>
+<div class="code"><div class="code-cap">architectures/a2_plan_execute.py · _is_high_risk_step</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _is_high_risk_step(step: PlanStep) -&gt; bool:
+    text = (step.description + <span class="t-s">&quot; &quot;</span> + step.tool_name).lower()
+    <span class="t-k">return</span> any(k <span class="t-k">in</span> text <span class="t-k">for</span> k <span class="t-k">in</span> (<span class="t-s">&quot;critical&quot;</span>, <span class="t-s">&quot;offline&quot;</span>, <span class="t-s">&quot;shutdown&quot;</span>, <span class="t-s">&quot;immediate&quot;</span>, <span class="t-s">&quot;kev&quot;</span>))</code></pre></div>
+<aside class="callout warning"><strong>Warning</strong><p>This is a teaching heuristic, not a real risk engine. It looks for words in the step text and tool name. Because the KEV tool is called <code>check_cisa_kev</code>, any plan that includes it contains the word "kev" and will trigger the action gate. A production system would classify actions by what they can <em>change</em>, not by keywords.</p></aside>
+<p>Runs are kept in an in-memory dictionary (<code>_RUNS</code>), so they disappear when the process restarts. The design notes are in <code>specs/E2-human-in-the-loop.md</code>.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python architectures/a2_plan_execute.py CVE-2021-44228</code></pre></div>
+<p>You should see a planning phase that prints the numbered steps, then an execution phase that prints each step, then the report. It needs an OpenAI key and internet access.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Read the plan the model produced. Is every step necessary? Is the order sensible? 2) Change the planner prompt to forbid the KEV tool and see what the report says about exploitation. 3) In a test or a REPL, hand-build an <code>InvestigationPlan</code> with an unknown tool name and run <code>execute_plan</code> to watch the error path.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Trusting a plan because it looks tidy.</strong> Review it. A fluent plan can still skip the one step that matters.</li><li><strong>No path to change course.</strong> A fixed plan cannot react if step 1 reveals something surprising. If you need that, add re-planning or use A1.</li><li><strong>Letting the planner act.</strong> Keep planning tools-free so the plan really is only a proposal.</li><li><strong>Treating keyword gates as safety.</strong> See the warning above.</li><li><strong>Forgetting state is in memory.</strong> A gated run is lost on restart.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does the planner call pass no tools?</summary><p>So it can only describe steps and never perform them. That is what makes the plan a safe thing to review.</p></details>
+<details><summary>How many model calls does a normal A2 run make, and why?</summary><p>Two: one to produce the plan and one to synthesise the report. The tool steps in between call your functions directly.</p></details>
+<details><summary>What happens when a person rejects a plan at the gate?</summary><p>The run's state becomes <code>aborted</code>, the gate is cleared, and nothing is executed.</p></details>
+<p>Next: <a href="a3.html">A3: Reflection</a>, which improves an answer instead of the path to it.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="a1.html"><small>Previous</small>A1: ReAct</a><a class="next" href="a3.html"><small>Next</small>A3: Reflection</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#why-bother">Why bother?</a><a class="l2" href="#the-plan-is-a-typed-object">The plan is a typed object</a><a class="l2" href="#phase-1-make-the-plan">Phase 1: make the plan</a><a class="l2" href="#phase-2-execute-the-plan">Phase 2: execute the plan</a><a class="l2" href="#human-in-the-loop-gates">Human-in-the-loop gates</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

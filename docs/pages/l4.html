@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L4: Tool use · Vigil Guide</title>
+<meta name="description" content="The model looks things up in live data by asking your code to run tools, instead of answering from memory.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html" aria-current=page>L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-4-tool-use">Level 4: Tool use</h1>
+<p><strong>The question this level answers:</strong> how do I stop the model answering from memory, and make it use real, current data?</p>
+<p>This is the biggest conceptual step so far, and the one that turns "a model that talks" into "a model that acts". Take your time with it.</p>
+<p>Levels L0 to L3 all ask the model about a CVE from <strong>memory</strong>. That has real problems:</p>
+<ul><li>A model has a <strong>training cutoff</strong>, so new CVEs are unknown to it.</li><li>CVSS scores get reassessed after publication.</li><li>EPSS (the probability of exploitation) is updated daily.</li><li>Patches appear after the model was trained.</li></ul>
+<p>So the model may state a score or a patch status that sounds right and is wrong. Level 4 fixes this by letting the model <strong>look things up</strong>.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Imagine an analyst who has read a lot but is offline, versus one who is connected to the internet. L4 connects the analyst.</p>
+<p>The model cannot browse by itself and <strong>never runs anything itself</strong>. Instead it can say, in a structured message, "please call this function with these arguments". Your code runs the function and hands the result back. The model then reads the result and carries on.</p>
+<div class="flow" role="img"><div class="node"><b>Model</b><small>asks for a tool</small></div><span class="arr">→</span><div class="node"><b>Your code</b><small>runs it</small></div><span class="arr">→</span><div class="node"><b>Result</b><small>goes back to the model</small></div><span class="arr">→</span><div class="node"><b>Model</b><small>answers, or asks again</small></div></div>
+<aside class="callout note"><strong>Note</strong><p>The key point is <strong>who is in control</strong>. The model only <em>requests</em>. Your code decides whether and how to run it. That is what keeps tool use safe and auditable.</p></aside>
+<h2 id="the-two-tools">The two tools</h2>
+<p>This level gives the model two live data sources. Both are free and need no key.</p>
+<div class='table'><table><thead><tr><th>Tool</th><th>Source</th><th>What it returns</th></tr></thead><tbody><tr><td><code>fetch_nvd_data</code></td><td>NVD, the US National Vulnerability Database</td><td>The official description, CVSS score and severity, publication date and a few references</td></tr><tr><td><code>fetch_epss_score</code></td><td>EPSS, from FIRST.org</td><td>The probability (0 to 1) that the CVE is exploited in the next 30 days, plus its percentile</td></tr></tbody></table></div>
+<p>EPSS adds context that CVSS lacks. The code's own comment gives the example: a CVSS 9.0 with a tiny EPSS can be less urgent than a CVSS 6.0 with a high one.</p>
+<aside class="callout note"><strong>Note</strong><p>This level's code uses only these two tools. The sample asset inventory in <code>data/assets.json</code> is not read here.</p></aside>
+<h2 id="step-1-tell-the-model-what-tools-exist">Step 1: tell the model what tools exist</h2>
+<p>A tool is described, not handed over. The description has three parts: a <strong>name</strong>, a <strong>plain-English description</strong> the model uses to decide <em>when</em> to call it, and a <strong>JSON schema</strong> for the arguments.</p>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · INLINE_TOOLS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>INLINE_TOOLS: list[dict] = [
+    {
+        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;function&quot;</span>,
+        <span class="t-s">&quot;function&quot;</span>: {
+            <span class="t-s">&quot;name&quot;</span>: <span class="t-s">&quot;fetch_nvd_data&quot;</span>,
+            <span class="t-s">&quot;description&quot;</span>: (
+                <span class="t-s">&quot;Fetches live vulnerability data from the National Vulnerability Database (NVD). &quot;</span>
+                <span class="t-s">&quot;Returns the official description, CVSS scores, severity, and affected products. &quot;</span>
+                <span class="t-s">&quot;Use this first — it provides the authoritative source of truth for any CVE.&quot;</span>
+            ),
+            <span class="t-s">&quot;parameters&quot;</span>: {
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;object&quot;</span>,
+                <span class="t-s">&quot;properties&quot;</span>: {
+                    <span class="t-s">&quot;cve_id&quot;</span>: {
+                        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;string&quot;</span>,
+                        <span class="t-s">&quot;description&quot;</span>: <span class="t-s">&quot;The CVE identifier, e.g. CVE-2021-44228&quot;</span>,
+                    }
+                },
+                <span class="t-s">&quot;required&quot;</span>: [<span class="t-s">&quot;cve_id&quot;</span>],
+                <span class="t-s">&quot;additionalProperties&quot;</span>: <span class="t-k">False</span>,
+            },
+        },
+    },
+    {
+        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;function&quot;</span>,
+        <span class="t-s">&quot;function&quot;</span>: {
+            <span class="t-s">&quot;name&quot;</span>: <span class="t-s">&quot;fetch_epss_score&quot;</span>,
+            <span class="t-s">&quot;description&quot;</span>: (
+                <span class="t-s">&quot;Fetches the EPSS (Exploit Prediction Scoring System) score for a CVE. &quot;</span>
+                <span class="t-s">&quot;EPSS gives the probability (0–1) that the CVE will be exploited in the next 30 days, &quot;</span>
+                <span class="t-s">&quot;updated daily by FIRST.org. A high EPSS score means active exploitation is likely &quot;</span>
+                <span class="t-s">&quot;even if the CVSS score is moderate. Always call this after fetch_nvd_data to get &quot;</span>
+                <span class="t-s">&quot;a complete risk picture.&quot;</span>
+            ),
+            <span class="t-s">&quot;parameters&quot;</span>: {
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;object&quot;</span>,
+                <span class="t-s">&quot;properties&quot;</span>: {
+                    <span class="t-s">&quot;cve_id&quot;</span>: {
+                        <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;string&quot;</span>,
+                        <span class="t-s">&quot;description&quot;</span>: <span class="t-s">&quot;The CVE identifier, e.g. CVE-2021-44228&quot;</span>,
+                    }
+                },
+                <span class="t-s">&quot;required&quot;</span>: [<span class="t-s">&quot;cve_id&quot;</span>],
+                <span class="t-s">&quot;additionalProperties&quot;</span>: <span class="t-k">False</span>,
+            },
+        },
+    },
+]</code></pre></div>
+<p>Read the descriptions closely. They are not documentation for humans; they are <strong>instructions to the model</strong>. "Use this first" and "Always call this after <code>fetch_nvd_data</code>" steer the order of calls. A vague description means the model guesses wrongly about when to use a tool.</p>
+<h2 id="step-2-write-the-real-functions">Step 2: write the real functions</h2>
+<p>These are ordinary async Python functions that call the live APIs. They must return a <strong>string</strong>, because that is what goes back into the conversation, and they return JSON text so the model can read structure.</p>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · fetch_epss_score</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> fetch_epss_score(cve_id: str) -&gt; str:
+    <span class="t-s">&quot;&quot;&quot;
+    Call the EPSS API and return the exploitation probability score.
+
+    EPSS API docs: https://www.first.org/epss/api
+    No authentication required. Updated daily.
+
+    The score is a probability from 0 to 1:
+      0.001 = 0.1% chance of exploitation in next 30 days (low)
+      0.5   = 50% chance (high)
+      0.95  = 95% chance (extremely high)
+
+    The percentile tells you how this CVE compares to all others.
+    A score of 0.3 at the 95th percentile means only 5% of CVEs are
+    more likely to be exploited — context that CVSS alone doesn&#x27;t give.
+    &quot;&quot;&quot;</span>
+    url = <span class="t-s">f&quot;https://api.first.org/data/v1/epss?cve={cve_id}&quot;</span>
+    <span class="t-k">try</span>:
+        response = <span class="t-k">await</span> http.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        items = data.get(<span class="t-s">&quot;data&quot;</span>, [])
+        <span class="t-k">if</span> <span class="t-k">not</span> items:
+            <span class="t-k">return</span> json.dumps({
+                <span class="t-s">&quot;source&quot;</span>: <span class="t-s">&quot;EPSS&quot;</span>,
+                <span class="t-s">&quot;cve_id&quot;</span>: cve_id,
+                <span class="t-s">&quot;score&quot;</span>:  <span class="t-k">None</span>,
+                <span class="t-s">&quot;note&quot;</span>:   <span class="t-s">&quot;CVE not found in EPSS database — may be too recent or unscored&quot;</span>,
+            })
+
+        item = items[<span class="t-n">0</span>]
+        <span class="t-k">return</span> json.dumps({
+            <span class="t-s">&quot;source&quot;</span>:     <span class="t-s">&quot;EPSS&quot;</span>,
+            <span class="t-s">&quot;cve_id&quot;</span>:     cve_id,
+            <span class="t-s">&quot;score&quot;</span>:      float(item.get(<span class="t-s">&quot;epss&quot;</span>,       <span class="t-n">0</span>)),
+            <span class="t-s">&quot;percentile&quot;</span>: float(item.get(<span class="t-s">&quot;percentile&quot;</span>, <span class="t-n">0</span>)),
+            <span class="t-s">&quot;date&quot;</span>:       item.get(<span class="t-s">&quot;date&quot;</span>, <span class="t-s">&quot;unknown&quot;</span>),
+            <span class="t-s">&quot;note&quot;</span>: (
+                <span class="t-s">f&quot;There is a {float(item.get(&#x27;epss&#x27;, 0)) * 100:.1f}% probability this CVE &quot;</span>
+                <span class="t-s">f&quot;will be exploited in the next 30 days. &quot;</span>
+                <span class="t-s">f&quot;This is higher than {float(item.get(&#x27;percentile&#x27;, 0)) * 100:.0f}% of all CVEs.&quot;</span>
+            ),
+        })
+
+    <span class="t-k">except</span> httpx.HTTPStatusError <span class="t-k">as</span> e:
+        <span class="t-k">return</span> json.dumps({<span class="t-s">&quot;error&quot;</span>: <span class="t-s">f&quot;EPSS API returned {e.response.status_code}&quot;</span>})
+    <span class="t-k">except</span> Exception <span class="t-k">as</span> e:
+        <span class="t-k">return</span> json.dumps({<span class="t-s">&quot;error&quot;</span>: <span class="t-s">f&quot;EPSS API call failed: {str(e)}&quot;</span>})</code></pre></div>
+<p>Notice how failure is handled. Network errors and bad statuses are caught and returned as <code>{&quot;error&quot;: ...}</code> instead of crashing the program. That matters: the error text goes back to the model, which can then say "I could not get the EPSS score" instead of making one up. <code>fetch_nvd_data</code> follows the same pattern, and also prefers CVSS v3.1, then v3.0, then v2.</p>
+<h2 id="step-3-connect-names-to-functions">Step 3: connect names to functions</h2>
+<p>The model emits a <strong>name</strong> as text. A dictionary turns that name into a function:</p>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · TOOL_FUNCTIONS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>TOOL_FUNCTIONS: dict[str, Any] = {
+    <span class="t-s">&quot;fetch_nvd_data&quot;</span>:  fetch_nvd_data,
+    <span class="t-s">&quot;fetch_epss_score&quot;</span>: fetch_epss_score,
+}</code></pre></div>
+<p>The code that uses it is the boundary between the model's world and the real world:</p>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · _execute_tool</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> _execute_tool(tool_call, source: str = <span class="t-s">&quot;inline&quot;</span>) -&gt; str:
+    <span class="t-s">&quot;&quot;&quot;
+    Execute a single tool call and return its result as a string.
+
+    This is the boundary between the LLM world and the real world:
+    the model asks → we execute → we return the result.
+    &quot;&quot;&quot;</span>
+    fn_name   = tool_call.function.name
+    arguments = json.loads(tool_call.function.arguments)
+
+    <span class="t-k">if</span> (source <span class="t-k">or</span> <span class="t-s">&quot;inline&quot;</span>).lower() == <span class="t-s">&quot;mcp&quot;</span>:
+        <span class="t-k">try</span>:
+            <span class="t-k">from</span> vigil_mcp.vigil_server <span class="t-k">import</span> call_tool <span class="t-k">as</span> mcp_call_tool
+
+            <span class="t-k">return</span> <span class="t-k">await</span> mcp_call_tool(fn_name, arguments)
+        <span class="t-k">except</span> Exception:
+            <span class="t-c"># Graceful fallback to inline path if MCP is unavailable.</span>
+            <span class="t-k">pass</span>
+
+    fn = TOOL_FUNCTIONS.get(fn_name)
+    <span class="t-k">if</span> fn <span class="t-k">is</span> <span class="t-k">None</span>:
+        <span class="t-k">return</span> json.dumps({<span class="t-s">&quot;error&quot;</span>: <span class="t-s">f&quot;Unknown tool: {fn_name}&quot;</span>})
+    <span class="t-k">return</span> <span class="t-k">await</span> fn(**arguments)</code></pre></div>
+<p>If the model asks for a tool that is not in the dictionary, it gets back an error string instead of an exception. This is the same safe-dispatch behaviour you practise in the <code>l4_tool_dispatch</code> exercise below.</p>
+<h2 id="step-4-the-loop">Step 4: the loop</h2>
+<p>This is the heart of the level. The code's docstring describes it as the core primitive:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>messages = [system, user]
+<span class="t-k">while</span> <span class="t-k">True</span>:
+    response = llm(messages, tools=TOOLS)
+    <span class="t-k">if</span> response has tool_calls:
+        run each tool, append the request <span class="t-k">and</span> the result, loop again
+    <span class="t-k">else</span>:
+        break   <span class="t-c"># final answer</span></code></pre></div>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · run_tool_loop</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_tool_loop(cve_id: str, tool_source: str = <span class="t-s">&quot;inline&quot;</span>) -&gt; tuple[GroundedAnalysis, list[dict]]:
+    <span class="t-s">&quot;&quot;&quot;
+    The core of L4: run the LLM in a loop until it stops calling tools.
+
+    The conversation starts with a system prompt and user request.
+    On each iteration:
+      1. Call the LLM (with the current conversation + available tools)
+      2. If the model emits tool_calls → execute each tool, append results, loop
+      3. If the model produces a final text response → parse and return
+
+    Returns: (GroundedAnalysis, tool_call_log)
+      - GroundedAnalysis: the final structured report
+      - tool_call_log: record of every tool call made (for transparency / display)
+
+    The tool_call_log is important for auditability: users can see exactly
+    which APIs were called and what they returned, not just the final summary.
+    &quot;&quot;&quot;</span>
+    <span class="t-c"># ── Initial conversation ───────────────────────────────────────────────────</span>
+    <span class="t-c"># The system prompt explains the agent&#x27;s job and the tools available.</span>
+    <span class="t-c"># It also sets an expectation: use the tools, don&#x27;t rely on memory.</span>
+    messages: list[dict] = [
+        {
+            <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+            <span class="t-s">&quot;content&quot;</span>: (
+                <span class="t-s">&quot;You are a vulnerability intelligence analyst. &quot;</span>
+                <span class="t-s">&quot;You have access to two live data sources: NVD (official CVE database) &quot;</span>
+                <span class="t-s">&quot;and EPSS (exploitation probability scoring). &quot;</span>
+                <span class="t-s">&quot;ALWAYS call both tools before providing analysis — never rely on training data alone. &quot;</span>
+                <span class="t-s">&quot;Your final analysis must be grounded in the data you retrieve.&quot;</span>
+            ),
+        },
+        {
+            <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+            <span class="t-s">&quot;content&quot;</span>: (
+                <span class="t-s">f&quot;Analyse {cve_id}. &quot;</span>
+                <span class="t-s">&quot;Fetch the NVD data and EPSS score, then provide a grounded risk assessment.&quot;</span>
+            ),
+        },
+    ]
+
+    tool_call_log: list[dict] = []  <span class="t-c"># Records every tool call for display</span>
+    openai_tools = tools_for_openai(tool_source)
+    iterations   = <span class="t-n">0</span>
+    max_iterations = <span class="t-n">10</span>  <span class="t-c"># Safety limit — prevents runaway loops</span>
+
+    <span class="t-c"># ── The loop ──────────────────────────────────────────────────────────────</span>
+    <span class="t-k">while</span> iterations &lt; max_iterations:
+        iterations += <span class="t-n">1</span>
+        console.print(<span class="t-s">f&quot;[dim]  Iteration {iterations}: calling LLM...[/dim]&quot;</span>)
+
+        response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=openai_tools,                   <span class="t-c"># tool menu can come from inline or MCP discovery</span>
+            tool_choice=<span class="t-s">&quot;auto&quot;</span>,                   <span class="t-c"># model decides whether to call tools</span>
+            <span class="t-c"># Note: no response_format here — we&#x27;ll get either tool_calls OR text,</span>
+            <span class="t-c"># not a JSON schema response. We add the schema on the FINAL call.</span>
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">4096</span>,
+        )
+
+        _track(response)
+        message = response.choices[<span class="t-n">0</span>].message
+
+        <span class="t-c"># ── Check: did the model call any tools? ──────────────────────────────</span>
+        <span class="t-k">if</span> message.tool_calls:
+            <span class="t-c"># The model wants to call one or more tools.</span>
+            <span class="t-c"># Append its message first (OpenAI requires this ordering).</span>
+            messages.append(message.model_dump(exclude_unset=<span class="t-k">True</span>))
+
+            <span class="t-c"># Execute each tool call in parallel — if the model asks for both</span>
+            <span class="t-c"># NVD and EPSS simultaneously, we fetch both at once.</span>
+            tool_results = <span class="t-k">await</span> asyncio.gather(*[
+                _execute_tool(tc, source=tool_source) <span class="t-k">for</span> tc <span class="t-k">in</span> message.tool_calls
+            ])
+
+            <span class="t-k">for</span> tool_call, result_str <span class="t-k">in</span> zip(message.tool_calls, tool_results):
+                fn_name = tool_call.function.name
+                args    = json.loads(tool_call.function.arguments)
+
+                console.print(<span class="t-s">f&quot;[dim]    → tool: {fn_name}({&#x27;, &#x27;.join(f&#x27;{k}={v}&#x27; for k, v in args.items())})[/dim]&quot;</span>)
+
+                <span class="t-c"># Log it for the display layer</span>
+                tool_call_log.append({
+                    <span class="t-s">&quot;tool&quot;</span>:      fn_name,
+                    <span class="t-s">&quot;arguments&quot;</span>: args,
+                    <span class="t-s">&quot;result&quot;</span>:    json.loads(result_str) <span class="t-k">if</span> result_str.startswith(<span class="t-s">&quot;{&quot;</span>) <span class="t-k">else</span> result_str,
+                })
+
+                <span class="t-c"># Inject the result back into the conversation.</span>
+                <span class="t-c"># The model will read this on the next iteration.</span>
+                messages.append({
+                    <span class="t-s">&quot;role&quot;</span>:         <span class="t-s">&quot;tool&quot;</span>,
+                    <span class="t-s">&quot;tool_call_id&quot;</span>: tool_call.id,
+                    <span class="t-s">&quot;content&quot;</span>:      result_str,
+                })
+
+            <span class="t-c"># Loop back — model now has tool results and will decide what to do next</span>
+            continue
+
+        <span class="t-c"># ── No more tool calls: model produced a final response ───────────────</span>
+        <span class="t-c"># At this point the model has all the data it needs.</span>
+        <span class="t-c"># We make one more structured call to get the final GroundedAnalysis.</span>
+        console.print(<span class="t-s">&quot;[dim]  Tools complete. Requesting structured final report...[/dim]&quot;</span>)
+
+        final_response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages + [
+                {
+                    <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                    <span class="t-s">&quot;content&quot;</span>: (
+                        <span class="t-s">&quot;Based on the live data you just retrieved, produce the final structured analysis. &quot;</span>
+                        <span class="t-s">&quot;Use only facts from the tool results — do not add information from training memory.&quot;</span>
+                    ),
+                }
+            ],
+            response_format={
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+                <span class="t-s">&quot;json_schema&quot;</span>: {
+                    <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;GroundedAnalysis&quot;</span>,
+                    <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                    <span class="t-s">&quot;schema&quot;</span>: _strict_schema(GroundedAnalysis),
+                },
+            },
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">2048</span>,
+        )
+
+        _track(final_response)
+        analysis = GroundedAnalysis.model_validate(
+            json.loads(final_response.choices[<span class="t-n">0</span>].message.content)
+        )
+        <span class="t-k">return</span> analysis, tool_call_log
+
+    <span class="t-c"># If we hit max_iterations without a final response, something went wrong</span>
+    <span class="t-k">raise</span> RuntimeError(<span class="t-s">f&quot;Tool loop exceeded {max_iterations} iterations — agent may be stuck&quot;</span>)</code></pre></div>
+<p>Walk through one imagined pass, following the code (the exact calls depend on the model):</p>
+<ol><li>The conversation starts with a <strong>system prompt</strong> that says: use both tools, never rely on training data alone. The user message asks for a grounded risk assessment.</li><li>The model is called with the tool menu and <code>tool_choice=&quot;auto&quot;</code>, which lets the <strong>model decide</strong> whether to call a tool.</li><li>If the reply contains <code>tool_calls</code>, the loop first appends the model's own message (the API requires that ordering). Then it runs every requested tool <strong>at the same time</strong> with <code>asyncio.gather</code>, the parallel trick from <a href="l2.html">L2</a>.</li><li>Each result goes back as a message with <code>role: &quot;tool&quot;</code> and the matching <code>tool_call_id</code>, so the model knows which request each answer belongs to. Every call is also written to <code>tool_call_log</code>.</li><li>The loop goes round again. Now the model has real data in its context.</li><li>When a reply has <strong>no</strong> tool calls, the model is done gathering. The code makes one more call, this time with a JSON schema, to get a typed <code>GroundedAnalysis</code>.</li></ol>
+<p>The loop has a safety cap: <code>max_iterations = 10</code>. If the model is still calling tools after ten rounds, the function raises an error instead of running forever or spending money without limit.</p>
+<aside class="callout warning"><strong>Warning</strong><p>Any loop where a model controls what runs needs a hard cap like this. Without it, one confused response could loop indefinitely and bill you for every round.</p></aside>
+<h2 id="step-5-the-grounded-result">Step 5: the grounded result</h2>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · GroundedAnalysis</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> GroundedAnalysis(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    Final analysis produced after the agent has fetched live data.
+
+    Every numeric field here comes from a real API call — the model cannot
+    invent these values because they were injected into its context as tool
+    results. This is the grounding guarantee.
+    &quot;&quot;&quot;</span>
+    cve_id:             str
+    cvss_score:         float  = Field(description=<span class="t-s">&quot;From NVD API — real current score&quot;</span>)
+    cvss_severity:      str    = Field(description=<span class="t-s">&quot;Critical / High / Medium / Low&quot;</span>)
+    epss_score:         float  = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">1.0</span>, description=<span class="t-s">&quot;Exploitation probability (0–1) from EPSS API&quot;</span>)
+    epss_percentile:    float  = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">1.0</span>, description=<span class="t-s">&quot;How this CVE ranks among all CVEs by exploitation likelihood&quot;</span>)
+    description:        str    = Field(description=<span class="t-s">&quot;Official NVD description&quot;</span>)
+    patch_available:    bool
+    recommended_action: str    = Field(description=<span class="t-s">&quot;What to do, grounded in the live data&quot;</span>)
+    data_sources:       list[str] = Field(description=<span class="t-s">&quot;Which APIs were actually called&quot;</span>)</code></pre></div>
+<p>The final instruction to the model says to use <strong>only</strong> facts from the tool results. The field descriptions say where each number comes from ("From NVD API", "from EPSS API"), and <code>data_sources</code> records which APIs were actually called. The schema constrains the <em>shape</em>. The grounding comes from what was put into the conversation. If a tool failed, the model has no real value to report, which is why watching the tool log matters.</p>
+<h2 id="two-ways-to-supply-the-tools-inline-and-mcp">Two ways to supply the tools: inline and MCP</h2>
+<p>So far the tools were defined inside the file. That is the <strong>inline</strong> source and the default. Level 4 can also discover tools from an <strong>MCP</strong> server.</p>
+<p>MCP, the Model Context Protocol, is a standard way for a program to publish tools that any compatible agent can discover and call, instead of each agent hard-coding its own. In Vigil, <code>vigil_mcp/vigil_server.py</code> publishes the same two tools.</p>
+<p>The switch is a setting:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>VIGIL_TOOL_SOURCE=inline    # the default
+VIGIL_TOOL_SOURCE=mcp</code></pre></div>
+<div class="code"><div class="code-cap">levels/l4_tool_use.py · discover_tools</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> discover_tools(source: str = <span class="t-s">&quot;inline&quot;</span>) -&gt; list[dict]:
+    <span class="t-s">&quot;&quot;&quot;Return tool metadata in DiscoveredTool-like shape.&quot;&quot;&quot;</span>
+    source = (source <span class="t-k">or</span> <span class="t-s">&quot;inline&quot;</span>).lower()
+    <span class="t-k">if</span> source != <span class="t-s">&quot;mcp&quot;</span>:
+        out: list[dict] = []
+        <span class="t-k">for</span> row <span class="t-k">in</span> INLINE_TOOLS:
+            fn = row[<span class="t-s">&quot;function&quot;</span>]
+            out.append(
+                {
+                    <span class="t-s">&quot;name&quot;</span>: fn[<span class="t-s">&quot;name&quot;</span>],
+                    <span class="t-s">&quot;description&quot;</span>: fn[<span class="t-s">&quot;description&quot;</span>],
+                    <span class="t-s">&quot;input_schema&quot;</span>: fn[<span class="t-s">&quot;parameters&quot;</span>],
+                    <span class="t-s">&quot;source&quot;</span>: <span class="t-s">&quot;inline&quot;</span>,
+                }
+            )
+        <span class="t-k">return</span> out
+
+    <span class="t-k">try</span>:
+        <span class="t-k">from</span> vigil_mcp.vigil_server <span class="t-k">import</span> list_tools <span class="t-k">as</span> mcp_list_tools
+
+        <span class="t-k">return</span> mcp_list_tools()
+    <span class="t-k">except</span> Exception:
+        <span class="t-c"># Graceful fallback when MCP deps/server path are unavailable.</span>
+        <span class="t-k">return</span> discover_tools(<span class="t-s">&quot;inline&quot;</span>)</code></pre></div>
+<p>Two things to notice. Whatever the source, tools are described in one common shape (<code>name</code>, <code>description</code>, <code>input_schema</code>, <code>source</code>), and <code>tools_for_openai</code> converts that into the format the model API expects. And there is a <strong>graceful fallback</strong>: if the MCP path fails for any reason, the code quietly uses the inline tools, so the level still runs. Because of that fallback, a successful run does not prove MCP was actually used; check the <code>source</code> field if you need to know.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l4_tool_use.py CVE-2021-44228</code></pre></div>
+<p>This one needs a network connection as well as your API key, because the tools call NVD and EPSS live. It prints a line for each loop iteration and each tool call, then a <strong>Tool Calls</strong> section with one panel per call and a preview of what came back, then a <strong>Grounded Analysis</strong> panel with CVSS, EPSS, patch status, data sources and a recommended action. I have not captured sample output here; the numbers come from live services and change over time.</p>
+<p>Compare it with your <a href="l0.html">L0</a> answer for the same CVE. Where the two differ, the tool-based one can be traced to an API response, which is the whole point.</p>
+<aside class="callout note"><strong>Note</strong><p>NVD limits unauthenticated use to about 5 requests per 30 seconds (this is stated in the code's comments). If you run the level repeatedly you may see an error returned from the tool. That is the safe error path at work, not a crash.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Watch the printed tool log and confirm which tools were called and in what order. 2) Change the system prompt to remove "ALWAYS call both tools" and see whether the model skips one. 3) Add a third tool, for example one that reads <code>data/assets.json</code>: write the function, add an entry to <code>INLINE_TOOLS</code>, and add it to <code>TOOL_FUNCTIONS</code>. 4) Lower <code>max_iterations</code> to <code>1</code> and observe what happens when the loop is cut short.</p></aside>
+<p>Then do the exercise that isolates the dispatch idea:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>pytest exercises/l4_tool_dispatch -q</code></pre></div>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Vague tool descriptions.</strong> The model picks tools using them. Write them like instructions.</li><li><strong>Letting tool errors crash the program.</strong> Return the error as data so the model can react to it.</li><li><strong>No iteration cap.</strong> An uncapped loop can run, and bill, without end.</li><li><strong>Running whatever the model asks.</strong> Always look the name up in an allow-list dictionary. Never <code>eval</code> model output.</li><li><strong>Assuming grounded means correct.</strong> The data is only as good as the source and the call. A failed lookup gives the model nothing to ground on.</li><li><strong>Hiding the tool log.</strong> It is your audit trail. Keep it.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Who actually runs a tool, the model or your code?</summary><p>Your code. The model only emits a request with a name and arguments. Your dispatcher runs the matching function and returns the result.</p></details>
+<details><summary>Why does the loop append the tool result as a <code>role: &quot;tool&quot;</code> message with a <code>tool_call_id</code>?</summary><p>So the model can match each result to the request that produced it, and read it on the next iteration.</p></details>
+<details><summary>What stops the loop running forever?</summary><p><code>max_iterations</code>, set to 10. If it is reached, the code raises an error.</p></details>
+<details><summary>What does it mean for the analysis to be "grounded"?</summary><p>Its facts come from data retrieved in this run (NVD and EPSS responses placed in the conversation), not from the model's training memory.</p></details>
+<details><summary>What happens if you set the tool source to MCP and the server is unavailable?</summary><p>The code falls back to the inline tools, so the level still runs.</p></details>
+<p>Next: <a href="l4b.html">Level 4b</a> teaches the model to read screenshots and PDFs.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l3.html"><small>Previous</small>L3: Routing</a><a class="next" href="l4b.html"><small>Next</small>L4b: Multimodal</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#the-two-tools">The two tools</a><a class="l2" href="#step-1-tell-the-model-what-tools-exist">Step 1: tell the model what tools exist</a><a class="l2" href="#step-2-write-the-real-functions">Step 2: write the real functions</a><a class="l2" href="#step-3-connect-names-to-functions">Step 3: connect names to functions</a><a class="l2" href="#step-4-the-loop">Step 4: the loop</a><a class="l2" href="#step-5-the-grounded-result">Step 5: the grounded result</a><a class="l2" href="#two-ways-to-supply-the-tools-inline-and-mcp">Two ways to supply the tools: inline and MCP</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

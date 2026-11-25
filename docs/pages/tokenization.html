@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenization · Vigil Guide</title>
+<meta name="description" content="See how text becomes tokens, and how token counts turn into context limits and cost.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html" aria-current=page>Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="tokenization-and-context-economics">Tokenization and context economics</h1>
+<p><strong>The question this topic answers:</strong> what exactly am I paying for, and how much text fits in one call?</p>
+<p>You met tokens in <a href="concepts.html">How LLMs work</a>. This page lets you <em>see</em> them. Models read and bill in tokens, and every model has a <strong>context window</strong>, a ceiling on tokens per call. Knowing your token count is the first step in controlling cost, avoiding cut-off input, and sizing anything you feed a model.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>A tokenizer chops text into pieces from a fixed vocabulary. Common words are often one piece. Rare strings, identifiers and punctuation get split into more pieces. That is why a short-looking CVE identifier can cost several tokens, while a plain English word costs one.</p>
+<div class="flow" role="img"><div class="node"><b>Your text</b></div><span class="arr">→</span><div class="node"><b>Tokenizer</b><small>splits into pieces</small></div><span class="arr">→</span><div class="node"><b>Token ids</b><small>numbers</small></div><span class="arr">→</span><div class="node"><b>Count</b><small>cost and context</small></div></div>
+<h2 id="counting-tokens">Counting tokens</h2>
+<p>The module uses <code>tiktoken</code>, the tokenizer library used with OpenAI models, to count tokens exactly.</p>
+<div class="code"><div class="code-cap">levels/foundations/tokenization.py · count_tokens</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> count_tokens(text: str, model: str = MODEL) -&gt; int:
+    <span class="t-s">&quot;&quot;&quot;Return the exact tiktoken count for text/model.&quot;&quot;&quot;</span>
+    enc = _get_encoding(model)
+    <span class="t-k">return</span> len(enc.encode(text))</code></pre></div>
+<p>The helper behind it picks the tokenizer that matches your model, and falls back to a general-purpose one if the model name is unknown:</p>
+<div class="code"><div class="code-cap">levels/foundations/tokenization.py · _get_encoding</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _get_encoding(model: str):
+    <span class="t-k">import</span> tiktoken
+
+    <span class="t-k">try</span>:
+        <span class="t-k">return</span> tiktoken.encoding_for_model(model)
+    <span class="t-k">except</span> Exception:
+        <span class="t-k">return</span> tiktoken.get_encoding(<span class="t-s">&quot;cl100k_base&quot;</span>)</code></pre></div>
+<aside class="callout note"><strong>Note</strong><p><code>tiktoken</code> is an optional package (the <code>foundations</code> and <code>tokens</code> extras). The first run may also need to fetch a tokenizer vocabulary file, so it can need a network connection once. The notebook <code>01_tokenization.ipynb</code> uses a built-in fallback of roughly four characters per token so it works fully offline, which is an approximation, not an exact count.</p></aside>
+<h2 id="looking-inside">Looking inside</h2>
+<p><code>show_tokens</code> returns the first few tokens as an index, an id and the decoded text, so you can see where the cuts fall:</p>
+<div class="code"><div class="code-cap">levels/foundations/tokenization.py · show_tokens</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> show_tokens(text: str, model: str = MODEL, limit: int = <span class="t-n">32</span>) -&gt; list[dict[str, Any]]:
+    <span class="t-s">&quot;&quot;&quot;Return token ids + decoded pieces for inspection.&quot;&quot;&quot;</span>
+    enc = _get_encoding(model)
+    ids = enc.encode(text)
+    rows: list[dict[str, Any]] = []
+    <span class="t-k">for</span> i, tok <span class="t-k">in</span> enumerate(ids[:limit]):
+        rows.append({<span class="t-s">&quot;i&quot;</span>: i, <span class="t-s">&quot;id&quot;</span>: tok, <span class="t-s">&quot;piece&quot;</span>: enc.decode([tok])})
+    <span class="t-k">return</span> rows</code></pre></div>
+<p>Notice that a piece can include a leading space. That is normal: spaces are part of tokens.</p>
+<h2 id="from-tokens-to-a-budget-report">From tokens to a budget report</h2>
+<p><code>tokenize_report</code> combines the count with the pricing helper from <code>vigil/pricing.py</code> to show how full the context window is and what the prompt would cost:</p>
+<div class="code"><div class="code-cap">levels/foundations/tokenization.py · tokenize_report</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> tokenize_report(text: str, model: str = MODEL, completion_tokens_estimate: int = <span class="t-n">0</span>) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Build a budget/cost report for one text snippet.&quot;&quot;&quot;</span>
+    report = budget_report(
+        model=model,
+        prompt_tokens=count_tokens(text, model=model),
+        completion_tokens=completion_tokens_estimate,
+    )
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;model&quot;</span>: model,
+        <span class="t-s">&quot;text_preview&quot;</span>: (text[:<span class="t-n">120</span>] + <span class="t-s">&quot;...&quot;</span>) <span class="t-k">if</span> len(text) &gt; <span class="t-n">120</span> <span class="t-k">else</span> text,
+        <span class="t-s">&quot;token_count&quot;</span>: report[<span class="t-s">&quot;prompt_tokens&quot;</span>],
+        <span class="t-s">&quot;context_limit&quot;</span>: report[<span class="t-s">&quot;context_limit&quot;</span>],
+        <span class="t-s">&quot;pct_of_context&quot;</span>: report[<span class="t-s">&quot;pct_of_context&quot;</span>],
+        <span class="t-s">&quot;est_cost_usd&quot;</span>: report[<span class="t-s">&quot;estimated_cost_usd&quot;</span>],
+        <span class="t-s">&quot;sample_tokens&quot;</span>: sample_tokens(text, model=model),
+    }</code></pre></div>
+<p>The fields to read:</p>
+<div class='table'><table><thead><tr><th>Field</th><th>Meaning</th></tr></thead><tbody><tr><td><code>token_count</code></td><td>Exact tokens in your text for the chosen model</td></tr><tr><td><code>context_limit</code></td><td>The model's token ceiling, from the table in <code>vigil/pricing.py</code></td></tr><tr><td><code>pct_of_context</code></td><td>How much of that ceiling this text uses</td></tr><tr><td><code>est_cost_usd</code></td><td>An <strong>estimate</strong> from indicative list prices; not a bill</td></tr><tr><td><code>sample_tokens</code></td><td>The first few pieces, so you can inspect the boundaries</td></tr></tbody></table></div>
+<aside class="callout warning"><strong>Warning</strong><p>The cost is an estimate from prices copied into the code. Providers change prices, so use it for relative comparisons, not budgeting.</p></aside>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/tokenization.py <span class="t-s">&quot;CVE-2021-44228 RCE in Log4j&quot;</span></code></pre></div>
+<p>You should get a report dictionary and a table of the first tokens, each with its id and decoded piece. This needs <code>tiktoken</code>, so install the foundations extra if you have not: <code>pip install -e &quot;.[foundations]&quot;</code>.</p>
+<p>The same report is available over the API at <code>POST /foundations/tokenize</code>, and in the Streamlit interface.</p>
+<h2 id="why-it-matters-later">Why it matters later</h2>
+<ul><li><strong>Cost.</strong> Billing scales with tokens in and out. Longer prompts and longer answers cost more.</li><li><strong>Cut-off.</strong> If input plus reply exceeds the context window, something has to give. The L5 memory code builds a <em>budgeted</em> context for exactly this reason; see <code>build_budgeted_memory_context</code> in <code>levels/l5_memory.py</code>.</li><li><strong>Chains and fan-out.</strong> Every extra step you add in <a href="l1.html">L1</a> or <a href="l2.html">L2</a> repeats tokens, so token awareness shapes how you design them.</li></ul>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Tokenize <code>CVE-2021-44228</code>, then a plain English sentence of the same character length. Which costs more tokens per character? 2) Tokenize the same sentence in lower case, upper case and with extra punctuation. 3) Paste a long advisory and read <code>pct_of_context</code>. How many copies would it take to overflow the window? 4) Use <code>--model</code> with a different model name and compare counts.</p></aside>
+<p>The notebook <code>notebooks/01_tokenization.ipynb</code> has the same experiments with a one-line change per cell.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Counting characters or words instead of tokens.</strong> The ratio changes with the text, so count properly.</li><li><strong>Forgetting the reply.</strong> The window covers your input <em>and</em> the model's output.</li><li><strong>Assuming one tokenizer fits all models.</strong> Different model families split text differently, so counts from one are only a rough guide for another.</li><li><strong>Trusting the estimated cost.</strong> It is a teaching figure from fixed prices.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why can a short identifier cost more tokens than a short English word?</summary><p>Tokenizers are built from common text. Common words are single pieces; rare strings, digits and symbols are split into several smaller ones.</p></details>
+<details><summary>What two limits do token counts control?</summary><p>Cost (you pay per token) and the context window (the maximum tokens per call, input plus output).</p></details>
+<details><summary>Is <code>est_cost_usd</code> a bill?</summary><p>No. It is computed from indicative list prices stored in <code>vigil/pricing.py</code>, which can be out of date.</p></details>
+<p>Next: <a href="prompting.html">Prompting techniques</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="foundations.html"><small>Previous</small>Foundations overview</a><a class="next" href="prompting.html"><small>Next</small>Prompting techniques</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#counting-tokens">Counting tokens</a><a class="l2" href="#looking-inside">Looking inside</a><a class="l2" href="#from-tokens-to-a-budget-report">From tokens to a budget report</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#why-it-matters-later">Why it matters later</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

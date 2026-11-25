@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L4b: Multimodal · Vigil Guide</title>
+<meta name="description" content="Read advisory screenshots and PDFs and extract structured, auditable data from them.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html" aria-current=page>L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-4b-multimodal">Level 4b: Multimodal</h1>
+<p><strong>The question this level answers:</strong> what if the information I need is in a picture or a PDF, not in text or an API?</p>
+<p>Every other level is text only. Real security work is not. A vendor advisory arrives as a screenshot pasted into a ticket. A patch bulletin is a PDF. L4b lets the model read these directly and pull out the CVE ID, the product and the claimed severity.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Instead of asking a person to retype an advisory, you show it to the model and ask it to fill in a form. Then you ask it to <strong>quote the lines it used</strong>, so a person can check the extraction against the source.</p>
+<div class="flow" role="img"><div class="node"><b>Image or PDF</b><small>the advisory</small></div><span class="arr">→</span><div class="node"><b>Prepare</b><small>encode the image, or extract PDF text</small></div><span class="arr">→</span><div class="node"><b>Model</b><small>fills the form</small></div><span class="arr">→</span><div class="node"><b>AdvisoryExtract</b><small>plus grounding quotes</small></div></div>
+<p>This level has two separate paths because images and PDFs reach the model differently.</p>
+<h2 id="idea-1-a-message-whose-content-is-a-list-of-parts">Idea 1: a message whose content is a list of parts</h2>
+<p>Until now a message's <code>content</code> was a string. For images it becomes a <strong>list of typed parts</strong>:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>{<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;content&quot;</span>: [
+    {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;text&quot;</span>,      <span class="t-s">&quot;text&quot;</span>: <span class="t-s">&quot;Extract the advisory fields.&quot;</span>},
+    {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;image_url&quot;</span>, <span class="t-s">&quot;image_url&quot;</span>: {<span class="t-s">&quot;url&quot;</span>: <span class="t-s">&quot;https://.../advisory.png&quot;</span>}},
+]}</code></pre></div>
+<p>A web address is passed straight through. A <strong>local file</strong> cannot be reached by the model's servers, so the code reads the bytes and sends them inside the message as a base64 data URI. Here is the function that decides which case it is:</p>
+<div class="code"><div class="code-cap">levels/l4b_multimodal.py · _image_url_part</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _image_url_part(image: str) -&gt; dict:
+    <span class="t-s">&quot;&quot;&quot;Build the `image_url` message part for a URL, data URI, or local file.
+
+    Remote URLs and data URIs are passed through untouched. A local path is read
+    and encoded as a base64 data URI so the model receives the bytes directly.
+    &quot;&quot;&quot;</span>
+    <span class="t-k">if</span> image.startswith((<span class="t-s">&quot;http://&quot;</span>, <span class="t-s">&quot;https://&quot;</span>, <span class="t-s">&quot;data:&quot;</span>)):
+        <span class="t-k">return</span> {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;image_url&quot;</span>, <span class="t-s">&quot;image_url&quot;</span>: {<span class="t-s">&quot;url&quot;</span>: image}}
+
+    path = Path(image)
+    <span class="t-k">if</span> <span class="t-k">not</span> path.exists():
+        <span class="t-k">raise</span> FileNotFoundError(<span class="t-s">f&quot;Image not found: {image}&quot;</span>)
+
+    mime = mimetypes.guess_type(str(path))[<span class="t-n">0</span>] <span class="t-k">or</span> <span class="t-s">&quot;image/png&quot;</span>
+    b64  = base64.b64encode(path.read_bytes()).decode(<span class="t-s">&quot;ascii&quot;</span>)
+    <span class="t-k">return</span> {<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;image_url&quot;</span>, <span class="t-s">&quot;image_url&quot;</span>: {<span class="t-s">&quot;url&quot;</span>: <span class="t-s">f&quot;data:{mime};base64,{b64}&quot;</span>}}</code></pre></div>
+<p>Remote URLs and data URIs pass through untouched. A local path is read, its type is guessed from the file name, and the bytes are encoded. A missing file raises a clear <code>FileNotFoundError</code> instead of a confusing API error.</p>
+<h2 id="idea-2-the-form-to-fill-in">Idea 2: the form to fill in</h2>
+<p>The result is typed, like earlier levels. The shape lives in <code>vigil/models.py</code>:</p>
+<div class="code"><div class="code-cap">vigil/models.py · AdvisoryExtract</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> AdvisoryExtract(_Base):
+    <span class="t-s">&quot;&quot;&quot;Structured data extracted from an advisory image or PDF.
+
+    Nullable identity fields because a screenshot/bulletin may not state every
+    value. `grounding_quotes` holds the exact source lines/phrases the model
+    relied on, so extraction stays traceable rather than hallucinated.
+    &quot;&quot;&quot;</span>
+    cve_id:           str | <span class="t-k">None</span>
+    affected_product: str | <span class="t-k">None</span>
+    claimed_severity: str | <span class="t-k">None</span>
+    source_type:      str                  <span class="t-c"># &quot;image&quot; | &quot;pdf&quot;</span>
+    extracted_fields: list[ExtractedField]
+    grounding_quotes: list[str]</code></pre></div>
+<p>Two design choices matter:</p>
+<ul><li>The identity fields are <strong>nullable</strong> (<code>str | None</code>). A screenshot may not state every value, and the instructions tell the model to set a missing field to null rather than guess. A form that forces an answer invites invented ones.</li><li><code>grounding_quotes</code> holds the exact phrases the model relied on. This is <strong>visual grounding</strong>: the extraction stays traceable to the source instead of being a confident summary you cannot check.</li></ul>
+<h2 id="the-instructions-that-enforce-honesty">The instructions that enforce honesty</h2>
+<div class="code"><div class="code-cap">levels/l4b_multimodal.py · SYSTEM_PROMPT</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>SYSTEM_PROMPT = (
+    <span class="t-s">&quot;You are a security analyst extracting structured data from a vulnerability &quot;</span>
+    <span class="t-s">&quot;advisory. Read ONLY what is shown in the provided image or text. Do not add &quot;</span>
+    <span class="t-s">&quot;facts from training memory. If a field is not present, set it to null. &quot;</span>
+    <span class="t-s">&quot;Populate `grounding_quotes` with the exact phrases/lines you relied on so the &quot;</span>
+    <span class="t-s">&quot;extraction can be audited.&quot;</span>
+)</code></pre></div>
+<p>"Read ONLY what is shown" and "do not add facts from training memory" are the point of the level. Without them a model happily fills gaps from what it remembers about a famous CVE, which defeats the purpose of reading the document.</p>
+<h2 id="the-image-path">The image path</h2>
+<div class="code"><div class="code-cap">levels/l4b_multimodal.py · extract_from_image</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> extract_from_image(image: str) -&gt; AdvisoryExtract:
+    <span class="t-s">&quot;&quot;&quot;Send an image (URL, data URI, or local file) to a vision model and extract
+    a structured `AdvisoryExtract`.
+    &quot;&quot;&quot;</span>
+    messages = build_image_messages(image)
+    <span class="t-k">try</span>:
+        response = <span class="t-k">await</span> client.chat.completions.create(
+            model=VISION_MODEL,
+            messages=messages,
+            response_format={
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+                <span class="t-s">&quot;json_schema&quot;</span>: {
+                    <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;AdvisoryExtract&quot;</span>,
+                    <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                    <span class="t-s">&quot;schema&quot;</span>: _strict_schema(AdvisoryExtract),
+                },
+            },
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">1024</span>,
+        )
+    <span class="t-k">except</span> Exception <span class="t-k">as</span> exc:  <span class="t-c"># noqa: BLE001 — surface a learner-friendly hint</span>
+        <span class="t-k">raise</span> RuntimeError(
+            <span class="t-s">f&quot;Vision request failed with model &#x27;{VISION_MODEL}&#x27;. Ensure the model &quot;</span>
+            <span class="t-s">f&quot;is vision-capable (set OPENAI_VISION_MODEL). Original error: {exc}&quot;</span>
+        ) <span class="t-k">from</span> exc
+
+    _track(response)
+    data = json.loads(response.choices[<span class="t-n">0</span>].message.content)
+    data[<span class="t-s">&quot;source_type&quot;</span>] = <span class="t-s">&quot;image&quot;</span>
+    <span class="t-k">return</span> AdvisoryExtract.model_validate(data)</code></pre></div>
+<p>Follow it step by step:</p>
+<ol><li><code>build_image_messages</code> builds the system prompt plus a user message with a text part and an image part. It is separate from the network call so tests can check the message shape offline.</li><li>The call asks for <code>AdvisoryExtract</code> as a JSON schema, as in <a href="l1.html">Level 1</a>.</li><li>If the call fails, the error is wrapped with a hint to use a <strong>vision-capable</strong> model. The model name comes from <code>OPENAI_VISION_MODEL</code>, falling back to <code>OPENAI_MODEL</code> and then <code>gpt-4o-mini</code>.</li><li>The code sets <code>source_type</code> to <code>&quot;image&quot;</code> after the model replies, so provenance is recorded by your code, not by the model.</li></ol>
+<h2 id="the-pdf-path">The PDF path</h2>
+<p>For PDFs the code does <strong>not</strong> send the file to the model. It extracts the text first, then sends the text:</p>
+<div class="code"><div class="code-cap">levels/l4b_multimodal.py · extract_pdf_text</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> extract_pdf_text(pdf: str, page_cap: int = PDF_PAGE_CAP) -&gt; str:
+    <span class="t-s">&quot;&quot;&quot;Extract text from the first `page_cap` pages of a PDF.
+
+    Isolated so tests can stub it. Raises a clear error if `pypdf` is missing.
+    &quot;&quot;&quot;</span>
+    <span class="t-k">try</span>:
+        <span class="t-k">from</span> pypdf <span class="t-k">import</span> PdfReader
+    <span class="t-k">except</span> ImportError <span class="t-k">as</span> exc:
+        <span class="t-k">raise</span> RuntimeError(
+            <span class="t-s">&quot;PDF parsing requires &#x27;pypdf&#x27;. Install the extra:  pip install -e &#x27;.[multimodal]&#x27;&quot;</span>
+        ) <span class="t-k">from</span> exc
+
+    path = Path(pdf)
+    <span class="t-k">if</span> <span class="t-k">not</span> path.exists():
+        <span class="t-k">raise</span> FileNotFoundError(<span class="t-s">f&quot;PDF not found: {pdf}&quot;</span>)
+
+    reader = PdfReader(str(path))
+    pages  = reader.pages[:page_cap]
+    <span class="t-k">return</span> <span class="t-s">&quot;\n\n&quot;</span>.join((page.extract_text() <span class="t-k">or</span> <span class="t-s">&quot;&quot;</span>) <span class="t-k">for</span> page <span class="t-k">in</span> pages).strip()</code></pre></div>
+<p>Then <code>extract_from_pdf</code> sends that text under a <code>--- ADVISORY TEXT ---</code> marker with the same system prompt, and sets <code>source_type</code> to <code>&quot;pdf&quot;</code>. Details worth knowing:</p>
+<ul><li>PDF reading uses the optional <code>pypdf</code> package. If it is missing, you get an error telling you to install the extra: <code>pip install -e &quot;.[multimodal]&quot;</code>.</li><li>Only the first <strong>8 pages</strong> are read by default, to cap cost on large bulletins. Set <code>VIGIL_PDF_PAGE_CAP</code> to change that.</li><li>If no text can be extracted, the code stops with an error explaining the PDF may be a scan, and suggests the image path instead. A scanned PDF is a picture of text, so a text extractor finds nothing.</li></ul>
+<aside class="callout note"><strong>Note</strong><p>This is an example of <strong>graceful degradation</strong>: when something is unavailable, the code fails with a clear, actionable message instead of a stack trace.</p></aside>
+<h2 id="run-it">Run it</h2>
+<p>The repository does not ship sample advisories, so use your own screenshot or PDF of a public advisory. You choose exactly one input:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l4b_multimodal.py --image path/to/advisory.png
+python levels/l4b_multimodal.py --image https://example.com/advisory.png
+python levels/l4b_multimodal.py --pdf path/to/bulletin.pdf</code></pre></div>
+<p>The program prints which file it is reading, then an <strong>Advisory Extract</strong> table (source, CVE, product, severity and any extra fields), then a <strong>Grounding quotes</strong> panel, then the token count and an estimated cost. I have not run it on a real advisory here, so I cannot show output.</p>
+<p>The offline tests in <code>tests/test_multimodal.py</code> cover the message shape for URLs and local files, the missing-file error, and the missing <code>pypdf</code> case, all without calling the model.</p>
+<aside class="callout warning"><strong>Warning</strong><p>Never feed an advisory you are not allowed to share to a hosted model. The image or text leaves your machine and goes to the provider. Redact anything sensitive first.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the same screenshot with the <code>grounding_quotes</code> instruction removed from <code>EXTRACT_INSTRUCTION</code> and see how much harder the result is to verify. 2) Give it a screenshot that does not mention a CVE ID and check that <code>cve_id</code> comes back empty instead of invented. 3) Set <code>VIGIL_PDF_PAGE_CAP=1</code> and compare what is extracted from a multi-page PDF.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Using a model without vision.</strong> The image path needs a vision-capable model.</li><li><strong>Trusting the extraction.</strong> Compare the quotes with the source, especially for the CVE ID and severity.</li><li><strong>Sending a scanned PDF down the PDF path.</strong> There is no text to extract; use the image path.</li><li><strong>Forgetting cost.</strong> Images and long PDFs use many tokens. The page cap exists for a reason.</li><li><strong>Leaking sensitive documents.</strong> The content is sent to an external service.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>How does a local image reach the model?</summary><p>The code reads the file, base64-encodes it, and sends it as a data URI inside an <code>image_url</code> part of the message.</p></details>
+<details><summary>Why are the <code>cve_id</code> and <code>affected_product</code> fields nullable?</summary><p>The document may not state them, and the instructions say to leave a missing field empty rather than guess.</p></details>
+<details><summary>Why are PDFs converted to text first?</summary><p>In this level the PDF path extracts the text with <code>pypdf</code> and sends that text to the model, instead of sending the file.</p></details>
+<details><summary>What are grounding quotes for?</summary><p>They let a person check each extracted value against the exact source lines the model relied on.</p></details>
+<p>Next: <a href="l5.html">Level 5</a> gives the system a memory, so it can recall earlier analyses.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l4.html"><small>Previous</small>L4: Tool use</a><a class="next" href="l5.html"><small>Next</small>L5: Memory</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#idea-1-a-message-whose-content-is-a-list-of-parts">Idea 1: a message whose content is a list of parts</a><a class="l2" href="#idea-2-the-form-to-fill-in">Idea 2: the form to fill in</a><a class="l2" href="#the-instructions-that-enforce-honesty">The instructions that enforce honesty</a><a class="l2" href="#the-image-path">The image path</a><a class="l2" href="#the-pdf-path">The PDF path</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

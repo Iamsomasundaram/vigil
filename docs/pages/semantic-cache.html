@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semantic caching · Vigil Guide</title>
+<meta name="description" content="Reuse answers to similar questions to save cost and time, and understand how a loose threshold returns wrong answers.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html" aria-current=page>Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="semantic-caching">Semantic caching</h1>
+<p><strong>The question this page answers:</strong> if many people ask almost the same question, can I answer once and reuse it?</p>
+<p>Every model call costs money and takes time. If someone already asked "What is CVE-2021-44228?" a minute ago, calling the model again for "Tell me about CVE-2021-44228" is wasteful. A <strong>cache</strong> remembers answers. Vigil has two kinds, and the difference between them is the lesson of this page.</p>
+<div class='table'><table><thead><tr><th></th><th>Exact cache</th><th>Semantic cache</th></tr></thead><tbody><tr><td>Reuses an answer when</td><td>the request is <strong>identical</strong></td><td>the request is <strong>similar enough</strong></td></tr><tr><td>Code</td><td><code>vigil/cache.py</code></td><td><code>levels/foundations/semantic_cache.py</code></td></tr><tr><td>Risk of a wrong answer</td><td>none from matching</td><td>real, depends on the threshold</td></tr><tr><td>Where it is used</td><td>the API, for the L0 and L4 endpoints</td><td>a standalone teaching module (spec F24)</td></tr></tbody></table></div>
+<aside class="callout note"><strong>Note</strong><p>The semantic cache is a <strong>teaching module</strong>. It is exercised by its tests and by the endpoint <code>POST /foundations/semantic-cache</code>, but the cached API calls (the L0 and L4 analyse endpoints) use the exact cache.</p></aside>
+<h2 id="the-exact-cache">The exact cache</h2>
+<p>The API caches whole responses for its L0 and L4 analyse endpoints. The key is a hash of the request, the model name and a namespace, so only an identical request gets a hit. Here is the storage backend:</p>
+<div class="code"><div class="code-cap">vigil/cache.py · CacheBackend</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> CacheBackend:
+    <span class="t-k">def</span> __init__(self, default_ttl: int = <span class="t-n">300</span>):
+        self.default_ttl = max(<span class="t-n">1</span>, default_ttl)
+        self._mem: dict[str, tuple[float, str]] = {}
+        self._redis = <span class="t-k">None</span>
+
+        redis_url = os.getenv(<span class="t-s">&quot;REDIS_URL&quot;</span>, <span class="t-s">&quot;&quot;</span>).strip()
+        <span class="t-k">if</span> redis_url:
+            <span class="t-k">try</span>:
+                <span class="t-k">import</span> redis
+
+                self._redis = redis.Redis.from_url(redis_url, decode_responses=<span class="t-k">True</span>)
+                self._redis.ping()
+            <span class="t-k">except</span> Exception:
+                self._redis = <span class="t-k">None</span>
+
+    <span class="t-k">def</span> get(self, key: str) -&gt; dict[str, Any] | <span class="t-k">None</span>:
+        <span class="t-k">if</span> self._redis <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            <span class="t-k">try</span>:
+                raw = self._redis.get(key)
+                <span class="t-k">if</span> raw <span class="t-k">is</span> <span class="t-k">None</span>:
+                    <span class="t-k">return</span> <span class="t-k">None</span>
+                <span class="t-k">return</span> json.loads(raw)
+            <span class="t-k">except</span> Exception:
+                <span class="t-k">return</span> <span class="t-k">None</span>
+
+        row = self._mem.get(key)
+        <span class="t-k">if</span> <span class="t-k">not</span> row:
+            <span class="t-k">return</span> <span class="t-k">None</span>
+        expires_at, raw = row
+        <span class="t-k">if</span> expires_at &lt;= time.time():
+            self._mem.pop(key, <span class="t-k">None</span>)
+            <span class="t-k">return</span> <span class="t-k">None</span>
+        <span class="t-k">return</span> json.loads(raw)
+
+    <span class="t-k">def</span> set(self, key: str, payload: dict[str, Any], ttl_seconds: int | <span class="t-k">None</span> = <span class="t-k">None</span>) -&gt; <span class="t-k">None</span>:
+        ttl = max(<span class="t-n">1</span>, ttl_seconds <span class="t-k">or</span> self.default_ttl)
+        raw = json.dumps(payload)
+
+        <span class="t-k">if</span> self._redis <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            <span class="t-k">try</span>:
+                self._redis.setex(key, ttl, raw)
+                <span class="t-k">return</span>
+            <span class="t-k">except</span> Exception:
+                <span class="t-k">pass</span>
+
+        self._mem[key] = (time.time() + ttl, raw)
+
+    <span class="t-k">def</span> ttl(self, key: str) -&gt; int:
+        <span class="t-k">if</span> self._redis <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            <span class="t-k">try</span>:
+                t = self._redis.ttl(key)
+                <span class="t-k">return</span> int(max(<span class="t-n">0</span>, t <span class="t-k">if</span> t <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span> <span class="t-k">else</span> <span class="t-n">0</span>))
+            <span class="t-k">except</span> Exception:
+                <span class="t-k">return</span> <span class="t-n">0</span>
+        row = self._mem.get(key)
+        <span class="t-k">if</span> <span class="t-k">not</span> row:
+            <span class="t-k">return</span> <span class="t-n">0</span>
+        <span class="t-k">return</span> max(<span class="t-n">0</span>, int(row[<span class="t-n">0</span>] - time.time()))</code></pre></div>
+<p>Points to notice:</p>
+<ul><li><strong>A time to live (TTL).</strong> An entry expires after <code>default_ttl</code> seconds (the API reads <code>VIGIL_CACHE_TTL</code>, default 300). Old answers go stale, so they must not live forever.</li><li><strong>Redis if available, memory if not.</strong> If the <code>REDIS_URL</code> setting is present and the connection works, it uses Redis. Otherwise, or if Redis fails, it quietly falls back to a plain in-memory dictionary. The cache is an optimisation, so a failure never breaks the request.</li><li><strong>Values are stored as JSON.</strong> Anything you cache must be JSON-serialisable.</li></ul>
+<p>A hit costs no model call, so the API returns <code>cache.from_cache</code> set to true with zero tokens and zero cost.</p>
+<h2 id="the-semantic-cache">The semantic cache</h2>
+<p>An exact cache misses on any change of wording. A <strong>semantic</strong> cache asks "is this question close enough to one I already answered?" and, if so, returns the stored answer.</p>
+<div class="flow" role="img"><div class="node"><b>New query</b></div><span class="arr">→</span><div class="node"><b>Compare with stored queries</b><small>similarity score</small></div><span class="arr">→</span><div class="node"><b>Best match above the threshold?</b></div><span class="arr">→</span><div class="node"><b>Hit: return stored answer</b></div><span class="arr">→</span><div class="node"><b>Miss: call the model and store</b></div></div>
+<p>Here is the whole class:</p>
+<div class="code"><div class="code-cap">levels/foundations/semantic_cache.py · SemanticCache</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> SemanticCache:
+    <span class="t-s">&quot;&quot;&quot;Similarity-based response cache.
+
+    Unlike an exact-key cache, this returns a stored answer when a new query is
+    semantically close enough (cosine over term sets) to a previous one.
+    &quot;&quot;&quot;</span>
+
+    <span class="t-k">def</span> __init__(self, *, threshold: float = <span class="t-n">0.8</span>, ttl_seconds: int = <span class="t-n">300</span>) -&gt; <span class="t-k">None</span>:
+        self.threshold = threshold
+        self.ttl_seconds = ttl_seconds
+        self._entries: list[dict[str, Any]] = []
+        self.hits = <span class="t-n">0</span>
+        self.misses = <span class="t-n">0</span>
+
+    <span class="t-k">def</span> _prune(self, now: float) -&gt; <span class="t-k">None</span>:
+        self._entries = [e <span class="t-k">for</span> e <span class="t-k">in</span> self._entries <span class="t-k">if</span> now - e[<span class="t-s">&quot;created&quot;</span>] &lt;= self.ttl_seconds]
+
+    <span class="t-k">def</span> lookup(self, query: str) -&gt; dict[str, Any]:
+        now = time.time()
+        self._prune(now)
+        q = _terms(query)
+        best = <span class="t-k">None</span>
+        best_sim = <span class="t-n">0.0</span>
+        <span class="t-k">for</span> e <span class="t-k">in</span> self._entries:
+            sim = _cosine(q, e[<span class="t-s">&quot;terms&quot;</span>])
+            <span class="t-k">if</span> sim &gt; best_sim:
+                best_sim = sim
+                best = e
+        <span class="t-k">if</span> best <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span> <span class="t-k">and</span> best_sim &gt;= self.threshold:
+            self.hits += <span class="t-n">1</span>
+            <span class="t-k">return</span> {
+                <span class="t-s">&quot;hit&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;similarity&quot;</span>: round(best_sim, <span class="t-n">4</span>),
+                <span class="t-s">&quot;matched_query&quot;</span>: best[<span class="t-s">&quot;query&quot;</span>],
+                <span class="t-s">&quot;response&quot;</span>: best[<span class="t-s">&quot;response&quot;</span>],
+            }
+        self.misses += <span class="t-n">1</span>
+        <span class="t-k">return</span> {<span class="t-s">&quot;hit&quot;</span>: <span class="t-k">False</span>, <span class="t-s">&quot;similarity&quot;</span>: round(best_sim, <span class="t-n">4</span>), <span class="t-s">&quot;matched_query&quot;</span>: <span class="t-k">None</span>, <span class="t-s">&quot;response&quot;</span>: <span class="t-k">None</span>}
+
+    <span class="t-k">def</span> store(self, query: str, response: str) -&gt; <span class="t-k">None</span>:
+        self._entries.append(
+            {<span class="t-s">&quot;query&quot;</span>: query, <span class="t-s">&quot;terms&quot;</span>: _terms(query), <span class="t-s">&quot;response&quot;</span>: response, <span class="t-s">&quot;created&quot;</span>: time.time()}
+        )
+
+    <span class="t-k">def</span> stats(self) -&gt; dict[str, Any]:
+        total = self.hits + self.misses
+        <span class="t-k">return</span> {
+            <span class="t-s">&quot;entries&quot;</span>: len(self._entries),
+            <span class="t-s">&quot;hits&quot;</span>: self.hits,
+            <span class="t-s">&quot;misses&quot;</span>: self.misses,
+            <span class="t-s">&quot;hit_rate&quot;</span>: round(self.hits / total, <span class="t-n">4</span>) <span class="t-k">if</span> total <span class="t-k">else</span> <span class="t-n">0.0</span>,
+            <span class="t-s">&quot;threshold&quot;</span>: self.threshold,
+            <span class="t-s">&quot;ttl_seconds&quot;</span>: self.ttl_seconds,
+        }</code></pre></div>
+<p>How it decides:</p>
+<ol><li><code>_terms</code> lowercases the query and drops filler words, leaving a <strong>set of terms</strong>.</li><li><code>_cosine</code> measures overlap between two sets as shared terms divided by the square root of the product of the set sizes. That gives a number from 0 (nothing shared) to 1 (identical sets).</li><li>If the best stored match scores at or above <code>threshold</code> (default <code>0.8</code>), it is a <strong>hit</strong>.</li><li>Entries older than <code>ttl_seconds</code> (default 300) are pruned before every lookup.</li></ol>
+<p>Because it compares sets of words, it is a <strong>lexical</strong> similarity, not a deep semantic one. A real semantic cache would compare embeddings from a trained model (see <a href="retrieval.html">Retrieval and RAG</a>).</p>
+<h2 id="the-threshold-is-the-whole-game">The threshold is the whole game</h2>
+<p>I ran the module's own two example queries offline:</p>
+<ul><li><code>What is CVE-2021-44228?</code> becomes the terms <code>cve</code>, <code>2021</code>, <code>44228</code>.</li><li><code>Tell me about CVE-2021-44228</code> becomes <code>me</code>, <code>about</code>, <code>cve</code>, <code>44228</code>, <code>tell</code>, <code>2021</code>.</li></ul>
+<p>Their similarity is <code>0.7071</code>. With the <strong>default threshold of 0.8, that is a miss</strong>: the second question would call the model again. The tests use a threshold of <code>0.5</code>, where it is a hit.</p>
+<p>So choosing the threshold trades cost against correctness:</p>
+<div class='table'><table><thead><tr><th>Threshold</th><th>Effect</th></tr></thead><tbody><tr><td>Too high</td><td>Few hits, little saving, behaves like an exact cache</td></tr><tr><td>Too low</td><td>Many hits, but some are <strong>wrong answers</strong></td></tr></tbody></table></div>
+<p>Here is a wrong answer, from running the code at threshold <code>0.5</code>. After storing the answer "Yes, in 2.17.1" for <code>Is CVE-2021-44228 patched?</code>, the question <code>Is CVE-2021-44228 exploited?</code> scored <code>0.75</code> and <strong>hit the cache</strong>, returning an answer to a different question. At the default <code>0.8</code> it correctly missed.</p>
+<aside class="callout warning"><strong>Warning</strong><p>A cache that returns a confident answer to the wrong question is worse than no cache. In a security setting, keep the threshold high, keep TTLs short, and never cache answers that depend on fresh data such as live exploit status.</p></aside>
+<h2 id="measuring-it">Measuring it</h2>
+<p><code>simulate</code> replays a list of query and response pairs and reports each lookup's hit or miss with its similarity, plus the totals:</p>
+<div class="code"><div class="code-cap">levels/foundations/semantic_cache.py · simulate</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> simulate(pairs: list[dict[str, str]], *, threshold: float = <span class="t-n">0.8</span>) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Replay (query, response) pairs; near-duplicate queries should hit cache.&quot;&quot;&quot;</span>
+    cache = SemanticCache(threshold=threshold)
+    trace: list[dict[str, Any]] = []
+    <span class="t-k">for</span> p <span class="t-k">in</span> pairs:
+        query = p.get(<span class="t-s">&quot;query&quot;</span>, <span class="t-s">&quot;&quot;</span>)
+        result = cache.lookup(query)
+        <span class="t-k">if</span> <span class="t-k">not</span> result[<span class="t-s">&quot;hit&quot;</span>]:
+            cache.store(query, p.get(<span class="t-s">&quot;response&quot;</span>, <span class="t-s">&quot;&quot;</span>))
+        trace.append({<span class="t-s">&quot;query&quot;</span>: query, <span class="t-s">&quot;hit&quot;</span>: result[<span class="t-s">&quot;hit&quot;</span>], <span class="t-s">&quot;similarity&quot;</span>: result[<span class="t-s">&quot;similarity&quot;</span>]})
+    <span class="t-k">return</span> {<span class="t-s">&quot;threshold&quot;</span>: threshold, <span class="t-s">&quot;trace&quot;</span>: trace, <span class="t-s">&quot;stats&quot;</span>: cache.stats()}</code></pre></div>
+<p><code>stats()</code> gives entries, hits, misses, hit rate, threshold and TTL. The hit rate is what tells you whether the cache is earning its keep, and you should always read it alongside a sample of the actual hits to see whether they were correct.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/semantic_cache.py
+python levels/foundations/semantic_cache.py --threshold 0.5</code></pre></div>
+<p>You should see a JSON trace for three queries, with a hit flag and similarity for each, and the final stats. Compare the output at the two thresholds.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run with <code>--threshold 0.5</code> and then <code>0.8</code> and note which query pairs change from hit to miss. 2) Add two queries that differ by one important word, such as <code>patched</code> and <code>exploited</code>, and check whether they wrongly hit. 3) Set a very small <code>ttl_seconds</code> and show an entry expiring.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Choosing the threshold by feel.</strong> Test it on real near-duplicate and near-miss pairs.</li><li><strong>Caching answers that go stale.</strong> Always use a TTL.</li><li><strong>Caching personalised or sensitive answers</strong> for everyone to share.</li><li><strong>Reading hit rate alone.</strong> A high hit rate with wrong hits is a bug, not a win.</li><li><strong>Forgetting the model and settings.</strong> Different models or temperatures should not share cache entries; the API's key includes the model for this reason.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is the difference between an exact cache and a semantic cache?</summary><p>An exact cache hits only on an identical request. A semantic cache also hits when a new request is similar enough to a stored one.</p></details>
+<details><summary>Why does the default demo not get a hit at threshold 0.8?</summary><p>The two example queries have a similarity of about 0.71, below 0.8, so the second is a miss.</p></details>
+<details><summary>What is the main risk of lowering the threshold?</summary><p>More hits, but some return the answer to a different question.</p></details>
+<p>Next: <a href="incident-ops.html">Theme: Incident response</a> applies these ideas to a different domain.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="responsible-ai.html"><small>Previous</small>Responsible AI</a><a class="next" href="incident-ops.html"><small>Next</small>Theme: Incident response</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-exact-cache">The exact cache</a><a class="l2" href="#the-semantic-cache">The semantic cache</a><a class="l2" href="#the-threshold-is-the-whole-game">The threshold is the whole game</a><a class="l2" href="#measuring-it">Measuring it</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

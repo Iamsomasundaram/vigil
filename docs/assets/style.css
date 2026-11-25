@@ -86,13 +86,13 @@ tr:last-child td{border-bottom:0}
 
 .callout{margin:1.4em 0;padding:14px 18px;border-radius:var(--radius);border-left:4px solid var(--note);background:var(--note-bg)}
 .callout p{margin:.2em 0 0}
-.callout strong{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--note)}
+.callout>strong{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--note)}
 .callout.tip{border-color:var(--tip);background:var(--tip-bg)}
-.callout.tip strong{color:var(--tip)}
+.callout.tip>strong{color:var(--tip)}
 .callout.warning{border-color:var(--warn);background:var(--warn-bg)}
-.callout.warning strong{color:var(--warn)}
+.callout.warning>strong{color:var(--warn)}
 .callout.try-it{border-color:var(--try);background:var(--try-bg)}
-.callout.try-it strong{color:var(--try)}
+.callout.try-it>strong{color:var(--try)}
 
 details{margin:.8em 0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:2px 16px}
 summary{cursor:pointer;padding:10px 0;font-weight:600}

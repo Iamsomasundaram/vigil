@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theme: Incident response · Vigil Guide</title>
+<meta name="description" content="The same classify, route and plan pattern from the CVE levels, applied to a different job: handling a production incident.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html" aria-current=page>Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="theme-incident-response">Theme: Incident response</h1>
+<p><strong>The question this page answers:</strong> does what I learned on CVEs transfer to a different problem?</p>
+<p>Vigil teaches its ideas on vulnerability management, but none of them are about CVEs. They are about a <em>shape</em>: take messy input, classify how serious it is, route it to the right response, and return a structured plan. Theme track T1 (<code>levels/themes/incident_ops.py</code>) proves that by applying the same shape to <strong>production incidents</strong>: an alert fires, and someone must decide how urgent it is and what to do first.</p>
+<div class="flow" role="img"><div class="node"><b>Alert text + signals</b></div><span class="arr">→</span><div class="node"><b>Classify severity</b></div><span class="arr">→</span><div class="node"><b>Pick a track</b><small>containment, mitigation or monitor</small></div><span class="arr">→</span><div class="node"><b>Structured response plan</b></div></div>
+<p>If that looks like <a href="l3.html">routing</a> and the structured output from <a href="l1.html">Level 1</a>, it is. The domain changed; the architecture did not.</p>
+<aside class="callout note"><strong>Note</strong><p>Unlike the CVE levels, this module makes <strong>no model calls</strong>. It is a plain rule-based classifier that runs offline with no API key. That makes the routing logic easy to read and test. In a real system you could place a model where the rules are, but this module does not do that.</p></aside>
+<h2 id="the-output-a-typed-plan">The output: a typed plan</h2>
+<p>Just as L1 returns typed objects rather than text, the incident analysis returns a typed report:</p>
+<div class="code"><div class="code-cap">vigil/models.py · IncidentOpsReport</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> IncidentOpsReport(_Base):
+    service_name: str
+    severity: Literal[<span class="t-s">&quot;Critical&quot;</span>, <span class="t-s">&quot;High&quot;</span>, <span class="t-s">&quot;Medium&quot;</span>, <span class="t-s">&quot;Low&quot;</span>]
+    track: Literal[<span class="t-s">&quot;containment&quot;</span>, <span class="t-s">&quot;mitigation&quot;</span>, <span class="t-s">&quot;monitor&quot;</span>]
+    summary: str
+    urgency_minutes: int = Field(ge=<span class="t-n">1</span>)
+    likely_domains: list[str]
+    immediate_actions: list[str]
+    escalation_targets: list[str]
+    reasoning: str</code></pre></div>
+<p>Notice the <code>Literal</code> types. The track can only be <code>containment</code>, <code>mitigation</code> or <code>monitor</code>, so the code that acts on a report never has to guess at a spelling.</p>
+<h2 id="the-rules">The rules</h2>
+<p>Severity comes from keyword lists. Two sets of terms mark an incident as critical or high:</p>
+<div class="code"><div class="code-cap">levels/themes/incident_ops.py · _CRITICAL_TERMS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_CRITICAL_TERMS = {
+    <span class="t-s">&quot;data breach&quot;</span>,
+    <span class="t-s">&quot;exfiltration&quot;</span>,
+    <span class="t-s">&quot;remote code execution&quot;</span>,
+    <span class="t-s">&quot;rce&quot;</span>,
+    <span class="t-s">&quot;production down&quot;</span>,
+    <span class="t-s">&quot;all regions down&quot;</span>,
+    <span class="t-s">&quot;payment failures&quot;</span>,
+}</code></pre></div>
+<div class="code"><div class="code-cap">levels/themes/incident_ops.py · _HIGH_TERMS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_HIGH_TERMS = {
+    <span class="t-s">&quot;latency&quot;</span>,
+    <span class="t-s">&quot;error rate&quot;</span>,
+    <span class="t-s">&quot;degraded&quot;</span>,
+    <span class="t-s">&quot;timeout&quot;</span>,
+    <span class="t-s">&quot;auth failure&quot;</span>,
+    <span class="t-s">&quot;queue backlog&quot;</span>,
+    <span class="t-s">&quot;service unavailable&quot;</span>,
+}</code></pre></div>
+<p>A third table guesses which area of the system is involved, by looking for a word and naming the domain:</p>
+<div class="code"><div class="code-cap">levels/themes/incident_ops.py · _DOMAIN_RULES</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_DOMAIN_RULES: list[tuple[str, str]] = [
+    (<span class="t-s">&quot;auth&quot;</span>, <span class="t-s">&quot;identity&quot;</span>),
+    (<span class="t-s">&quot;login&quot;</span>, <span class="t-s">&quot;identity&quot;</span>),
+    (<span class="t-s">&quot;payment&quot;</span>, <span class="t-s">&quot;payments&quot;</span>),
+    (<span class="t-s">&quot;checkout&quot;</span>, <span class="t-s">&quot;payments&quot;</span>),
+    (<span class="t-s">&quot;database&quot;</span>, <span class="t-s">&quot;data&quot;</span>),
+    (<span class="t-s">&quot;postgres&quot;</span>, <span class="t-s">&quot;data&quot;</span>),
+    (<span class="t-s">&quot;latency&quot;</span>, <span class="t-s">&quot;performance&quot;</span>),
+    (<span class="t-s">&quot;timeout&quot;</span>, <span class="t-s">&quot;performance&quot;</span>),
+    (<span class="t-s">&quot;api gateway&quot;</span>, <span class="t-s">&quot;network&quot;</span>),
+    (<span class="t-s">&quot;dns&quot;</span>, <span class="t-s">&quot;network&quot;</span>),
+]</code></pre></div>
+<h2 id="the-decision">The decision</h2>
+<p>Here is the whole function:</p>
+<div class="code"><div class="code-cap">levels/themes/incident_ops.py · analyse_incident</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> analyse_incident(
+    *,
+    alert_text: str,
+    service_name: str,
+    customer_impact: bool,
+    signals: list[str] | <span class="t-k">None</span> = <span class="t-k">None</span>,
+) -&gt; IncidentOpsReport:
+    <span class="t-s">&quot;&quot;&quot;Classify incident urgency and return a structured response plan.&quot;&quot;&quot;</span>
+    sigs = [s.strip() <span class="t-k">for</span> s <span class="t-k">in</span> (signals <span class="t-k">or</span> []) <span class="t-k">if</span> s.strip()]
+    corpus = <span class="t-s">f&quot;{alert_text} {&#x27; &#x27;.join(sigs)}&quot;</span>
+
+    is_critical = customer_impact <span class="t-k">and</span> _contains_any(corpus, _CRITICAL_TERMS)
+    is_high = _contains_any(corpus, _HIGH_TERMS)
+
+    <span class="t-k">if</span> is_critical:
+        severity = <span class="t-s">&quot;Critical&quot;</span>
+        track = <span class="t-s">&quot;containment&quot;</span>
+        urgency = <span class="t-n">15</span>
+        actions = [
+            <span class="t-s">&quot;Declare incident and assign an incident commander immediately.&quot;</span>,
+            <span class="t-s">&quot;Apply containment: isolate impacted entry points or disable risky feature flags.&quot;</span>,
+            <span class="t-s">&quot;Open an executive update channel and publish a 15-minute status cadence.&quot;</span>,
+        ]
+        targets = [<span class="t-s">&quot;on-call-sre&quot;</span>, <span class="t-s">&quot;security-incident-manager&quot;</span>, <span class="t-s">&quot;engineering-director&quot;</span>]
+        reasoning = <span class="t-s">&quot;Customer impact plus critical exploit/outage language indicates immediate containment.&quot;</span>
+    <span class="t-k">elif</span> is_high <span class="t-k">or</span> customer_impact:
+        severity = <span class="t-s">&quot;High&quot;</span>
+        track = <span class="t-s">&quot;mitigation&quot;</span>
+        urgency = <span class="t-n">60</span>
+        actions = [
+            <span class="t-s">&quot;Stabilize service with rollback, scaling, or traffic controls.&quot;</span>,
+            <span class="t-s">&quot;Create a mitigation task list with owners and time-boxed checkpoints.&quot;</span>,
+            <span class="t-s">&quot;Communicate customer impact scope and expected recovery window.&quot;</span>,
+        ]
+        targets = [<span class="t-s">&quot;on-call-sre&quot;</span>, <span class="t-s">&quot;service-owner&quot;</span>]
+        reasoning = <span class="t-s">&quot;Signals indicate production degradation needing urgent mitigation.&quot;</span>
+    <span class="t-k">else</span>:
+        severity = <span class="t-s">&quot;Medium&quot;</span>
+        track = <span class="t-s">&quot;monitor&quot;</span>
+        urgency = <span class="t-n">240</span>
+        actions = [
+            <span class="t-s">&quot;Monitor key SLO indicators and alert thresholds for the next 24 hours.&quot;</span>,
+            <span class="t-s">&quot;Prepare rollback and mitigation playbooks if thresholds worsen.&quot;</span>,
+            <span class="t-s">&quot;Schedule follow-up review and root-cause analysis tasking.&quot;</span>,
+        ]
+        targets = [<span class="t-s">&quot;service-owner&quot;</span>]
+        reasoning = <span class="t-s">&quot;No direct customer impact and no severe keywords; monitor with readiness to escalate.&quot;</span>
+
+    summary = (
+        <span class="t-s">f&quot;{service_name} incident classified as {severity}. &quot;</span>
+        <span class="t-s">f&quot;Route to {track} track with response target within {urgency} minutes.&quot;</span>
+    )
+
+    <span class="t-k">return</span> IncidentOpsReport(
+        service_name=service_name,
+        severity=severity,
+        track=track,
+        summary=summary,
+        urgency_minutes=urgency,
+        likely_domains=_likely_domains(alert_text, sigs),
+        immediate_actions=actions,
+        escalation_targets=targets,
+        reasoning=reasoning,
+    )</code></pre></div>
+<p>Read it as a decision ladder:</p>
+<div class='table'><table><thead><tr><th>Condition</th><th>Severity</th><th>Track</th><th>Respond within</th></tr></thead><tbody><tr><td>Customer impact <strong>and</strong> a critical term</td><td>Critical</td><td>containment</td><td>15 minutes</td></tr><tr><td>A high term, <strong>or</strong> customer impact</td><td>High</td><td>mitigation</td><td>60 minutes</td></tr><tr><td>Anything else</td><td>Medium</td><td>monitor</td><td>240 minutes</td></tr></tbody></table></div>
+<p>Each branch also fills in the immediate actions, who to escalate to, and a one-line reasoning that explains the choice. The reasoning field matters: a plan people are asked to trust should say why.</p>
+<p>Running three cases offline gives results that match the table:</p>
+<ul><li><code>Payment API error rate surged and customer checkouts are failing</code>, with no customer-impact flag, gives <strong>High</strong>, the <strong>mitigation</strong> track and the <strong>payments</strong> domain. The words "error rate" are on the high list.</li><li><code>Possible data breach with exfiltration of customer records</code>, with customer impact set, gives <strong>Critical</strong>, <strong>containment</strong>, 15 minutes.</li><li><code>Minor config drift noticed</code> gives <strong>Medium</strong>, <strong>monitor</strong>, 240 minutes.</li></ul>
+<h2 id="what-these-rules-get-wrong">What these rules get wrong</h2>
+<p>This is the most useful part of the page, because it shows why real systems need more than keyword rules. All of the following I confirmed by running the code offline.</p>
+<ul><li><strong>Critical needs the customer-impact flag.</strong> The alert <code>Payment outage, remote code execution suspected</code> with customer impact <strong>false</strong> comes out as <strong>Medium</strong>. A suspected remote code execution is rated lower than a routine slowdown, purely because a flag was not set.</li><li><strong>Substring matching causes false alarms.</strong> Terms are matched as plain substrings, and the term <code>rce</code> appears inside ordinary words. <code>Disk resource usage slightly elevated</code> with customer impact set is classified <strong>Critical</strong> and sent to containment, because <code>resource</code> contains <code>rce</code>. The same alert without the word "resource" is only High.</li><li><strong>Severity never goes below Medium.</strong> The report type allows <code>Low</code>, but this code never produces it.</li><li><strong>Keywords are not understanding.</strong> A rare but serious problem described in different words will be missed.</li></ul>
+<p>Notice these are the same failure modes as in <a href="factuality.html">Factuality</a> and the <a href="responsible-ai.html">moderation filter</a>: word lists are fast and transparent, but brittle. Fixing them means word-boundary matching, a model that reads the alert, and tests built from real incidents.</p>
+<aside class="callout warning"><strong>Warning</strong><p>Do not use this classifier to run real incidents. It exists to teach the pattern. A human decides severity.</p></aside>
+<h2 id="how-it-relates-to-the-rest-of-vigil">How it relates to the rest of Vigil</h2>
+<div class='table'><table><thead><tr><th>In the CVE levels</th><th>In incident response</th></tr></thead><tbody><tr><td>Classify the CVE type (L3 routing)</td><td>Classify the incident severity</td></tr><tr><td>Choose a specialist track</td><td>Choose containment, mitigation or monitor</td></tr><tr><td>Structured remediation plan (L1)</td><td>Structured response plan with escalation targets</td></tr><tr><td>Human review for uncertain cases</td><td>The need for an incident commander</td></tr></tbody></table></div>
+<p>The module is also exposed through the API as <code>POST /themes/incident/analyse</code>.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/themes/incident_ops.py <span class="t-s">&quot;Payment API error rate surged and customer checkouts are failing&quot;</span> --service payments-api
+python levels/themes/incident_ops.py <span class="t-s">&quot;Possible data breach&quot;</span> --customer-impact --signal latency</code></pre></div>
+<p>You should see a table with the service, severity, track, urgency and likely domains, then the summary and numbered actions, followed by the full JSON report.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the same alert with and without <code>--customer-impact</code> and compare the severity. 2) Reproduce the <code>resource</code> false alarm, then fix it by matching whole words only. 3) Add a new domain rule, such as <code>kafka</code> mapping to <code>messaging</code>, and confirm the domain shows up.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Letting one flag decide everything.</strong> A missing input silently lowers the severity.</li><li><strong>Matching substrings.</strong> Match whole words or use a better classifier.</li><li><strong>No reasoning field.</strong> People will not trust a verdict with no explanation.</li><li><strong>Skipping tests with awkward inputs.</strong> The <code>resource</code> bug appears only if you try words that contain a keyword.</li><li><strong>Believing the domain transfer is automatic.</strong> The pattern transfers; the rules and the data do not.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What stays the same between the CVE levels and this theme?</summary><p>The architecture: classify the input, route it to a track, and return a structured plan.</p></details>
+<details><summary>Why can an alert about "resource usage" be rated Critical by this module?</summary><p>Keywords are matched as substrings, and <code>rce</code> is a critical term that appears inside the word "resource".</p></details>
+<details><summary>Why does the report use <code>Literal</code> types for severity and track?</summary><p>So downstream code receives only a fixed set of exact values and can act on them safely.</p></details>
+<p>You have reached the end of the Foundations pages. Next: the <a href="learning-path.html">learning path</a> shows how everything fits together and what to try next.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="semantic-cache.html"><small>Previous</small>Semantic caching</a><a class="next" href="learning-path.html"><small>Next</small>Learning path</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-output-a-typed-plan">The output: a typed plan</a><a class="l2" href="#the-rules">The rules</a><a class="l2" href="#the-decision">The decision</a><a class="l2" href="#what-these-rules-get-wrong">What these rules get wrong</a><a class="l2" href="#how-it-relates-to-the-rest-of-vigil">How it relates to the rest of Vigil</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

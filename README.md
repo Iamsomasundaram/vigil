@@ -89,7 +89,7 @@ python docs/build_site.py      # rebuilds docs/index.html and docs/pages/*.html
 ```
 
 Then open [`docs/index.html`](docs/index.html) in a browser. The guide is written in Markdown under `docs/src/`, and code snippets
-are pulled straight from the source files, so they cannot drift. Levels L0–L2 are written so far; the generated
+are pulled straight from the source files, so they cannot drift. It covers all levels (L0–L6 and L4b), the architectures, reliability (R1–R9) and foundations tracks; the generated
 module/endpoint/spec reference is at [`docs/pages/reference.html`](docs/pages/reference.html).
 
 ---

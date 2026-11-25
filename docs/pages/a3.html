@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A3: Reflection · Vigil Guide</title>
+<meta name="description" content="The model drafts an answer, attacks its own draft, then writes a better one.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html" aria-current=page>A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Architectures</p>
+      <h1 id="a3-reflection">A3: Reflection</h1>
+<p><strong>The question this pattern answers:</strong> how do I catch overconfident or incomplete answers <em>before</em> the user sees them?</p>
+<p>A model's first draft is usually fluent and sure of itself, even when it has gaps. Reflection builds in the habit of every good analyst: write, get reviewed, revise.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Draft a report. Then hand it to a sceptical colleague whose only job is to find problems. Then fix those problems. The "colleague" is the same model, but given an adversarial role.</p>
+<div class="flow" role="img"><div class="node"><b>Draft</b><small>researcher</small></div><span class="arr">→</span><div class="node"><b>Critique</b><small>adversarial reviewer</small></div><span class="arr">→</span><div class="node"><b>Revise</b><small>final report</small></div></div>
+<p>This pattern is about <strong>output quality</strong>. <a href="a1.html">A1</a> and <a href="a2.html">A2</a> are about how to <em>gather</em> information and <em>organise actions</em>. A3 improves what you already produced.</p>
+<h2 id="why-does-switching-roles-help">Why does switching roles help?</h2>
+<p>The file gives three reasons, and they are good ones:</p>
+<ol><li>A different role gives a different perspective. The writer who said "patch immediately" may, as reviewer, note that nobody has checked a patch exists.</li><li>The critic is told to <strong>find problems</strong>, not to evaluate neutrally. That surfaces issues a polite re-read would miss.</li><li>The reviser sees the draft <strong>and</strong> the critique, so it makes targeted fixes instead of rewriting blindly.</li></ol>
+<aside class="callout note"><strong>Note</strong><p>These are the pattern's design reasons. Vigil does not measure how much quality improves on real runs, so treat the benefit as a hypothesis you can test yourself (see "Try it").</p></aside>
+<h2 id="three-agents-three-schemas">Three agents, three schemas</h2>
+<p>The researcher produces a draft:</p>
+<div class="code"><div class="code-cap">architectures/a3_reflection.py · DraftAssessment</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> DraftAssessment(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    Initial CVE risk assessment produced by the researcher agent.
+
+    This is the first-pass output — accurate but potentially incomplete.
+    The critique will identify what it misses or overstates.
+    &quot;&quot;&quot;</span>
+    cve_id:             str
+    cvss_score:         float
+    cvss_severity:      str
+    epss_score:         float     = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">1.0</span>)
+    in_cisa_kev:        bool
+    patch_available:    bool
+    risk_summary:       str       = Field(description=<span class="t-s">&quot;2–3 sentence risk narrative&quot;</span>)
+    recommended_action: str
+    confidence:         str       = Field(description=<span class="t-s">&quot;high / medium / low — how confident are you in this assessment?&quot;</span>)</code></pre></div>
+<p>The critic returns a structured critique, with separate lists for different kinds of problem:</p>
+<div class="code"><div class="code-cap">architectures/a3_reflection.py · CritiqueReport</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> CritiqueReport(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    Self-critique produced by the critic agent.
+
+    The critique is the mechanism by which the agent identifies its own
+    weaknesses BEFORE the user sees the output.
+    &quot;&quot;&quot;</span>
+    overall_quality:    str       = Field(description=<span class="t-s">&quot;good / adequate / poor&quot;</span>)
+    issues:             list[str] = Field(description=<span class="t-s">&quot;Specific problems found in the draft&quot;</span>)
+    missing_context:    list[str] = Field(description=<span class="t-s">&quot;Information that should have been included&quot;</span>)
+    overstatements:     list[str] = Field(description=<span class="t-s">&quot;Claims that go beyond what the data supports&quot;</span>)
+    improvement_needed: bool      = Field(description=<span class="t-s">&quot;Is revision needed or is the draft acceptable?&quot;</span>)
+    critique_summary:   str       = Field(description=<span class="t-s">&quot;One-paragraph summary of the critique&quot;</span>)</code></pre></div>
+<p>The final report records exactly what changed (<code>changes_from_draft</code>), which makes the improvement visible and checkable.</p>
+<h2 id="phase-1-research">Phase 1: research</h2>
+<p><code>research_cve</code> fetches NVD, EPSS and CISA KEV <strong>in parallel</strong> (they do not depend on each other) using <code>asyncio.gather</code>, as in <a href="l2.html">L2</a>. It then makes one model call to write the draft from that raw data. The system prompt says to be factual and to acknowledge uncertainty. The raw data is kept to give to the critic later.</p>
+<h2 id="phase-2-critique">Phase 2: critique</h2>
+<div class="code"><div class="code-cap">architectures/a3_reflection.py · critique_draft</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> critique_draft(draft: DraftAssessment, raw_data: dict) -&gt; CritiqueReport:
+    <span class="t-s">&quot;&quot;&quot;
+    Phase 2: the critic reviews the draft assessment.
+
+    The critic has access to both the draft AND the raw data, so it can
+    identify claims in the draft that aren&#x27;t supported by the data.
+
+    The adversarial framing (&quot;your job is to find problems&quot;) is intentional —
+    it produces more specific and actionable critiques than neutral evaluation.
+    &quot;&quot;&quot;</span>
+    console.print(<span class="t-s">&quot;[dim]  Phase 2: Critic reviewing draft...[/dim]&quot;</span>)
+
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">&quot;You are an adversarial security analyst reviewing a CVE assessment written by a colleague. &quot;</span>
+                    <span class="t-s">&quot;Your ONLY job is to find problems with the assessment. Be specific and harsh. &quot;</span>
+                    <span class="t-s">&quot;Check for:\n&quot;</span>
+                    <span class="t-s">&quot;  • Claims not supported by the raw data\n&quot;</span>
+                    <span class="t-s">&quot;  • Missing context that would change the risk picture\n&quot;</span>
+                    <span class="t-s">&quot;  • Overconfident language where uncertainty is warranted\n&quot;</span>
+                    <span class="t-s">&quot;  • Vague recommendations that can&#x27;t be acted on\n&quot;</span>
+                    <span class="t-s">&quot;  • Severity judgements inconsistent with CVSS + EPSS + KEV combined\n&quot;</span>
+                    <span class="t-s">&quot;  • Missing caveats (auth required? network only? interaction needed?)\n&quot;</span>
+                    <span class="t-s">&quot;Do not be polite. Be specific. A good critique makes the revision better.&quot;</span>
+                ),
+            },
+            {
+                <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                <span class="t-s">&quot;content&quot;</span>: (
+                    <span class="t-s">f&quot;Raw data collected:\n{json.dumps(raw_data, indent=2)}\n\n&quot;</span>
+                    <span class="t-s">f&quot;Draft assessment to critique:\n{json.dumps(draft.model_dump(), indent=2)}&quot;</span>
+                ),
+            },
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;CritiqueReport&quot;</span>,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(CritiqueReport),
+            },
+        },
+        temperature=<span class="t-n">0.3</span>,
+        max_tokens=<span class="t-n">1024</span>,
+    )
+    _track(response)
+    <span class="t-k">return</span> CritiqueReport.model_validate(json.loads(response.choices[<span class="t-n">0</span>].message.content))</code></pre></div>
+<p>Two details matter:</p>
+<ul><li>The critic receives the <strong>raw data as well as the draft</strong>, so it can spot claims the data does not support. A critic that only saw the draft could only judge how it reads.</li><li>The prompt is deliberately blunt ("be specific and harsh", "do not be polite") and lists what to check: unsupported claims, missing context, overconfident language, vague recommendations, inconsistent severity and missing caveats.</li></ul>
+<h2 id="the-pipeline">The pipeline</h2>
+<div class="code"><div class="code-cap">architectures/a3_reflection.py · analyse_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> analyse_cve(
+    cve_id: str,
+) -&gt; tuple[DraftAssessment, CritiqueReport, ReflectionReport]:
+    <span class="t-s">&quot;&quot;&quot;
+    Full Reflection pipeline: research → critique → revise.
+
+    Returns all three stages so the UI can show the improvement process,
+    not just the final result. Seeing the draft alongside the final report
+    makes the quality improvement tangible.
+    &quot;&quot;&quot;</span>
+    _reset_usage()
+    console.print(<span class="t-s">f&quot;\n[dim]  Starting Reflection analysis of {cve_id}...[/dim]&quot;</span>)
+    start = time.perf_counter()
+
+    draft, raw_data = <span class="t-k">await</span> research_cve(cve_id)
+    critique        = <span class="t-k">await</span> critique_draft(draft, raw_data)
+
+    <span class="t-k">if</span> critique.improvement_needed:
+        console.print(<span class="t-s">f&quot;[dim]  Critique found {len(critique.issues)} issue(s). Revising...[/dim]&quot;</span>)
+    <span class="t-k">else</span>:
+        console.print(<span class="t-s">&quot;[dim]  Critique: draft is acceptable. Minor polish only.[/dim]&quot;</span>)
+
+    final = <span class="t-k">await</span> revise_draft(cve_id, draft, critique, raw_data)
+
+    elapsed = time.perf_counter() - start
+    console.print(<span class="t-s">f&quot;[dim]  Completed in {elapsed:.1f}s (3 LLM calls)[/dim]&quot;</span>)
+
+    <span class="t-k">return</span> draft, critique, final</code></pre></div>
+<p>Read the middle carefully. After the critique, the code prints one of two messages depending on <code>improvement_needed</code>, but it then calls <code>revise_draft</code> <strong>either way</strong>. So the reviser always runs. The test <code>test_a3_skips_revision_when_critique_says_acceptable</code> is named as if it skipped revision, but its own docstring explains that revision is intentionally still invoked, and it asserts three model calls.</p>
+<p>A run is therefore always <strong>three model calls</strong>, in sequence, plus three data fetches that run together in phase 1.</p>
+<aside class="callout note"><strong>Note</strong><p>Reflection here is a single pass. The draft is critiqued once and revised once. There is no loop that critiques the revision. Adding "repeat until the critic is satisfied, up to N rounds" is a natural extension, and it would multiply cost.</p></aside>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python architectures/a3_reflection.py CVE-2021-44228</code></pre></div>
+<p>You should see the three phases announced in order and the report. The function returns all three stages so a UI can show the draft next to the final version, which is the clearest way to see what reflection did.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Print the draft and the final report side by side. Read <code>changes_from_draft</code>. Are the changes real improvements or cosmetic rewording? 2) Weaken the critic prompt to "evaluate politely" and compare the critiques. 3) Run a CVE with sparse data (for example a very new one) and see whether the critic flags the gaps and whether the reviser lowers its <code>confidence</code>.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Assuming critique means correctness.</strong> The critic is the same model with the same blind spots. It can miss an error the writer made, or invent a problem that is not there.</li><li><strong>A neutral critic prompt.</strong> A polite reviewer approves too easily. Ask it to find faults.</li><li><strong>Critiquing without the source data.</strong> Then it cannot tell grounded claims from invented ones.</li><li><strong>Paying for polish on easy cases.</strong> Three calls always cost more than one. If the draft is usually fine, consider skipping revision when <code>improvement_needed</code> is false.</li><li><strong>No record of the changes.</strong> Keep <code>changes_from_draft</code>, or you cannot audit what the reviser did.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What does the critic see that a plain re-read would not?</summary><p>The raw tool data alongside the draft, plus an instruction to hunt for problems. That lets it check each claim against the source.</p></details>
+<details><summary>Does the reviser run when the critic says the draft is acceptable?</summary><p>Yes. The code logs a different message but still calls <code>revise_draft</code>, so a run is always three model calls.</p></details>
+<details><summary>How is Reflection different from ReAct?</summary><p>ReAct is about gathering information and showing the reasoning behind each tool call. Reflection is about improving the quality of an output after it has been produced.</p></details>
+<p>Next: <a href="a4.html">A4: Multi-agent</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="a2.html"><small>Previous</small>A2: Plan-and-Execute</a><a class="next" href="a4.html"><small>Next</small>A4: Multi-agent</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#why-does-switching-roles-help">Why does switching roles help?</a><a class="l2" href="#three-agents-three-schemas">Three agents, three schemas</a><a class="l2" href="#phase-1-research">Phase 1: research</a><a class="l2" href="#phase-2-critique">Phase 2: critique</a><a class="l2" href="#the-pipeline">The pipeline</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

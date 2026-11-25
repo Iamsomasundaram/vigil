@@ -21,24 +21,26 @@ Do the **Core** path first. It is enough to understand how an AI system becomes 
 | 6 | **L1**: chaining and structured output | 45 min | [L1](l1.md) |
 | 7 | Exercise `l1_chaining` | 20 min | `exercises/l1_chaining` |
 | 8 | **L2**: parallel agents | 45 min | [L2](l2.md) |
-| 9 | **L3**: routing | 45 min | not written yet, read `levels/l3_routing.py` |
-| 10 | **L4**: tool use | 60 min | not written yet, read `levels/l4_tool_use.py` |
+| 9 | **L3**: routing | 45 min | [L3](l3.md) |
+| 10 | **L4**: tool use | 60 min | [L4](l4.md) |
 | 11 | Exercise `l4_tool_dispatch` | 30 min | `exercises/l4_tool_dispatch` |
 
 The times are rough estimates for a first read, not measurements.
 
 ## Then go further
 
-| Topic | Where to look |
-| --- | --- |
-| Memory and feedback loops (L5) | `levels/l5_memory.py` (needs PostgreSQL) |
-| Autonomous monitoring (L6) | `levels/l6_autonomous.py` (needs PostgreSQL) |
-| Reading PDFs and images (L4b) | `levels/l4b_multimodal.py` |
-| Agent designs: ReAct, plan-and-execute, reflection, multi-agent | `architectures/` |
-| Making agents safe and reliable: guardrails, evaluation, observability, cost control | `reliability/` |
-| Retrieval, tokenization, prompting, privacy and more | `levels/foundations/` and the notebooks |
-| The full feature list and its status | `specs/progress-board.md` |
-| Every module, function and endpoint | [Code reference](reference.md) |
+| Topic | Guide page | Needs |
+| --- | --- | --- |
+| Reading PDFs and images | [L4b](l4b.md) | API key |
+| Memory and feedback loops | [L5](l5.md) | PostgreSQL |
+| Autonomous monitoring | [L6](l6.md) | PostgreSQL |
+| Agent designs: ReAct, plan-and-execute, reflection, multi-agent | [Architectures](architectures.md) | API key |
+| Guardrails, evaluation, observability, resilience, cost control | [Reliability](reliability.md) | mostly offline |
+| Drift, action governance, supply chain, release safety | [R6](r6.md) to [R9](r9.md) | offline |
+| Tokens, prompting, model choice, fine-tuning | [Foundations](foundations.md) | offline |
+| Retrieval, factuality, privacy, responsible AI, caching | [Retrieval](retrieval.md) onwards | offline |
+| Every module, function and endpoint | [Code reference](reference.md) | none |
+| The full feature list and its status | `specs/progress-board.md` | none |
 
 > **Tip** Tokenization, prompting and embeddings each have a runnable notebook: `01_tokenization`, `02_prompting` and `03_embeddings_rag`. They are the quickest way to build intuition, because you change a value and watch the result.
 

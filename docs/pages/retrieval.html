@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrieval and RAG · Vigil Guide</title>
+<meta name="description" content="Find the right passages before the model answers: chunking, scoring, retrieval metrics, hybrid search and reranking.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html" aria-current=page>Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="retrieval-and-rag">Retrieval and RAG</h1>
+<p><strong>The question this page answers:</strong> how do I give a model the <em>right</em> facts to answer from, instead of trusting its memory?</p>
+<p>In <a href="l0.html">Level 0</a> the model answered from what it learned in training, which can be out of date or wrong. <strong>Retrieval-augmented generation (RAG)</strong> fixes that in two moves: first <strong>retrieve</strong> the most relevant passages from your own documents, then hand them to the model along with the question so it answers from them.</p>
+<div class="flow" role="img"><div class="node"><b>Question</b></div><span class="arr">→</span><div class="node"><b>Retrieve</b><small>find the best passages</small></div><span class="arr">→</span><div class="node"><b>Prompt</b><small>question + passages</small></div><span class="arr">→</span><div class="node"><b>Model</b></div><span class="arr">→</span><div class="node"><b>Answer</b></div></div>
+<p>Most RAG failures are not model failures. They are <strong>retrieval</strong> failures: the right passage was never found, so the model never saw it. This page is about making retrieval good and <em>measuring</em> whether it is.</p>
+<aside class="callout note"><strong>Note</strong><p>The code in <code>levels/foundations/retrieval_quality.py</code> is deliberately small and runs <strong>offline with no API key</strong>. Its scoring is word matching, not real semantic search. Read the sections below to see exactly what is simplified.</p></aside>
+<h2 id="step-1-chunking">Step 1: Chunking</h2>
+<p>Documents are too long to search or send whole, so they are cut into <strong>chunks</strong>. Chunk size is a real trade-off:</p>
+<ul><li><strong>Small chunks</strong> are precise but may lose surrounding context.</li><li><strong>Large chunks</strong> keep context but dilute the match and cost more tokens when sent to the model.</li></ul>
+<p>Vigil cuts by words, with an <strong>overlap</strong> so a sentence on a boundary appears in two chunks:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · chunk_text</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> chunk_text(text: str, *, chunk_size_words: int = <span class="t-n">80</span>, overlap_words: int = <span class="t-n">20</span>) -&gt; list[str]:
+    <span class="t-s">&quot;&quot;&quot;Chunk text with fixed word windows and overlap.&quot;&quot;&quot;</span>
+    words = text.split()
+    <span class="t-k">if</span> <span class="t-k">not</span> words:
+        <span class="t-k">return</span> []
+
+    chunk_size_words = max(<span class="t-n">20</span>, int(chunk_size_words))
+    overlap_words = max(<span class="t-n">0</span>, int(overlap_words))
+    <span class="t-k">if</span> overlap_words &gt;= chunk_size_words:
+        overlap_words = max(<span class="t-n">0</span>, chunk_size_words - <span class="t-n">1</span>)
+
+    step = max(<span class="t-n">1</span>, chunk_size_words - overlap_words)
+    chunks: list[str] = []
+    <span class="t-k">for</span> start <span class="t-k">in</span> range(<span class="t-n">0</span>, len(words), step):
+        end = min(len(words), start + chunk_size_words)
+        piece = <span class="t-s">&quot; &quot;</span>.join(words[start:end]).strip()
+        <span class="t-k">if</span> piece:
+            chunks.append(piece)
+        <span class="t-k">if</span> end &gt;= len(words):
+            break
+    <span class="t-k">return</span> chunks</code></pre></div>
+<p>Two details worth noticing: the chunk size is never allowed below 20 words, and the overlap is forced to be smaller than the chunk so the window always moves forward.</p>
+<h2 id="step-2-scoring-lexical-retrieval">Step 2: Scoring (lexical retrieval)</h2>
+<p>Each chunk is reduced to the set of its non-trivial words. A query is scored against a chunk by how many query words it contains:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · _score</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _score(query_terms: set[str], chunk_terms: set[str]) -&gt; tuple[float, int, list[str]]:
+    <span class="t-k">if</span> <span class="t-k">not</span> query_terms:
+        <span class="t-k">return</span> <span class="t-n">0.0</span>, <span class="t-n">0</span>, []
+    overlap = sorted(query_terms.intersection(chunk_terms))
+    overlap_count = len(overlap)
+    <span class="t-k">if</span> overlap_count == <span class="t-n">0</span>:
+        <span class="t-k">return</span> <span class="t-n">0.0</span>, <span class="t-n">0</span>, []
+
+    coverage = overlap_count / max(<span class="t-n">1</span>, len(query_terms))
+    density = overlap_count / max(<span class="t-n">1</span>, len(chunk_terms))
+    score = (<span class="t-n">0.75</span> * coverage) + (<span class="t-n">0.25</span> * density)
+    <span class="t-k">return</span> score, overlap_count, overlap</code></pre></div>
+<ul><li><strong>Coverage</strong> is the share of query words found in the chunk. It carries 75% of the score.</li><li><strong>Density</strong> is the share of the chunk's words that matched. It carries 25%, and slightly favours tighter chunks.</li></ul>
+<p><code>retrieve</code> scores every chunk and returns the best <code>top_k</code>:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · retrieve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> retrieve(
+    query: str,
+    index: list[dict[str, Any]],
+    *,
+    top_k: int = <span class="t-n">5</span>,
+    min_score: float = <span class="t-n">0.01</span>,
+) -&gt; list[dict[str, Any]]:
+    <span class="t-s">&quot;&quot;&quot;Run lexical retrieval over a chunk index.&quot;&quot;&quot;</span>
+    q_terms = set(_query_terms(query))
+    rows: list[dict[str, Any]] = []
+
+    <span class="t-k">for</span> chunk <span class="t-k">in</span> index:
+        score, overlap_count, overlap_terms = _score(q_terms, chunk.get(<span class="t-s">&quot;terms&quot;</span>, set()))
+        <span class="t-k">if</span> score &lt; min_score:
+            continue
+        rows.append(
+            {
+                <span class="t-s">&quot;chunk_id&quot;</span>: chunk[<span class="t-s">&quot;chunk_id&quot;</span>],
+                <span class="t-s">&quot;doc_id&quot;</span>: chunk[<span class="t-s">&quot;doc_id&quot;</span>],
+                <span class="t-s">&quot;title&quot;</span>: chunk[<span class="t-s">&quot;title&quot;</span>],
+                <span class="t-s">&quot;score&quot;</span>: round(score, <span class="t-n">4</span>),
+                <span class="t-s">&quot;overlap_count&quot;</span>: overlap_count,
+                <span class="t-s">&quot;overlap_terms&quot;</span>: overlap_terms,
+                <span class="t-s">&quot;word_count&quot;</span>: chunk.get(<span class="t-s">&quot;word_count&quot;</span>, <span class="t-n">0</span>),
+                <span class="t-s">&quot;text_preview&quot;</span>: (chunk[<span class="t-s">&quot;text&quot;</span>][:<span class="t-n">160</span>] + <span class="t-s">&quot;...&quot;</span>) <span class="t-k">if</span> len(chunk[<span class="t-s">&quot;text&quot;</span>]) &gt; <span class="t-n">160</span> <span class="t-k">else</span> chunk[<span class="t-s">&quot;text&quot;</span>],
+            }
+        )
+
+    rows.sort(key=<span class="t-k">lambda</span> r: (r[<span class="t-s">&quot;score&quot;</span>], r[<span class="t-s">&quot;overlap_count&quot;</span>]), reverse=<span class="t-k">True</span>)
+    <span class="t-k">return</span> rows[: max(<span class="t-n">1</span>, int(top_k))]</code></pre></div>
+<h3 id="what-this-simple-scorer-cannot-do">What this simple scorer cannot do</h3>
+<p>It matches <strong>exact words only</strong>. There is no stemming and no synonyms. Try the default query <code>log4j remote code execution patch</code> against the built-in Log4j advisory: the advisory says "patched", not "patch", so the word <code>patch</code> does <strong>not</strong> match, and the chunk scores on the other four words.</p>
+<p>This is the same weakness real keyword search has, and it is why the next two steps exist.</p>
+<h2 id="step-3-measuring-retrieval">Step 3: Measuring retrieval</h2>
+<p>"It looks right" is not a measurement. To compare two settings you need a labelled set: queries, plus the documents that <em>should</em> be found. Vigil ships one in <code>data/eval/retrieval_golden.json</code>, where each row looks like this:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>{&quot;query&quot;: &quot;log4j remote code execution patch&quot;, &quot;relevant_doc_ids&quot;: [&quot;doc1&quot;]}</code></pre></div>
+<p>Three standard metrics score a ranked list against those labels. Each takes the retrieved document ids and the relevant ones:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · recall_at_k</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> recall_at_k(retrieved_doc_ids: list[str], relevant_doc_ids: list[str], k: int) -&gt; float:
+    <span class="t-s">&quot;&quot;&quot;Recall@k over document ids (not chunk ids).&quot;&quot;&quot;</span>
+    rel = set(relevant_doc_ids)
+    <span class="t-k">if</span> <span class="t-k">not</span> rel:
+        <span class="t-k">return</span> <span class="t-n">0.0</span>
+    top = set(retrieved_doc_ids[: max(<span class="t-n">1</span>, int(k))])
+    <span class="t-k">return</span> len(rel.intersection(top)) / len(rel)</code></pre></div>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · reciprocal_rank</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> reciprocal_rank(retrieved_doc_ids: list[str], relevant_doc_ids: list[str], k: int) -&gt; float:
+    <span class="t-s">&quot;&quot;&quot;Reciprocal rank of the first relevant item in top-k.&quot;&quot;&quot;</span>
+    rel = set(relevant_doc_ids)
+    <span class="t-k">for</span> i, doc_id <span class="t-k">in</span> enumerate(retrieved_doc_ids[: max(<span class="t-n">1</span>, int(k))], <span class="t-n">1</span>):
+        <span class="t-k">if</span> doc_id <span class="t-k">in</span> rel:
+            <span class="t-k">return</span> <span class="t-n">1.0</span> / i
+    <span class="t-k">return</span> <span class="t-n">0.0</span></code></pre></div>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · ndcg_at_k</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> ndcg_at_k(retrieved_doc_ids: list[str], relevant_doc_ids: list[str], k: int) -&gt; float:
+    <span class="t-s">&quot;&quot;&quot;nDCG@k for binary relevance.&quot;&quot;&quot;</span>
+    k_eff = max(<span class="t-n">1</span>, int(k))
+    rel = set(relevant_doc_ids)
+    observed = [<span class="t-n">1</span> <span class="t-k">if</span> d <span class="t-k">in</span> rel <span class="t-k">else</span> <span class="t-n">0</span> <span class="t-k">for</span> d <span class="t-k">in</span> retrieved_doc_ids[:k_eff]]
+    ideal = [<span class="t-n">1</span>] * min(len(rel), k_eff) + [<span class="t-n">0</span>] * max(<span class="t-n">0</span>, k_eff - len(rel))
+    denom = _dcg(ideal)
+    <span class="t-k">if</span> denom == <span class="t-n">0.0</span>:
+        <span class="t-k">return</span> <span class="t-n">0.0</span>
+    <span class="t-k">return</span> _dcg(observed) / denom</code></pre></div>
+<div class='table'><table><thead><tr><th>Metric</th><th>Question it answers</th><th>Range</th></tr></thead><tbody><tr><td><strong>Recall@k</strong></td><td>Of the documents I needed, how many appeared in the top k?</td><td>0 to 1</td></tr><tr><td><strong>MRR</strong> (mean reciprocal rank)</td><td>How near the top was the <em>first</em> relevant result? 1st gives 1.0, 2nd gives 0.5, 3rd about 0.33</td><td>0 to 1</td></tr><tr><td><strong>nDCG@k</strong></td><td>Are the relevant results ranked <em>above</em> the irrelevant ones?</td><td>0 to 1</td></tr></tbody></table></div>
+<p><code>evaluate_retrieval_settings</code> runs two chunking configurations over the whole labelled set and reports the averages for each, a winner and the differences.</p>
+<aside class="callout warning"><strong>Warning</strong><p>On the built-in sample, all three documents are only about 23 words long, so each becomes a single chunk whatever size you choose. Comparing chunk sizes there gives a <strong>tie</strong>, and that is correct, not a bug. Chunk-size experiments only mean something on longer documents. Add your own longer texts through the <code>documents</code> argument.</p></aside>
+<h2 id="step-4-hybrid-retrieval-and-reranking">Step 4: Hybrid retrieval and reranking</h2>
+<p>Real systems rarely rely on one signal. Vigil's hybrid lab blends two:</p>
+<ul><li>a <strong>lexical</strong> score (word overlap, as above), and</li><li>a <strong>vector</strong> score, from turning text into a list of numbers and comparing them with cosine similarity.</li></ul>
+<p>The two are normalised to the same scale and mixed with a weight <code>alpha</code>, where <code>1.0</code> means pure lexical:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · hybrid_retrieve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> hybrid_retrieve(
+    query: str,
+    index: list[dict[str, Any]],
+    *,
+    mode: str = <span class="t-s">&quot;hybrid&quot;</span>,
+    alpha: float = <span class="t-n">0.5</span>,
+    rerank: bool = <span class="t-k">False</span>,
+    top_k: int = <span class="t-n">5</span>,
+) -&gt; list[dict[str, Any]]:
+    <span class="t-s">&quot;&quot;&quot;Retrieve with lexical, vector, or fused hybrid scoring, optional rerank.
+
+    ``alpha`` weights lexical vs vector in hybrid mode (1.0 = pure lexical).
+    &quot;&quot;&quot;</span>
+    q_terms = set(_query_terms(query))
+    lex = _normalize(_lexical_scores(q_terms, index))
+    vec = _normalize(_vector_scores(q_terms, index))
+
+    fused: dict[str, float] = {}
+    <span class="t-k">for</span> chunk <span class="t-k">in</span> index:
+        cid = chunk[<span class="t-s">&quot;chunk_id&quot;</span>]
+        <span class="t-k">if</span> mode == <span class="t-s">&quot;lexical&quot;</span>:
+            fused[cid] = lex.get(cid, <span class="t-n">0.0</span>)
+        <span class="t-k">elif</span> mode == <span class="t-s">&quot;vector&quot;</span>:
+            fused[cid] = vec.get(cid, <span class="t-n">0.0</span>)
+        <span class="t-k">else</span>:
+            fused[cid] = alpha * lex.get(cid, <span class="t-n">0.0</span>) + (<span class="t-n">1.0</span> - alpha) * vec.get(cid, <span class="t-n">0.0</span>)
+
+    by_id = {c[<span class="t-s">&quot;chunk_id&quot;</span>]: c <span class="t-k">for</span> c <span class="t-k">in</span> index}
+    rows: list[dict[str, Any]] = []
+    <span class="t-k">for</span> cid, base <span class="t-k">in</span> fused.items():
+        chunk = by_id[cid]
+        rerank_score = _rerank(q_terms, chunk) <span class="t-k">if</span> rerank <span class="t-k">else</span> <span class="t-k">None</span>
+        final = rerank_score <span class="t-k">if</span> rerank <span class="t-k">else</span> base
+        rows.append(
+            {
+                <span class="t-s">&quot;chunk_id&quot;</span>: cid,
+                <span class="t-s">&quot;doc_id&quot;</span>: chunk[<span class="t-s">&quot;doc_id&quot;</span>],
+                <span class="t-s">&quot;title&quot;</span>: chunk[<span class="t-s">&quot;title&quot;</span>],
+                <span class="t-s">&quot;mode&quot;</span>: mode,
+                <span class="t-s">&quot;lexical_score&quot;</span>: round(lex.get(cid, <span class="t-n">0.0</span>), <span class="t-n">4</span>),
+                <span class="t-s">&quot;vector_score&quot;</span>: round(vec.get(cid, <span class="t-n">0.0</span>), <span class="t-n">4</span>),
+                <span class="t-s">&quot;fused_score&quot;</span>: round(base, <span class="t-n">4</span>),
+                <span class="t-s">&quot;rerank_score&quot;</span>: round(rerank_score, <span class="t-n">4</span>) <span class="t-k">if</span> rerank_score <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span> <span class="t-k">else</span> <span class="t-k">None</span>,
+                <span class="t-s">&quot;score&quot;</span>: round(final, <span class="t-n">4</span>),
+                <span class="t-s">&quot;text_preview&quot;</span>: (chunk[<span class="t-s">&quot;text&quot;</span>][:<span class="t-n">160</span>] + <span class="t-s">&quot;...&quot;</span>) <span class="t-k">if</span> len(chunk[<span class="t-s">&quot;text&quot;</span>]) &gt; <span class="t-n">160</span> <span class="t-k">else</span> chunk[<span class="t-s">&quot;text&quot;</span>],
+            }
+        )
+
+    rows.sort(key=<span class="t-k">lambda</span> r: r[<span class="t-s">&quot;score&quot;</span>], reverse=<span class="t-k">True</span>)
+    <span class="t-k">return</span> rows[: max(<span class="t-n">1</span>, int(top_k))]</code></pre></div>
+<p>An optional <strong>rerank</strong> step then re-scores the shortlist with a stricter check, rewarding chunks that contain the query words and have them early:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · _rerank</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _rerank(query_terms: set[str], chunk: dict[str, Any]) -&gt; float:
+    <span class="t-s">&quot;&quot;&quot;Lightweight cross-encoder proxy: reward exact-term coverage + phrase overlap.&quot;&quot;&quot;</span>
+    chunk_terms = chunk.get(<span class="t-s">&quot;terms&quot;</span>, set())
+    <span class="t-k">if</span> <span class="t-k">not</span> query_terms <span class="t-k">or</span> <span class="t-k">not</span> chunk_terms:
+        <span class="t-k">return</span> <span class="t-n">0.0</span>
+    overlap = query_terms.intersection(chunk_terms)
+    coverage = len(overlap) / max(<span class="t-n">1</span>, len(query_terms))
+    early = <span class="t-n">0.0</span>
+    words = chunk.get(<span class="t-s">&quot;text&quot;</span>, <span class="t-s">&quot;&quot;</span>).lower().split()
+    head = set(words[:<span class="t-n">30</span>])
+    early = len(query_terms.intersection(head)) / max(<span class="t-n">1</span>, len(query_terms))
+    <span class="t-k">return</span> round(<span class="t-n">0.6</span> * coverage + <span class="t-n">0.4</span> * early, <span class="t-n">6</span>)</code></pre></div>
+<h3 id="the-honest-caveat-about-the-vector-score">The honest caveat about the "vector" score</h3>
+<p>The vector here comes from <code>_hash_embed</code>:</p>
+<div class="code"><div class="code-cap">levels/foundations/retrieval_quality.py · _hash_embed</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _hash_embed(terms: set[str], dims: int = <span class="t-n">64</span>) -&gt; list[float]:
+    <span class="t-s">&quot;&quot;&quot;Deterministic offline embedding: hash terms into a fixed vector.&quot;&quot;&quot;</span>
+    vec = [<span class="t-n">0.0</span>] * dims
+    <span class="t-k">for</span> t <span class="t-k">in</span> terms:
+        h = <span class="t-n">0</span>
+        <span class="t-k">for</span> ch <span class="t-k">in</span> t:
+            h = (h * <span class="t-n">131</span> + ord(ch)) &amp; 0xFFFFFFFF
+        vec[h % dims] += <span class="t-n">1.0</span>
+    norm = math.sqrt(sum(v * v <span class="t-k">for</span> v <span class="t-k">in</span> vec))
+    <span class="t-k">if</span> norm == <span class="t-n">0.0</span>:
+        <span class="t-k">return</span> vec
+    <span class="t-k">return</span> [v / norm <span class="t-k">for</span> v <span class="t-k">in</span> vec]</code></pre></div>
+<p>It hashes each <em>word</em> into one of 64 buckets and counts. That is a <strong>teaching stand-in</strong>, not a real embedding. It has no idea that "arbitrary code execution" and "remote code execution" mean nearly the same thing. It also lets unrelated text score above zero when words happen to land in the same bucket: for the query <code>arbitrary code execution in log4j</code>, the unrelated HTTP/2 note gets a non-zero vector score while its lexical score is zero.</p>
+<p>A <strong>real embedding model</strong> maps meaning to nearby points, so paraphrases score high even with no shared words. Vigil supports that in L5 memory by setting <code>VIGIL_EMBED_MODE=openai</code>, which uses <code>text-embedding-3-small</code>. The notebook <code>notebooks/03_embeddings_rag.ipynb</code> walks through local versus real embeddings. Rerunning the lab with real embeddings would give different, better semantic results; the code here does not do that.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/retrieval_quality.py <span class="t-s">&quot;log4j remote code execution patch&quot;</span></code></pre></div>
+<p>This prints the index size, the average chunk length and a table of the top hits with the matching words. For the built-in data you should see the Log4j advisory ranked first. The notebook runs the embedding comparison offline:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>jupyter lab notebooks/</code></pre></div>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Run the default query, then change <code>patch</code> to <code>patched</code> and compare the score. This shows why exact word matching is fragile. 2) Call <code>hybrid_lab</code> with <code>alpha=1.0</code> and then <code>alpha=0.0</code> and watch the ranking change. 3) Add two long documents of your own and compare chunk sizes 40 and 120 with <code>evaluate_retrieval_settings</code>.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Judging by eye.</strong> Build a small labelled set and use Recall, MRR and nDCG.</li><li><strong>Tuning on three examples.</strong> A tiny benchmark tells you almost nothing; it only proves the mechanics.</li><li><strong>Chunks too large.</strong> The relevant sentence is buried and you pay for the extra tokens.</li><li><strong>Chunks too small.</strong> The passage loses the context that made it meaningful.</li><li><strong>Assuming the vector score means semantic.</strong> Here it does not; it is a hash.</li><li><strong>Blaming the model.</strong> If the right passage was not retrieved, no prompt can fix the answer.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does overlap between chunks help?</summary><p>A fact that sits on a chunk boundary would otherwise be cut in half. Overlap keeps it whole in at least one chunk.</p></details>
+<details><summary>A query uses the word "patch" but the document says "patched". What happens in Vigil's lexical search, and why?</summary><p>That word does not match, because matching is on exact words with no stemming. The chunk can still match on other words, but its score is lower.</p></details>
+<details><summary>What does MRR reward that Recall@k does not?</summary><p>Where the first relevant result appears. Recall@k only checks whether it is in the top k; MRR rewards ranking it first.</p></details>
+<details><summary>Why is Vigil's built-in vector score not real semantic search?</summary><p>It hashes words into buckets instead of using a trained embedding model, so it cannot see that different words mean the same thing.</p></details>
+<p>Next: <a href="factuality.html">Factuality and citations</a> checks that an answer is actually supported by what was retrieved.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="finetuning.html"><small>Previous</small>Fine-tuning decisions</a><a class="next" href="factuality.html"><small>Next</small>Factuality and citations</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#step-1-chunking">Step 1: Chunking</a><a class="l2" href="#step-2-scoring-lexical-retrieval">Step 2: Scoring (lexical retrieval)</a><a class="l3" href="#what-this-simple-scorer-cannot-do">What this simple scorer cannot do</a><a class="l2" href="#step-3-measuring-retrieval">Step 3: Measuring retrieval</a><a class="l2" href="#step-4-hybrid-retrieval-and-reranking">Step 4: Hybrid retrieval and reranking</a><a class="l3" href="#the-honest-caveat-about-the-vector-score">The honest caveat about the &quot;vector&quot; score</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

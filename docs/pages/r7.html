@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R7: Action governance · Vigil Guide</title>
+<meta name="description" content="Least-privilege rules that decide which tools an agent may use, how far it may act, and when a human must approve.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html" aria-current=page>R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r7-action-governance">R7: Action governance</h1>
+<p><strong>The question this module answers:</strong> now that the agent can <em>do</em> things, what is it allowed to do, and who decides?</p>
+<h2 id="what-goes-wrong-without-it">What goes wrong without it</h2>
+<p>Until <a href="l4.html">L4</a>, the model only produced text. Once it can call tools such as "open a ticket" or "apply a patch", a mistake stops being a wrong sentence and becomes a wrong <strong>action</strong>. Real ways this goes wrong:</p>
+<ul><li>A confused or manipulated model calls a destructive tool it should never have had.</li><li>An agent built for read-only analysis is reused somewhere with write access, and nobody notices.</li><li>A prompt-injection in a document, like the planted entries in <code>data/poisoned_cves.json</code>, talks the agent into acting.</li></ul>
+<p>You cannot make the model perfectly obedient. So you move the safety <strong>out of the prompt and into code</strong> that the model cannot argue with.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>A building does not rely on visitors being polite. It uses badges: your badge opens some doors, not others, and the server room also needs a second person to sign off.</p>
+<div class="flow" role="img"><div class="node"><b>Who is asking</b><small>role</small></div><span class="arr">→</span><div class="node"><b>Which tool</b><small>and how far</small></div><span class="arr">→</span><div class="node"><b>Policy check</b></div><span class="arr">→</span><div class="node"><b>Allow, or deny with reasons</b></div></div>
+<p>Three principles are at work:</p>
+<ul><li><strong>Least privilege</strong>: each role gets only the tools it needs.</li><li><strong>Sandbox levels</strong>: the same tool can be used safely, simulated, or for real.</li><li><strong>Human approval</strong>: dangerous real actions need a person to say yes.</li></ul>
+<h2 id="part-1-the-policy-table">Part 1: the policy table</h2>
+<p>All the rules live in one small data structure.</p>
+<div class="code"><div class="code-cap">reliability/r7_action_governance.py · _ROLE_POLICIES</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_ROLE_POLICIES: dict[str, dict[str, Any]] = {
+    <span class="t-s">&quot;viewer&quot;</span>: {
+        <span class="t-s">&quot;allowed_tools&quot;</span>: [<span class="t-s">&quot;fetch_nvd_data&quot;</span>, <span class="t-s">&quot;fetch_epss_score&quot;</span>],
+        <span class="t-s">&quot;max_sandbox&quot;</span>: <span class="t-s">&quot;read_only&quot;</span>,
+        <span class="t-s">&quot;sensitive_tools&quot;</span>: [],
+    },
+    <span class="t-s">&quot;analyst&quot;</span>: {
+        <span class="t-s">&quot;allowed_tools&quot;</span>: [<span class="t-s">&quot;fetch_nvd_data&quot;</span>, <span class="t-s">&quot;fetch_epss_score&quot;</span>, <span class="t-s">&quot;open_ticket&quot;</span>],
+        <span class="t-s">&quot;max_sandbox&quot;</span>: <span class="t-s">&quot;simulate&quot;</span>,
+        <span class="t-s">&quot;sensitive_tools&quot;</span>: [<span class="t-s">&quot;open_ticket&quot;</span>],
+    },
+    <span class="t-s">&quot;responder&quot;</span>: {
+        <span class="t-s">&quot;allowed_tools&quot;</span>: [<span class="t-s">&quot;fetch_nvd_data&quot;</span>, <span class="t-s">&quot;fetch_epss_score&quot;</span>, <span class="t-s">&quot;open_ticket&quot;</span>, <span class="t-s">&quot;apply_patch&quot;</span>],
+        <span class="t-s">&quot;max_sandbox&quot;</span>: <span class="t-s">&quot;execute&quot;</span>,
+        <span class="t-s">&quot;sensitive_tools&quot;</span>: [<span class="t-s">&quot;open_ticket&quot;</span>, <span class="t-s">&quot;apply_patch&quot;</span>],
+    },
+}</code></pre></div>
+<p>Read it as a matrix:</p>
+<div class='table'><table><thead><tr><th>Role</th><th>Tools allowed</th><th>Highest sandbox</th><th>Needs approval for</th></tr></thead><tbody><tr><td><code>viewer</code></td><td>the two lookup tools</td><td><code>read_only</code></td><td>nothing</td></tr><tr><td><code>analyst</code></td><td>lookups and <code>open_ticket</code></td><td><code>simulate</code></td><td><code>open_ticket</code></td></tr><tr><td><code>responder</code></td><td>lookups, <code>open_ticket</code>, <code>apply_patch</code></td><td><code>execute</code></td><td><code>open_ticket</code>, <code>apply_patch</code></td></tr></tbody></table></div>
+<p>The three sandbox levels escalate in a fixed order: <code>read_only</code> is the lowest, then <code>simulate</code>, then <code>execute</code>. <code>read_only</code> means look but do not change anything. <code>simulate</code> means show what would happen. <code>execute</code> means really do it.</p>
+<p>An unknown role gets nothing: <code>get_role_policy</code> falls back to no tools and <code>read_only</code>. That is <strong>deny by default</strong>, which is the safe direction for a failure.</p>
+<h2 id="part-2-the-check">Part 2: the check</h2>
+<div class="code"><div class="code-cap">reliability/r7_action_governance.py · check_action</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> check_action(
+    *,
+    role: str,
+    tool: str,
+    requested_sandbox: str = <span class="t-s">&quot;read_only&quot;</span>,
+    approved: bool = <span class="t-k">False</span>,
+) -&gt; dict[str, Any]:
+    <span class="t-s">&quot;&quot;&quot;Evaluate whether an action is permitted under least-privilege policy.&quot;&quot;&quot;</span>
+    policy = get_role_policy(role)
+    reasons: list[str] = []
+
+    <span class="t-k">if</span> requested_sandbox <span class="t-k">not</span> <span class="t-k">in</span> _SANDBOX_ORDER:
+        <span class="t-k">return</span> {
+            <span class="t-s">&quot;role&quot;</span>: role,
+            <span class="t-s">&quot;tool&quot;</span>: tool,
+            <span class="t-s">&quot;requested_sandbox&quot;</span>: requested_sandbox,
+            <span class="t-s">&quot;allowed&quot;</span>: <span class="t-k">False</span>,
+            <span class="t-s">&quot;effective_sandbox&quot;</span>: <span class="t-s">&quot;read_only&quot;</span>,
+            <span class="t-s">&quot;requires_approval&quot;</span>: <span class="t-k">False</span>,
+            <span class="t-s">&quot;reasons&quot;</span>: [<span class="t-s">&quot;invalid_sandbox_mode&quot;</span>],
+        }
+
+    tool_allowed = tool <span class="t-k">in</span> policy[<span class="t-s">&quot;allowed_tools&quot;</span>]
+    <span class="t-k">if</span> <span class="t-k">not</span> tool_allowed:
+        reasons.append(<span class="t-s">&quot;tool_not_in_role_scope&quot;</span>)
+
+    within_sandbox = _SANDBOX_ORDER[requested_sandbox] &lt;= _SANDBOX_ORDER[policy[<span class="t-s">&quot;max_sandbox&quot;</span>]]
+    <span class="t-k">if</span> <span class="t-k">not</span> within_sandbox:
+        reasons.append(<span class="t-s">&quot;sandbox_exceeds_role_limit&quot;</span>)
+
+    is_sensitive = tool <span class="t-k">in</span> policy[<span class="t-s">&quot;sensitive_tools&quot;</span>]
+    requires_approval = is_sensitive <span class="t-k">and</span> requested_sandbox == <span class="t-s">&quot;execute&quot;</span>
+    approval_ok = (<span class="t-k">not</span> requires_approval) <span class="t-k">or</span> approved
+    <span class="t-k">if</span> requires_approval <span class="t-k">and</span> <span class="t-k">not</span> approved:
+        reasons.append(<span class="t-s">&quot;requires_human_approval&quot;</span>)
+
+    allowed = tool_allowed <span class="t-k">and</span> within_sandbox <span class="t-k">and</span> approval_ok
+    effective = requested_sandbox <span class="t-k">if</span> allowed <span class="t-k">else</span> <span class="t-s">&quot;read_only&quot;</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;role&quot;</span>: role,
+        <span class="t-s">&quot;tool&quot;</span>: tool,
+        <span class="t-s">&quot;requested_sandbox&quot;</span>: requested_sandbox,
+        <span class="t-s">&quot;allowed&quot;</span>: allowed,
+        <span class="t-s">&quot;effective_sandbox&quot;</span>: effective,
+        <span class="t-s">&quot;requires_approval&quot;</span>: requires_approval,
+        <span class="t-s">&quot;reasons&quot;</span>: reasons <span class="t-k">or</span> [<span class="t-s">&quot;ok&quot;</span>],
+    }</code></pre></div>
+<p>The function asks three questions and collects a reason for each failure:</p>
+<ol><li><strong>Is the tool in this role's list?</strong> If not: <code>tool_not_in_role_scope</code>.</li><li><strong>Is the requested sandbox within the role's limit?</strong> If not: <code>sandbox_exceeds_role_limit</code>.</li><li><strong>Is human approval needed and missing?</strong> Approval is required only when the tool is <em>sensitive for that role</em> <strong>and</strong> the request is for <code>execute</code>. Missing approval adds <code>requires_human_approval</code>.</li></ol>
+<p>The action is allowed only if all three pass. When it is denied, <code>effective_sandbox</code> falls back to <code>read_only</code>, so a caller that ignores the denial still cannot do more than look. An invalid sandbox name is rejected outright with <code>invalid_sandbox_mode</code>.</p>
+<p>Returning the <em>reasons</em> matters. A bare "denied" teaches nobody anything; a list of reasons tells the developer, and an auditor later, exactly which rule fired.</p>
+<h2 id="worked-examples">Worked examples</h2>
+<p>These come from the module's tests and from running the demo.</p>
+<ul><li><strong>A viewer asks to run <code>apply_patch</code> for real.</strong> Denied: the tool is not in the viewer's scope.</li><li><strong>A responder asks to run <code>apply_patch</code> for real, with no approval.</strong> Denied with <code>requires_human_approval</code>, and <code>requires_approval</code> is true.</li><li><strong>The same request with <code>approved=True</code>.</strong> Allowed, with <code>effective_sandbox</code> of <code>execute</code>.</li><li><strong>An analyst asks to run <code>open_ticket</code> for real, even with approval.</strong> Denied: an analyst's ceiling is <code>simulate</code>, so approval cannot lift it past the role limit.</li></ul>
+<p>That last case is the important design point: <strong>approval does not override role limits</strong>. It only unlocks actions the role could legitimately do.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r7_action_governance
+python -m reliability.r7_action_governance --role responder --tool apply_patch --sandbox execute
+python -m reliability.r7_action_governance --role responder --tool apply_patch --sandbox execute --approved</code></pre></div>
+<p>The default arguments ask an analyst to execute <code>apply_patch</code>. I ran that and it was denied with both <code>tool_not_in_role_scope</code> and <code>sandbox_exceeds_role_limit</code>, with <code>effective_sandbox</code> set to <code>read_only</code>. Adding <code>--approved</code> did not change that result, which shows approval cannot rescue a request the role was never allowed to make. Over HTTP the same check is <code>POST /reliability/action/check</code>.</p>
+<h2 id="what-is-simulated">What is simulated</h2>
+<ul><li><strong>Nothing here actually blocks a tool call.</strong> <code>check_action</code> returns a decision. It is up to the calling code to obey it. In this repo it is a teaching module and a separate API endpoint, not a gate wired around every tool.</li><li><strong>The <code>approved</code> flag is a plain argument.</strong> There is no real approval workflow, identity check or audit log, so anyone calling the function can pass <code>approved=True</code>.</li><li><strong>The roles are hard-coded</strong> in the file, not loaded from a policy system.</li><li><strong>Sandboxes are labels.</strong> There is no real isolation such as a container or restricted account behind <code>read_only</code> or <code>simulate</code>.</li></ul>
+<aside class="callout warning"><strong>Warning</strong><p>Do not read this as a finished security control. It shows the <em>shape</em> of a good policy check. In production the decision must be enforced where the tool runs, the approval must come from an authenticated person, and every decision must be logged.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Call <code>check_action</code> for each role against each tool and sandbox, and fill in your own table. Does it match the matrix above? 2) Pass an unknown role such as <code>&quot;intern&quot;</code> and read the result. 3) Pass <code>requested_sandbox=&quot;launch&quot;</code> and note the reason. 4) Add a new role to <code>_ROLE_POLICIES</code> for an <code>auditor</code> who may only read, and write a test for it.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Putting the rule in the prompt.</strong> "Never apply patches" can be argued away. A code check cannot.</li><li><strong>Giving every role every tool for convenience.</strong> Start narrow and widen only when needed.</li><li><strong>Letting approval override limits.</strong> Approval should unlock allowed actions, not extend power.</li><li><strong>Denying without a reason.</strong> You will not be able to debug or audit it.</li><li><strong>Checking only at the start.</strong> Check every action, because an agent's plan can change mid-run.</li><li><strong>Forgetting the default.</strong> Unknown role, tool or mode should mean "no".</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why is a policy check in code safer than an instruction in the prompt?</summary><p>A model can be persuaded, confused or injected into ignoring an instruction. Code runs the same way regardless of what the model says.</p></details>
+<details><summary>An analyst asks to execute <code>open_ticket</code> and a human approves. Why is it still denied?</summary><p>The analyst role's highest sandbox is <code>simulate</code>, and <code>execute</code> is above it. Approval only matters when the request is otherwise within the role's limits.</p></details>
+<details><summary>What does <code>effective_sandbox</code> protect against?</summary><p>If a request is denied it falls back to <code>read_only</code>, so a caller that mishandles the denial still cannot change anything.</p></details>
+<p>Next: <a href="r8.html">R8</a> asks whether the prompts, policies and schemas the agent runs on are the ones you meant.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r6.html"><small>Previous</small>R6: Online evaluation and drift</a><a class="next" href="r8.html"><small>Next</small>R8: AI supply chain</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-goes-wrong-without-it">What goes wrong without it</a><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#part-1-the-policy-table">Part 1: the policy table</a><a class="l2" href="#part-2-the-check">Part 2: the check</a><a class="l2" href="#worked-examples">Worked examples</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-is-simulated">What is simulated</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

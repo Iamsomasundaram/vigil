@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A1: ReAct · Vigil Guide</title>
+<meta name="description" content="The agent writes down a Thought before every action, so you can read why it did what it did.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html" aria-current=page>A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Architectures</p>
+      <h1 id="a1-react">A1: ReAct</h1>
+<p><strong>The question this pattern answers:</strong> when an agent calls tools, how can I see <em>why</em> it chose each one?</p>
+<p>ReAct stands for <strong>Rea</strong>soning plus <strong>Act</strong>ing. It comes from a 2022 paper (Yao et al.) whose insight was that models do better, and are easier to audit, when they write their reasoning out <em>before</em> they act.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Imagine a junior analyst who must narrate aloud: "I'll check NVD first because I need the severity... NVD says 10.0, so next I want to know whether anyone is exploiting it..." You get the answer <em>and</em> the thinking behind it.</p>
+<div class="flow" role="img"><div class="node"><b>Thought</b><small>why this step?</small></div><span class="arr">→</span><div class="node"><b>Action</b><small>call a tool</small></div><span class="arr">→</span><div class="node"><b>Observation</b><small>read the result</small></div><span class="arr">→</span><div class="node"><b>Repeat or answer</b></div></div>
+<p>Each trip around this loop becomes one record in a <strong>trace</strong>. The trace is the point of A1.</p>
+<h2 id="how-is-this-different-from-l4">How is this different from L4?</h2>
+<p><a href="l4.html">Level 4</a> also loops over tools. The difference is where the reasoning lives:</p>
+<div class='table'><table><thead><tr><th></th><th>L4 tool use</th><th>A1 ReAct</th></tr></thead><tbody><tr><td>You see</td><td>What was called and what came back</td><td>Why it was called, too</td></tr><tr><td>Reasoning</td><td>Hidden inside the model</td><td>Written out as text before each call</td></tr><tr><td>Output</td><td>The analysis</td><td>The analysis <strong>plus</strong> the reasoning trace</td></tr></tbody></table></div>
+<p>Same tools, same kind of outcome. A1 adds the explanation.</p>
+<h2 id="the-record-of-one-step">The record of one step</h2>
+<div class="code"><div class="code-cap">architectures/a1_react.py · ReasoningStep</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> ReasoningStep(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    One cycle of the ReAct loop: Thought → Action → Observation.
+
+    This is the core unit of transparency in ReAct. Every decision the agent
+    makes is recorded here with the reasoning that led to it.
+    &quot;&quot;&quot;</span>
+    step:        int
+    thought:     str  = Field(description=<span class="t-s">&quot;The agent&#x27;s explicit reasoning before acting&quot;</span>)
+    action:      str  = Field(description=<span class="t-s">&quot;What the agent decided to do (tool name or &#x27;answer&#x27;)&quot;</span>)
+    observation: str  = Field(description=<span class="t-s">&quot;What the agent learned from the action&quot;</span>)</code></pre></div>
+<p>And the final report, which carries the facts from all three sources:</p>
+<div class="code"><div class="code-cap">architectures/a1_react.py · ReActReport</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> ReActReport(_Base):
+    <span class="t-s">&quot;&quot;&quot;
+    Final output of the ReAct investigation.
+
+    Contains both the reasoning trace (HOW the agent reached its conclusions)
+    and the final analysis (WHAT it concluded). The trace is what distinguishes
+    ReAct from a plain tool-use agent.
+    &quot;&quot;&quot;</span>
+    cve_id:             str
+    cvss_score:         float       = Field(description=<span class="t-s">&quot;From NVD — current base score&quot;</span>)
+    cvss_severity:      str         = Field(description=<span class="t-s">&quot;Critical / High / Medium / Low&quot;</span>)
+    epss_score:         float       = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">1.0</span>)
+    epss_percentile:    float       = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">1.0</span>)
+    in_cisa_kev:        bool        = Field(description=<span class="t-s">&quot;Is this CVE actively exploited? (CISA KEV)&quot;</span>)
+    patch_available:    bool
+    risk_verdict:       str         = Field(description=<span class="t-s">&quot;One-sentence risk summary grounded in all three data sources&quot;</span>)
+    recommended_action: str
+    reasoning_steps:    int         = Field(description=<span class="t-s">&quot;How many Thought→Act→Observe cycles the agent took&quot;</span>)
+    data_sources:       list[str]   = Field(description=<span class="t-s">&quot;Which tools were actually called&quot;</span>)</code></pre></div>
+<p>Notice <code>reasoning_steps</code> and <code>data_sources</code> at the bottom. The report states how many cycles it took and which tools it actually used.</p>
+<h2 id="the-trick-capturing-the-thought">The trick: capturing the Thought</h2>
+<p>The OpenAI API lets one model reply contain <strong>both</strong> text and tool calls. The system prompt tells the model to always write a "Thought:" sentence before calling a tool. The code then maps the pieces:</p>
+<div class='table'><table><thead><tr><th>Part of the reply</th><th>Becomes</th></tr></thead><tbody><tr><td><code>message.content</code></td><td>the <strong>Thought</strong></td></tr><tr><td><code>message.tool_calls</code></td><td>the <strong>Action</strong></td></tr><tr><td>the tool's result</td><td>the <strong>Observation</strong></td></tr></tbody></table></div>
+<h2 id="the-loop">The loop</h2>
+<p>Read this slowly. It is the whole pattern.</p>
+<div class="code"><div class="code-cap">architectures/a1_react.py · run_react_loop</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_react_loop(cve_id: str) -&gt; tuple[ReActReport, list[dict]]:
+    <span class="t-s">&quot;&quot;&quot;
+    The ReAct investigation loop.
+
+    Structurally similar to L4&#x27;s tool loop, but with two critical differences:
+
+    1. The system prompt instructs the model to ALWAYS write a Thought before
+       acting. The thought is captured from message.content.
+
+    2. Every Thought → Action → Observation triple is recorded as a
+       ReasoningStep, forming the full reasoning trace.
+
+    The trace is the output that makes ReAct valuable. It answers:
+      &quot;Why did the agent call those tools in that order?&quot;
+      &quot;What was it thinking when it decided to escalate?&quot;
+    &quot;&quot;&quot;</span>
+    messages: list[dict] = [
+        {
+            <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>,
+            <span class="t-s">&quot;content&quot;</span>: (
+                <span class="t-s">&quot;You are a vulnerability intelligence analyst using the ReAct approach. &quot;</span>
+                <span class="t-s">&quot;BEFORE every tool call or final answer, you MUST write a &#x27;Thought:&#x27; sentence &quot;</span>
+                <span class="t-s">&quot;explaining your reasoning — what you know, what you need to find out, and why &quot;</span>
+                <span class="t-s">&quot;you are taking this specific action next. &quot;</span>
+                <span class="t-s">&quot;\n\n&quot;</span>
+                <span class="t-s">&quot;You have three tools: fetch_nvd_data (official CVE data), fetch_epss_score &quot;</span>
+                <span class="t-s">&quot;(exploitation probability), and check_cisa_kev (confirmed active exploitation). &quot;</span>
+                <span class="t-s">&quot;\n\n&quot;</span>
+                <span class="t-s">&quot;Use all three tools before concluding. Your Thought steps are as important as &quot;</span>
+                <span class="t-s">&quot;your final answer — they are the audit trail for your decisions.&quot;</span>
+            ),
+        },
+        {
+            <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+            <span class="t-s">&quot;content&quot;</span>: (
+                <span class="t-s">f&quot;Investigate {cve_id}. &quot;</span>
+                <span class="t-s">&quot;Use your tools to gather live data from NVD, EPSS, and CISA KEV, &quot;</span>
+                <span class="t-s">&quot;then provide a grounded risk assessment. &quot;</span>
+                <span class="t-s">&quot;Remember to think out loud before each step.&quot;</span>
+            ),
+        },
+    ]
+
+    reasoning_trace: list[dict] = []  <span class="t-c"># Thought → Action → Observation records</span>
+    step_number    = <span class="t-n">0</span>
+    max_iterations = <span class="t-n">12</span>
+
+    <span class="t-k">while</span> step_number &lt; max_iterations:
+        response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice=<span class="t-s">&quot;auto&quot;</span>,
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">4096</span>,
+        )
+        _track(response)
+        message = response.choices[<span class="t-n">0</span>].message
+
+        <span class="t-c"># ── Extract the Thought from the model&#x27;s text content ─────────────────</span>
+        <span class="t-c"># When the model follows the system prompt, message.content contains its</span>
+        <span class="t-c"># reasoning. We capture this as the Thought for this step.</span>
+        thought = (message.content <span class="t-k">or</span> <span class="t-s">&quot;&quot;</span>).strip()
+
+        <span class="t-k">if</span> message.tool_calls:
+            <span class="t-c"># ── Action: the model is calling tools ────────────────────────────</span>
+            messages.append(message.model_dump(exclude_unset=<span class="t-k">True</span>))
+
+            <span class="t-c"># Execute all tool calls from this turn (may be multiple)</span>
+            tool_results = <span class="t-k">await</span> asyncio.gather(*[
+                _execute_tool(tc) <span class="t-k">for</span> tc <span class="t-k">in</span> message.tool_calls
+            ])
+
+            <span class="t-k">for</span> tool_call, result_str <span class="t-k">in</span> zip(message.tool_calls, tool_results):
+                step_number += <span class="t-n">1</span>
+                fn_name  = tool_call.function.name
+                args     = json.loads(tool_call.function.arguments)
+                result   = json.loads(result_str) <span class="t-k">if</span> result_str.startswith(<span class="t-s">&quot;{&quot;</span>) <span class="t-k">else</span> {<span class="t-s">&quot;raw&quot;</span>: result_str}
+
+                <span class="t-c"># Build a human-readable observation summary</span>
+                observation = _summarise_observation(fn_name, result)
+
+                console.print(
+                    <span class="t-s">f&quot;[dim]  Step {step_number} │ Thought: {thought[:80]}{&#x27;...&#x27; if len(thought) &gt; 80 else &#x27;&#x27;}[/dim]&quot;</span>
+                )
+                console.print(<span class="t-s">f&quot;[dim]             │ Action:  {fn_name}({args})[/dim]&quot;</span>)
+                console.print(<span class="t-s">f&quot;[dim]             │ Observe: {observation[:80]}[/dim]&quot;</span>)
+
+                reasoning_trace.append({
+                    <span class="t-s">&quot;step&quot;</span>:        step_number,
+                    <span class="t-s">&quot;thought&quot;</span>:     thought,
+                    <span class="t-s">&quot;action&quot;</span>:      fn_name,
+                    <span class="t-s">&quot;arguments&quot;</span>:   args,
+                    <span class="t-s">&quot;observation&quot;</span>: observation,
+                    <span class="t-s">&quot;raw_result&quot;</span>:  result,
+                })
+
+                messages.append({
+                    <span class="t-s">&quot;role&quot;</span>:         <span class="t-s">&quot;tool&quot;</span>,
+                    <span class="t-s">&quot;tool_call_id&quot;</span>: tool_call.id,
+                    <span class="t-s">&quot;content&quot;</span>:      result_str,
+                })
+
+                <span class="t-c"># Reset thought for subsequent tools in the same turn</span>
+                thought = <span class="t-s">&quot;&quot;</span>
+
+            continue
+
+        <span class="t-c"># ── No tool calls: model is ready to produce the final report ─────────</span>
+        console.print(<span class="t-s">f&quot;[dim]  Investigation complete ({step_number} steps). Structuring report...[/dim]&quot;</span>)
+
+        final_response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=messages + [
+                {
+                    <span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,
+                    <span class="t-s">&quot;content&quot;</span>: (
+                        <span class="t-s">&quot;You have completed your investigation. &quot;</span>
+                        <span class="t-s">&quot;Produce the final structured report based only on the data you retrieved. &quot;</span>
+                        <span class="t-s">&quot;Set reasoning_steps to the number of Thought→Act→Observe cycles you completed.&quot;</span>
+                    ),
+                }
+            ],
+            response_format={
+                <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+                <span class="t-s">&quot;json_schema&quot;</span>: {
+                    <span class="t-s">&quot;name&quot;</span>:   <span class="t-s">&quot;ReActReport&quot;</span>,
+                    <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                    <span class="t-s">&quot;schema&quot;</span>: _strict_schema(ReActReport),
+                },
+            },
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">2048</span>,
+        )
+        _track(final_response)
+
+        report = ReActReport.model_validate(
+            json.loads(final_response.choices[<span class="t-n">0</span>].message.content)
+        )
+        <span class="t-k">return</span> report, reasoning_trace
+
+    <span class="t-k">raise</span> RuntimeError(<span class="t-s">f&quot;ReAct loop exceeded {max_iterations} steps — agent may be stuck&quot;</span>)</code></pre></div>
+<p>The beats to find:</p>
+<ol><li><strong>The system prompt demands a Thought</strong> before every tool call or final answer, and says to use all three tools before concluding.</li><li><strong>A model turn with tool calls.</strong> The Thought is read from <code>message.content</code>. The tool calls in that turn run together with <code>asyncio.gather</code>.</li><li><strong>One trace entry per tool call.</strong> Each gets its own step number, the Thought, the action, a short observation and the raw result.</li><li><strong>A turn with no tool calls</strong> means the model is done. A <em>second</em> call then asks for the final report as structured output, matching <code>ReActReport</code> (the same technique as <a href="l1.html">L1</a>).</li><li><strong>A safety cap.</strong> The loop stops with a <code>RuntimeError</code> if the agent goes past 12 steps. The counter increases once per tool call, so it caps tool calls, not model turns.</li></ol>
+<p>The short human-readable observation printed in the trace is made by a small helper:</p>
+<div class="code"><div class="code-cap">architectures/a1_react.py · _summarise_observation</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _summarise_observation(tool_name: str, result: dict) -&gt; str:
+    <span class="t-s">&quot;&quot;&quot;Produce a short human-readable summary of a tool result for the trace display.&quot;&quot;&quot;</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;error&quot;</span> <span class="t-k">in</span> result:
+        <span class="t-k">return</span> <span class="t-s">f&quot;ERROR: {result[&#x27;error&#x27;]}&quot;</span>
+    <span class="t-k">if</span> tool_name == <span class="t-s">&quot;fetch_nvd_data&quot;</span>:
+        <span class="t-k">return</span> (
+            <span class="t-s">f&quot;CVSS {result.get(&#x27;cvss_score&#x27;)} ({result.get(&#x27;severity&#x27;)}) — &quot;</span>
+            <span class="t-s">f&quot;{(result.get(&#x27;description&#x27;) or &#x27;&#x27;)[:80]}&quot;</span>
+        )
+    <span class="t-k">if</span> tool_name == <span class="t-s">&quot;fetch_epss_score&quot;</span>:
+        <span class="t-k">return</span> result.get(<span class="t-s">&quot;note&quot;</span>, str(result))
+    <span class="t-k">if</span> tool_name == <span class="t-s">&quot;check_cisa_kev&quot;</span>:
+        <span class="t-k">return</span> result.get(<span class="t-s">&quot;note&quot;</span>, str(result))
+    <span class="t-k">return</span> str(result)[:<span class="t-n">120</span>]</code></pre></div>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python architectures/a1_react.py CVE-2021-44228
+python architectures/a1_react.py CVE-2014-0160</code></pre></div>
+<p>You need an OpenAI key and an internet connection, because NVD, EPSS and the CISA catalog are live. While it runs you should see lines of the form <code>Step 1 | Thought: ...</code>, then <code>Action:</code> and <code>Observe:</code>, followed by the report. The wording differs on every run.</p>
+<aside class="callout warning"><strong>Warning</strong><p>The Thought is text the model wrote, not a window into its internals. It is excellent evidence for debugging and audits, but a model can write a tidy rationale that does not fully explain what drove the choice. Treat it as an explanation to check, not as proof.</p></aside>
+<h2 id="what-to-notice-in-a-real-trace">What to notice in a real trace</h2>
+<ul><li>Does the agent call tools in the same order for different CVEs? If it does, the order is more habit than reasoning.</li><li>Is the Thought for step 2 actually <em>informed</em> by the observation from step 1?</li><li>If the model batches several tool calls in one turn, only the first one gets the Thought. The code blanks the Thought for the rest of that turn, so later steps in the same turn show an empty thought.</li></ul>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Edit the system prompt to say "think in one short sentence" and see how the trace changes. 2) Remove <code>check_cisa_kev</code> from <code>TOOLS</code> and <code>TOOL_FUNCTIONS</code> and see how the verdict changes for a CVE that is in the KEV catalog. 3) Lower <code>max_iterations</code> to 2 and watch the safety cap trigger.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>No iteration cap.</strong> An agent that keeps asking for tools will loop forever. The cap here is the minimum.</li><li><strong>Believing the Thought is guaranteed honest.</strong> See the warning above.</li><li><strong>Hiding the trace.</strong> The trace is the product. If you do not show or store it, you lose the benefit.</li><li><strong>Letting a tool error vanish.</strong> Tool errors are returned to the model as observations so it can react to them. Keep that.</li><li><strong>Expecting the same trace twice.</strong> Even at low temperature the path can change between runs.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What are the three parts of one ReAct cycle?</summary><p>Thought (why), Action (the tool call) and Observation (the result). The code records each trio as a step.</p></details>
+<details><summary>Where does the Thought come from in the code?</summary><p>From the text content of the model's reply (<code>message.content</code>), which the system prompt instructs it to write before every tool call.</p></details>
+<details><summary>What does the safety cap count, and what happens when it is hit?</summary><p>It counts tool-call steps, up to 12. If exceeded, the loop raises a <code>RuntimeError</code> instead of running forever. A test (<code>test_a1_react_loop_aborts_after_max_iterations</code>) checks this.</p></details>
+<p>Next: <a href="a2.html">A2: Plan-and-Execute</a>, which decides everything <em>before</em> acting.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="architectures.html"><small>Previous</small>Architectures overview</a><a class="next" href="a2.html"><small>Next</small>A2: Plan-and-Execute</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#how-is-this-different-from-l4">How is this different from L4?</a><a class="l2" href="#the-record-of-one-step">The record of one step</a><a class="l2" href="#the-trick-capturing-the-thought">The trick: capturing the Thought</a><a class="l2" href="#the-loop">The loop</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-to-notice-in-a-real-trace">What to notice in a real trace</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

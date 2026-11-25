@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architectures overview · Vigil Guide</title>
+<meta name="description" content="Four named ways to design an agent, compared on one job, plus the LangGraph bridge.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html" aria-current=page>Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Architectures</p>
+      <h1 id="architectures-four-ways-to-build-the-same-agent">Architectures: four ways to build the same agent</h1>
+<p><strong>The question this track answers:</strong> once a model can call tools, how should you <em>organise</em> it?</p>
+<p>The <a href="l0.html">levels</a> teach capabilities in order: one call, a chain, parallel agents, routing, tools, memory, autonomy. The <strong>architectures</strong> are different. Each one is a named <strong>design pattern</strong>, and Vigil gives all four the <strong>same job</strong> so you can compare them fairly:</p>
+<aside class="callout note"><strong>Note</strong><p>Investigate a CVE using live data from NVD, EPSS and the CISA Known Exploited Vulnerabilities (KEV) catalog, then produce a structured risk report.</p></aside>
+<p>Same tools, same kind of report, four different designs. The differences you see are the differences in the pattern, not in the task.</p>
+<div class="flow" role="img"><div class="node"><b>A1 ReAct</b><small>think, act, observe, repeat</small></div><span class="arr">→</span><div class="node"><b>A2 Plan-and-Execute</b><small>plan first, then run</small></div><span class="arr">→</span><div class="node"><b>A3 Reflection</b><small>draft, critique, revise</small></div><span class="arr">→</span><div class="node"><b>A4 Multi-agent</b><small>specialists plus orchestrator</small></div></div>
+<h2 id="the-three-tools-they-share">The three tools they share</h2>
+<div class='table'><table><thead><tr><th>Tool</th><th>Source</th><th>What it tells you</th></tr></thead><tbody><tr><td><code>fetch_nvd_data</code></td><td>NVD</td><td>Description, CVSS score, severity</td></tr><tr><td><code>fetch_epss_score</code></td><td>EPSS</td><td>Probability the CVE is exploited soon (0 to 1)</td></tr><tr><td><code>check_cisa_kev</code></td><td>CISA KEV</td><td>Whether the CVE is confirmed as actively exploited</td></tr></tbody></table></div>
+<p>KEV is the new one compared with <a href="l4.html">L4</a>. A CVE in the KEV catalog is being exploited in the wild, which is the strongest urgency signal the project uses.</p>
+<h2 id="which-one-should-i-use">Which one should I use?</h2>
+<p>This comparison comes from reading how each file is built. It is qualitative on purpose: real cost and speed depend on the model, the CVE and your network, and Vigil does not measure them here.</p>
+<div class='table'><table><thead><tr><th></th><th>A1 ReAct</th><th>A2 Plan-and-Execute</th><th>A3 Reflection</th><th>A4 Multi-agent</th></tr></thead><tbody><tr><td><strong>Who decides the next step</strong></td><td>The model, after seeing each result</td><td>The model, once, up front</td><td>Fixed code (research, critique, revise)</td><td>Fixed code dispatches; each specialist chooses its own tool calls</td></tr><tr><td><strong>Model calls</strong></td><td>As many as the loop needs, plus one to structure the report</td><td>Two: one plan, one synthesis. Tool steps call your code directly</td><td>Three, always</td><td>Several per specialist, three specialists, plus one orchestrator call</td></tr><tr><td><strong>Parallelism</strong></td><td>Tool calls within one model turn run together</td><td>Steps run one by one</td><td>The three data fetches run together; the three model calls are sequential</td><td>The three specialists run together</td></tr><tr><td><strong>Main strength</strong></td><td>Adapts to what it finds; shows its reasoning</td><td>Predictable; you can review or edit the plan before anything runs</td><td>Improves report quality by checking it</td><td>Focused roles; independent work finishes sooner</td></tr><tr><td><strong>Main weakness</strong></td><td>Less predictable; can wander</td><td>Cannot change course after the plan is made</td><td>Does not gather more data; only rewrites</td><td>Most moving parts; specialists cannot see each other</td></tr><tr><td><strong>Reach for it when</strong></td><td>The path depends on what you discover, or you need an audit trail of reasoning</td><td>You need approval before acting, or want a fixed, inspectable procedure</td><td>The wording and calibration of the answer matters</td><td>The work splits into independent, specialised jobs</td></tr></tbody></table></div>
+<aside class="callout tip"><strong>Tip</strong><p>They combine. The Reflection file says so itself: gather data with ReAct, then critique the resulting report. Real systems often layer two patterns.</p></aside>
+<h2 id="pages-in-this-track">Pages in this track</h2>
+<ul><li><a href="a1.html">A1: ReAct</a> writes down a <em>Thought</em> before every action.</li><li><a href="a2.html">A2: Plan-and-Execute</a> separates planning from doing, and adds human approval gates.</li><li><a href="a3.html">A3: Reflection</a> has the model critique its own draft.</li><li><a href="a4.html">A4: Multi-agent</a> uses specialist agents and an orchestrator.</li></ul>
+<h2 id="running-them">Running them</h2>
+<p>Each file is a script. They call the OpenAI API and the three live public data sources, so you need a key in <code>.env</code> and an internet connection.</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python architectures/a1_react.py CVE-2021-44228
+python architectures/a2_plan_execute.py CVE-2021-44228
+python architectures/a3_reflection.py CVE-2021-44228
+python architectures/a4_multi_agent.py CVE-2021-44228</code></pre></div>
+<aside class="callout note"><strong>Note</strong><p>The tests in <code>tests/test_architectures.py</code> replace the model and the data fetchers with stand-ins, so they run offline and cost nothing. They check the control flow: the order of calls, the safety limits, and how errors are handled. They do not check how good a real model's answers are.</p></aside>
+<h2 id="the-langgraph-bridge">The LangGraph bridge</h2>
+<p>Frameworks such as LangGraph give you ready-made building blocks for this kind of orchestration. Vigil writes its patterns by hand so you can see how they work, then shows how they map onto a framework in <code>architectures/frameworks/</code>.</p>
+<p><a href="../../architectures/frameworks/MAPPING.md"><code>MAPPING.md</code></a> lists the correspondence:</p>
+<div class='table'><table><thead><tr><th>Vigil concept</th><th>LangGraph concept</th></tr></thead><tbody><tr><td>A Python function that updates state</td><td>A graph <strong>node</strong></td></tr><tr><td><code>if</code>/<code>else</code> routing inside the loop</td><td>A <strong>conditional edge</strong></td></tr><tr><td>The <code>messages</code> list</td><td>A field in the graph <strong>state</strong></td></tr><tr><td>The <code>max_iterations</code> guard</td><td><code>recursion_limit</code></td></tr><tr><td>The tool dispatch function</td><td>A tool node or callable</td></tr></tbody></table></div>
+<p>The same file notes that CrewAI maps to A4, LlamaIndex to the L5 memory work, and the OpenAI Agents SDK to the L4 tool loop.</p>
+<p>The code is a deliberately small port, <code>a1_react_langgraph.py</code>:</p>
+<div class="code"><div class="code-cap">architectures/frameworks/a1_react_langgraph.py · build_graph</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> build_graph():
+    <span class="t-s">&quot;&quot;&quot;Build the LangGraph graph. Raises ImportError if langgraph is absent.&quot;&quot;&quot;</span>
+    <span class="t-k">from</span> langgraph.graph <span class="t-k">import</span> END, START, StateGraph
+
+    <span class="t-k">async</span> <span class="t-k">def</span> reason(state: GraphState) -&gt; GraphState:
+        cve_id = state[<span class="t-s">&quot;cve_id&quot;</span>]
+        client = AsyncOpenAI(timeout=<span class="t-n">45.0</span>)
+        response = <span class="t-k">await</span> client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;You are a concise vulnerability analyst.&quot;</span>},
+                {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">f&quot;Give a one-line remediation verdict for {cve_id}.&quot;</span>},
+            ],
+            temperature=<span class="t-n">0.1</span>,
+            max_tokens=<span class="t-n">120</span>,
+        )
+        verdict = (response.choices[<span class="t-n">0</span>].message.content <span class="t-k">or</span> <span class="t-s">&quot;&quot;</span>).strip()
+        <span class="t-k">return</span> {**state, <span class="t-s">&quot;verdict&quot;</span>: verdict}
+
+    graph = StateGraph(GraphState)
+    graph.add_node(<span class="t-s">&quot;reason&quot;</span>, reason)
+    graph.add_edge(START, <span class="t-s">&quot;reason&quot;</span>)
+    graph.add_edge(<span class="t-s">&quot;reason&quot;</span>, END)
+    <span class="t-k">return</span> graph.compile()</code></pre></div>
+<p>Read it honestly: it builds a graph with <strong>one node</strong> (<code>reason</code>) that makes a single model call and returns a one-line verdict. It does <strong>not</strong> reproduce A1's tool loop. It exists to show the vocabulary of nodes, edges and state, not to be a full port.</p>
+<p>If LangGraph is not installed, <code>analyse_cve</code> catches the <code>ImportError</code> and returns a canned fallback sentence with <code>&quot;framework&quot;: &quot;fallback&quot;</code>, so nothing crashes. That fallback does not call a model. Install the real thing with <code>pip install -e &quot;.[frameworks]&quot;</code>. The API exposes the port at <code>/frameworks/a1</code>.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>Run all four on the same CVE and compare, in a notebook or a text file: how many tool calls each made, how long each took (each script prints it), and how the final risk verdicts differ in wording and caution. Then run a CVE that is <em>not</em> in the KEV catalog and see which pattern copes best with the "not found" answer.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Treating the patterns as rivals.</strong> They solve different problems. Pick by what you need, not by which sounds most advanced.</li><li><strong>Reaching for multi-agent first.</strong> More agents means more calls, more cost and more places to fail. Use one only when the job really splits.</li><li><strong>Assuming reasoning text is the real reason.</strong> In ReAct the written <em>Thought</em> is useful evidence, but it is text the model produced, not a guaranteed view into its process.</li><li><strong>Skipping limits.</strong> Every loop here has a cap. Keep that habit in your own agents.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is held constant across A1 to A4, and why?</summary><p>The job and the tools (NVD, EPSS, CISA KEV) and the shape of the report. Holding them constant means any difference in behaviour comes from the pattern.</p></details>
+<details><summary>Which pattern lets a human approve a step before anything runs, and why?</summary><p>Plan-and-Execute (A2). Because the plan exists as data before execution starts, a person can review, edit or reject it.</p></details>
+<details><summary>Why is the LangGraph port in Vigil only one node?</summary><p>It is a minimal illustration of the framework's vocabulary. It makes one model call and returns a verdict, and it does not include A1's tool loop.</p></details>
+<p>Start with <a href="a1.html">A1: ReAct</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l6.html"><small>Previous</small>L6: Autonomous agent</a><a class="next" href="a1.html"><small>Next</small>A1: ReAct</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-three-tools-they-share">The three tools they share</a><a class="l2" href="#which-one-should-i-use">Which one should I use?</a><a class="l2" href="#pages-in-this-track">Pages in this track</a><a class="l2" href="#running-them">Running them</a><a class="l2" href="#the-langgraph-bridge">The LangGraph bridge</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

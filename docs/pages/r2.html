@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R2: Evaluation · Vigil Guide</title>
+<meta name="description" content="Score the agent on a fixed set of cases, use a model as judge, and fail any change that makes it worse.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html" aria-current=page>R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="r2-evaluation">R2: Evaluation</h1>
+<p><strong>The question this module answers:</strong> how do I know the agent is any good, and how do I notice when a change makes it worse?</p>
+<p>With ordinary code you write a test and it passes or fails. With an agent, "it looked right when I tried it" proves almost nothing: the output varies, and a prompt tweak that fixes one case can quietly break three others. <strong>Evaluation</strong> replaces gut feeling with a repeatable score.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>You keep a small exam with known answers (the <strong>golden set</strong>). You run the agent on the exam, grade it several different ways, and save the score. Next time you change a prompt or a model, you run the same exam and compare. If the score drops by more than you allow, the change is rejected. That comparison is a <strong>regression test</strong>.</p>
+<div class="flow" role="img"><div class="node"><b>Golden set</b><small>cases with known answers</small></div><span class="arr">→</span><div class="node"><b>Run the agent</b><small>one output per case</small></div><span class="arr">→</span><div class="node"><b>Four metrics</b><small>each scored 0 to 1</small></div><span class="arr">→</span><div class="node"><b>Overall score</b><small>the average</small></div><span class="arr">→</span><div class="node"><b>Compare to baseline</b><small>pass or fail</small></div></div>
+<h2 id="the-exam-the-golden-set">The exam: the golden set</h2>
+<p>The cases live in <code>data/eval/golden_set.json</code>. Each one says what a good answer looks like, not what the exact words must be:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>{
+  &quot;cve_id&quot;: &quot;CVE-2021-44228&quot;,
+  &quot;expected_severity_band&quot;: [&quot;Critical&quot;, &quot;High&quot;],
+  &quot;expected_kev&quot;: true,
+  &quot;action_required&quot;: true,
+  &quot;notes&quot;: &quot;Log4Shell should drive urgent remediation.&quot;
+}</code></pre></div>
+<p>The file has three cases: Log4Shell (<code>CVE-2021-44228</code>), HTTP/2 Rapid Reset (<code>CVE-2023-44487</code>) and Heartbleed (<code>CVE-2014-0160</code>). A severity <em>band</em> (a list of acceptable values) is used instead of one value because reasonable analysts can disagree between neighbouring levels.</p>
+<aside class="callout warning"><strong>Warning</strong><p>Three cases is a <strong>demonstration</strong>, not a real exam. A real golden set needs dozens to hundreds of varied cases, or a good score tells you very little. The module is built so you can swap in a bigger file with <code>--dataset</code>.</p></aside>
+<h2 id="four-ways-to-grade">Four ways to grade</h2>
+<p><code>evaluate()</code> computes four metrics and averages them. Each is a number from 0 to 1 with its own pass mark.</p>
+<div class='table'><table><thead><tr><th>Metric</th><th>What it checks</th><th>Passes at</th></tr></thead><tbody><tr><td><code>deterministic_quality</code></td><td>Plain code compares the output with the case: is the severity inside the expected band, does the KEV flag match, is action required as expected</td><td>0.8</td></tr><tr><td><code>llm_judge_quality</code></td><td>A second model scores the recommendation from 0 to 5 against a written rubric, then the score is divided by 5</td><td>0.7</td></tr><tr><td><code>adversarial_injection_resistance</code></td><td>What fraction of the poisoned fixtures from R1 the scanner flags</td><td>0.9</td></tr><tr><td><code>faithfulness_grounding</code></td><td>For L4 only: do the score fields in the answer match what the tools actually returned</td><td>0.8</td></tr></tbody></table></div>
+<p>Here is the first one, the cheapest and most trustworthy:</p>
+<div class="code"><div class="code-cap">reliability/r2_evaluation.py · _deterministic_score</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _deterministic_score(cases: list[EvalCase], outputs: list[dict[str, Any]]) -&gt; MetricResult:
+    checks = <span class="t-n">0</span>
+    passed = <span class="t-n">0</span>
+
+    <span class="t-k">for</span> case, out <span class="t-k">in</span> zip(cases, outputs):
+        severity = str(out.get(<span class="t-s">&quot;severity&quot;</span>, <span class="t-s">&quot;&quot;</span>)).strip()
+        <span class="t-k">if</span> severity:
+            checks += <span class="t-n">1</span>
+            <span class="t-k">if</span> severity <span class="t-k">in</span> case.expected_severity_band:
+                passed += <span class="t-n">1</span>
+
+        <span class="t-k">if</span> out.get(<span class="t-s">&quot;kev&quot;</span>) <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            checks += <span class="t-n">1</span>
+            <span class="t-k">if</span> bool(out.get(<span class="t-s">&quot;kev&quot;</span>)) == case.expected_kev:
+                passed += <span class="t-n">1</span>
+
+        <span class="t-k">if</span> out.get(<span class="t-s">&quot;action_required&quot;</span>) <span class="t-k">is</span> <span class="t-k">not</span> <span class="t-k">None</span>:
+            checks += <span class="t-n">1</span>
+            <span class="t-k">if</span> bool(out.get(<span class="t-s">&quot;action_required&quot;</span>)) == case.action_required:
+                passed += <span class="t-n">1</span>
+
+    score = (passed / checks) <span class="t-k">if</span> checks <span class="t-k">else</span> <span class="t-n">0.0</span>
+    <span class="t-k">return</span> MetricResult(
+        name=<span class="t-s">&quot;deterministic_quality&quot;</span>,
+        metric_type=<span class="t-s">&quot;deterministic&quot;</span>,
+        score=round(score, <span class="t-n">4</span>),
+        passed=score &gt;= <span class="t-n">0.8</span>,
+        detail=<span class="t-s">f&quot;{passed}/{checks} checks passed&quot;</span>,
+    )</code></pre></div>
+<h3 id="the-judge-and-its-rubric">The judge and its rubric</h3>
+<p>For qualities that code cannot check, such as "is this recommendation actionable?", a model acts as judge. It is given the rubric in <code>data/eval/rubric.md</code>, which defines the scale:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>- 0: Unsafe or irrelevant recommendation.
+- 1: Mentions the issue but no actionable remediation.
+...
+- 5: Excellent recommendation: precise, prioritized, and operationally realistic.</code></pre></div>
+<p>Written anchors matter. Without them the judge's 3 and your 3 may not mean the same thing. The judge model defaults to the same model as the agent, and <code>OPENAI_JUDGE_MODEL</code> lets you pick another.</p>
+<aside class="callout warning"><strong>Warning</strong><p>A judge is a model, so it can be wrong, biased or inconsistent, and a model grading its own family's output tends to be generous. Treat the judge score as a signal to spot-check, not as ground truth. Also note that if the judge call raises an error, the code <strong>silently falls back</strong> to a crude keyword-based heuristic (<code>_heuristic_judge_score</code>). The score still appears, so check the logs if a run looks suspiciously smooth.</p></aside>
+<h3 id="what-the-other-two-metrics-really-measure">What the other two metrics really measure</h3>
+<ul><li><strong>Adversarial</strong> runs R1's scanner over <code>data/poisoned_cves.json</code>. It tests the <em>scanner</em>, not the agent you are evaluating, so it scores the same for every target.</li><li><strong>Faithfulness</strong> only applies to <code>l4</code>. For every other target it returns 1.0 with the detail "not applicable for non-tool targets".</li></ul>
+<p>So for L1 to L3, two of the four metrics give fixed scores. That lifts every overall number and makes real changes look smaller. When you read an overall score, look at the individual metrics too.</p>
+<h2 id="the-regression-gate">The regression gate</h2>
+<p>Here is the function that ties it together:</p>
+<div class="code"><div class="code-cap">reliability/r2_evaluation.py · evaluate</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> evaluate(
+    target: str,
+    dataset_path: str = DEFAULT_DATASET,
+    rubric_path: str = DEFAULT_RUBRIC,
+    baseline_path: str = DEFAULT_BASELINE,
+    regression_threshold: float = <span class="t-n">0.05</span>,
+    target_fn: Callable[[str], Any] | Callable[[str], Awaitable[Any]] | <span class="t-k">None</span> = <span class="t-k">None</span>,
+    judge_fn: Callable[[EvalCase, dict[str, Any], str], Awaitable[float]] | <span class="t-k">None</span> = <span class="t-k">None</span>,
+    update_baseline: bool = <span class="t-k">False</span>,
+) -&gt; Scorecard:
+    _reset_usage()
+
+    cases = load_eval_cases(dataset_path)
+    rubric = _load_rubric(rubric_path)
+    resolved_target = target_fn <span class="t-k">or</span> _resolve_target(target)
+
+    outputs: list[dict[str, Any]] = []
+    raw_results: list[Any] = []
+    <span class="t-k">for</span> case <span class="t-k">in</span> cases:
+        raw = <span class="t-k">await</span> _invoke_target(resolved_target, case.cve_id)
+        raw_results.append(raw)
+        outputs.append(_normalize_target_output(target, raw))
+
+    metrics = [
+        _deterministic_score(cases, outputs),
+        <span class="t-k">await</span> _judge_metric(cases, outputs, rubric, judge_fn=judge_fn),
+        _adversarial_metric(),
+        _faithfulness_metric(target, raw_results),
+    ]
+
+    overall_score = round(sum(m.score <span class="t-k">for</span> m <span class="t-k">in</span> metrics) / len(metrics), <span class="t-n">4</span>)
+    baseline = _load_baseline(baseline_path, target)
+    regression = <span class="t-k">None</span> <span class="t-k">if</span> baseline <span class="t-k">is</span> <span class="t-k">None</span> <span class="t-k">else</span> round(overall_score - baseline, <span class="t-n">4</span>)
+
+    scorecard = Scorecard(
+        target=target,
+        n_cases=len(cases),
+        metrics=metrics,
+        overall_score=overall_score,
+        estimated_cost_usd=get_usage().get(<span class="t-s">&quot;estimated_cost_usd&quot;</span>, <span class="t-n">0.0</span>),
+        regression_vs_baseline=regression,
+        regression_threshold=regression_threshold,
+        passed_regression=(regression <span class="t-k">is</span> <span class="t-k">None</span>) <span class="t-k">or</span> (regression &gt;= -regression_threshold),
+        rubric_version=Path(rubric_path).name,
+    )
+
+    <span class="t-k">if</span> update_baseline:
+        _write_baseline(baseline_path, target, scorecard)
+
+    <span class="t-k">return</span> scorecard</code></pre></div>
+<p>After the metrics are averaged, <code>overall_score</code> is compared with the saved baseline for that target in <code>data/eval/baseline.json</code>:</p>
+<ul><li><code>regression_vs_baseline</code> = overall score minus baseline score.</li><li><code>passed_regression</code> is true when there is no baseline, or when the drop is no larger than <code>regression_threshold</code> (default <code>0.05</code>).</li></ul>
+<p>Pass <code>--update-baseline</code> to save the current result as the new baseline. Only do this after a human has agreed the new score is acceptable, or you will bake in a regression.</p>
+<aside class="callout note"><strong>Note</strong><p>The baseline file in the repository currently holds placeholder entries for <code>l2</code> and <code>l3</code> (each <code>overall_score</code> 0.75, three cases, empty metric lists, cost 0.0). Run <code>--update-baseline</code> against your own model before relying on them.</p></aside>
+<h2 id="see-it-work-offline">See it work, offline</h2>
+<p>You can run the real harness with stand-in functions for the agent and the judge, so nothing calls a model. Here a "good" and a "poor" stub agent are scored against the real golden set (judge scores fixed at 4 and 1):</p>
+<div class='table'><table><thead><tr><th>Metric</th><th>Good stub</th><th>Poor stub</th></tr></thead><tbody><tr><td>deterministic_quality</td><td>0.889 (8/9 checks)</td><td>0.111 (1/9 checks)</td></tr><tr><td>llm_judge_quality</td><td>0.8</td><td>0.2</td></tr><tr><td>adversarial_injection_resistance</td><td>1.0 (3/3 flagged)</td><td>1.0 (3/3 flagged)</td></tr><tr><td>faithfulness_grounding</td><td>1.0 (not applicable)</td><td>1.0 (not applicable)</td></tr><tr><td><strong>Overall</strong></td><td><strong>0.922</strong></td><td><strong>0.578</strong></td></tr><tr><td>Regression vs good baseline</td><td>n/a</td><td>-0.344, gate FAIL</td></tr></tbody></table></div>
+<p>The good stub lost one deterministic check because it called <code>CVE-2023-44487</code> "Critical", outside the expected <code>High</code> or <code>Medium</code> band. The numbers come from stub agents written for illustration, not from a real model, so they show how the harness reacts, not how good any model is.</p>
+<p>The same idea in code, trimmed from the test suite (<code>tests/test_evaluation.py</code>):</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>scorecard = <span class="t-k">await</span> r2.evaluate(
+    target=<span class="t-s">&quot;l2&quot;</span>,
+    dataset_path=dataset,
+    rubric_path=rubric,
+    baseline_path=baseline,
+    target_fn=stub_target,   <span class="t-c"># any function: cve_id -&gt; output dict</span>
+    judge_fn=stub_judge,     <span class="t-c"># any async function: returns a 0-5 score</span>
+)</code></pre></div>
+<p>Running it against a real level needs an API key:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m reliability.r2_evaluation --target l2
+python -m reliability.r2_evaluation --target l2 --update-baseline</code></pre></div>
+<p>The targets are <code>l1</code>, <code>l2</code>, <code>l3</code> and <code>l4</code>.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Copy <code>data/eval/golden_set.json</code>, add two cases of your own with a band you believe in, and point <code>--dataset</code> at it. 2) In a scratch script, write a <code>stub_target</code> that always answers "Low" and confirm the gate fails against a baseline you set. 3) Change a threshold in <code>_deterministic_score</code> from <code>0.8</code> and see which stub passes.</p></aside>
+<p>Run the tests with <code>python -m pytest tests/test_evaluation.py -q</code>.</p>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Too few cases.</strong> A handful of examples cannot represent real traffic.</li><li><strong>Grading with only one metric.</strong> Each metric has blind spots. The four were chosen to cover each other.</li><li><strong>Trusting a judge blindly.</strong> Spot-check its scores against your own reading.</li><li><strong>Updating the baseline to make a failure go away.</strong> That hides the regression instead of fixing it.</li><li><strong>Testing on the same cases you tuned on.</strong> Once you tune the prompt to a case, it no longer measures anything about new inputs.</li><li><strong>Evaluating once.</strong> The value is in running it every time something changes.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does the golden set use a severity band instead of one expected value?</summary><p>Reasonable analysts disagree between neighbouring severities. A band accepts any reasonable answer and still fails clearly wrong ones.</p></details>
+<details><summary>Why can an LLM judge not be the only metric?</summary><p>It is a model and can be wrong or inconsistent, and the code even falls back to a keyword heuristic if the call fails. Deterministic checks, which plain code can verify, anchor the score.</p></details>
+<details><summary>A prompt change drops the overall score from 0.80 to 0.77. Does the gate fail?</summary><p>No. The drop is 0.03 and the default allowed drop is 0.05. A drop to 0.74 would fail.</p></details>
+<p>Next: <a href="r3.html">R3: Observability</a> shows you what the agent actually did on a given run.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r1.html"><small>Previous</small>R1: Guardrails</a><a class="next" href="r3.html"><small>Next</small>R3: Observability</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#the-exam-the-golden-set">The exam: the golden set</a><a class="l2" href="#four-ways-to-grade">Four ways to grade</a><a class="l3" href="#the-judge-and-its-rubric">The judge and its rubric</a><a class="l3" href="#what-the-other-two-metrics-really-measure">What the other two metrics really measure</a><a class="l2" href="#the-regression-gate">The regression gate</a><a class="l2" href="#see-it-work-offline">See it work, offline</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

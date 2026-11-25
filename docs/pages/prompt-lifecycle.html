@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt lifecycle · Vigil Guide</title>
+<meta name="description" content="Version prompts, replay them on fixed examples, and compare versions before you ship a change.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html" aria-current=page>Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Foundations</p>
+      <h1 id="prompt-lifecycle-and-experiments">Prompt lifecycle and experiments</h1>
+<p><strong>The question this topic answers:</strong> when I change a prompt, how do I know the new one is better, and how do I get back if it is not?</p>
+<p>On <a href="prompting.html">the previous page</a> a prompt was a piece of craft. In a real product a prompt is <strong>code</strong>: it changes over time, other people depend on it, and a bad edit can quietly make things worse. This topic treats prompts the way you treat software: give each one a version, test it on the same inputs, compare, then ship or roll back.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>Keep a numbered list of prompt versions. When you want to change one, run <strong>both</strong> the old and the new version over the same fixed examples, score each answer, and compare. You ship the new one only if the numbers say it is better.</p>
+<div class="flow" role="img"><div class="node"><b>Prompt versions</b><small>v1, v2</small></div><span class="arr">→</span><div class="node"><b>Replay</b><small>same fixed examples</small></div><span class="arr">→</span><div class="node"><b>Score</b><small>per item</small></div><span class="arr">→</span><div class="node"><b>Compare</b><small>ship or roll back</small></div></div>
+<h2 id="versions-live-in-data-not-in-code">Versions live in data, not in code</h2>
+<p>Versions are stored as records in <code>data/prompts/f14_prompt_versions.json</code>. Each has an id, a name, a template with a <code>{item}</code> placeholder, and notes:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>{
+  &quot;id&quot;: &quot;v1&quot;,
+  &quot;name&quot;: &quot;baseline-concise&quot;,
+  &quot;template&quot;: &quot;Classify severity for {item}. Keep answer concise.&quot;,
+  &quot;notes&quot;: &quot;Low-token baseline&quot;
+}</code></pre></div>
+<p>The second record, <code>v2</code> (<code>structured-risk-first</code>), asks for the severity first, then two risks, then two actions. If the file is missing, the module falls back to the same two versions built into the code.</p>
+<h2 id="replaying-a-version">Replaying a version</h2>
+<p>Replay fills the template with each example and scores the result:</p>
+<div class="code"><div class="code-cap">levels/foundations/prompt_lifecycle.py · replay_version</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> replay_version(version: dict[str, str], items: list[str]) -&gt; dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    total = <span class="t-n">0.0</span>
+    <span class="t-k">for</span> item <span class="t-k">in</span> items:
+        rendered = version[<span class="t-s">&quot;template&quot;</span>].format(item=item)
+        quality = _simulate_quality(rendered, item)
+        rows.append(
+            {
+                <span class="t-s">&quot;item&quot;</span>: item,
+                <span class="t-s">&quot;rendered_prompt&quot;</span>: rendered,
+                <span class="t-s">&quot;quality_score&quot;</span>: quality,
+                <span class="t-s">&quot;token_proxy&quot;</span>: len(rendered.split()),
+            }
+        )
+        total += quality
+
+    avg = round(total / max(<span class="t-n">1</span>, len(items)), <span class="t-n">4</span>)
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;version_id&quot;</span>: version[<span class="t-s">&quot;id&quot;</span>],
+        <span class="t-s">&quot;version_name&quot;</span>: version.get(<span class="t-s">&quot;name&quot;</span>, version[<span class="t-s">&quot;id&quot;</span>]),
+        <span class="t-s">&quot;avg_quality&quot;</span>: avg,
+        <span class="t-s">&quot;rows&quot;</span>: rows,
+    }</code></pre></div>
+<h2 id="an-important-honesty-note-about-the-scorer">An important honesty note about the scorer</h2>
+<p>Look at the function that produces <code>quality_score</code>:</p>
+<div class="code"><div class="code-cap">levels/foundations/prompt_lifecycle.py · _simulate_quality</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> _simulate_quality(prompt: str, item: str) -&gt; float:
+    <span class="t-s">&quot;&quot;&quot;Deterministic educational scorer used for offline experiment replay.&quot;&quot;&quot;</span>
+    text = <span class="t-s">f&quot;{prompt} {item}&quot;</span>.lower()
+    score = <span class="t-n">0.45</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;severity&quot;</span> <span class="t-k">in</span> text:
+        score += <span class="t-n">0.10</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;risk&quot;</span> <span class="t-k">in</span> text:
+        score += <span class="t-n">0.12</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;action&quot;</span> <span class="t-k">in</span> text:
+        score += <span class="t-n">0.12</span>
+    <span class="t-k">if</span> <span class="t-s">&quot;structured&quot;</span> <span class="t-k">in</span> text <span class="t-k">or</span> <span class="t-s">&quot;clear&quot;</span> <span class="t-k">in</span> text:
+        score += <span class="t-n">0.08</span>
+    <span class="t-k">if</span> len(prompt) &lt; <span class="t-n">70</span>:
+        score -= <span class="t-n">0.04</span>
+    <span class="t-k">return</span> max(<span class="t-n">0.0</span>, min(<span class="t-n">1.0</span>, round(score, <span class="t-n">4</span>)))</code></pre></div>
+<p>This is <strong>not</strong> a real quality judge. It is a deterministic, hand-written stand-in that rewards prompts for containing words like "risk", "action" and "structured". It exists so the <em>workflow</em> runs offline, with no model and no cost, and gives the same result every time.</p>
+<aside class="callout warning"><strong>Warning</strong><p>Because the scorer only reads the prompt text, <code>v2</code> "wins" mostly because it contains more of those words. Do not read that as evidence that structured prompts are better. In real work you would replace this function with scoring of the model's actual outputs, for example with the evaluation approach in <a href="r2.html">R2</a>.</p></aside>
+<h2 id="comparing-two-versions">Comparing two versions</h2>
+<div class="code"><div class="code-cap">levels/foundations/prompt_lifecycle.py · compare_versions</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> compare_versions(
+    *,
+    version_a: str,
+    version_b: str,
+    items: list[str],
+    path: str = <span class="t-s">&quot;data/prompts/f14_prompt_versions.json&quot;</span>,
+) -&gt; dict[str, Any]:
+    versions = {v[<span class="t-s">&quot;id&quot;</span>]: v <span class="t-k">for</span> v <span class="t-k">in</span> load_prompt_versions(path)}
+    <span class="t-k">if</span> version_a <span class="t-k">not</span> <span class="t-k">in</span> versions <span class="t-k">or</span> version_b <span class="t-k">not</span> <span class="t-k">in</span> versions:
+        <span class="t-k">raise</span> ValueError(<span class="t-s">&quot;Unknown version id&quot;</span>)
+
+    rep_a = replay_version(versions[version_a], items)
+    rep_b = replay_version(versions[version_b], items)
+
+    wins_a = <span class="t-n">0</span>
+    wins_b = <span class="t-n">0</span>
+    ties = <span class="t-n">0</span>
+    per_item: list[dict[str, Any]] = []
+
+    rows_a = {r[<span class="t-s">&quot;item&quot;</span>]: r <span class="t-k">for</span> r <span class="t-k">in</span> rep_a[<span class="t-s">&quot;rows&quot;</span>]}
+    rows_b = {r[<span class="t-s">&quot;item&quot;</span>]: r <span class="t-k">for</span> r <span class="t-k">in</span> rep_b[<span class="t-s">&quot;rows&quot;</span>]}
+
+    <span class="t-k">for</span> item <span class="t-k">in</span> items:
+        qa = rows_a[item][<span class="t-s">&quot;quality_score&quot;</span>]
+        qb = rows_b[item][<span class="t-s">&quot;quality_score&quot;</span>]
+        <span class="t-k">if</span> qa &gt; qb:
+            winner = <span class="t-s">&quot;a&quot;</span>
+            wins_a += <span class="t-n">1</span>
+        <span class="t-k">elif</span> qb &gt; qa:
+            winner = <span class="t-s">&quot;b&quot;</span>
+            wins_b += <span class="t-n">1</span>
+        <span class="t-k">else</span>:
+            winner = <span class="t-s">&quot;tie&quot;</span>
+            ties += <span class="t-n">1</span>
+        per_item.append({<span class="t-s">&quot;item&quot;</span>: item, <span class="t-s">&quot;a_quality&quot;</span>: qa, <span class="t-s">&quot;b_quality&quot;</span>: qb, <span class="t-s">&quot;winner&quot;</span>: winner})
+
+    <span class="t-k">if</span> rep_a[<span class="t-s">&quot;avg_quality&quot;</span>] &gt; rep_b[<span class="t-s">&quot;avg_quality&quot;</span>]:
+        overall = <span class="t-s">&quot;a&quot;</span>
+    <span class="t-k">elif</span> rep_b[<span class="t-s">&quot;avg_quality&quot;</span>] &gt; rep_a[<span class="t-s">&quot;avg_quality&quot;</span>]:
+        overall = <span class="t-s">&quot;b&quot;</span>
+    <span class="t-k">else</span>:
+        overall = <span class="t-s">&quot;tie&quot;</span>
+
+    <span class="t-k">return</span> {
+        <span class="t-s">&quot;version_a&quot;</span>: version_a,
+        <span class="t-s">&quot;version_b&quot;</span>: version_b,
+        <span class="t-s">&quot;overall_winner&quot;</span>: overall,
+        <span class="t-s">&quot;summary&quot;</span>: {
+            <span class="t-s">&quot;a_avg_quality&quot;</span>: rep_a[<span class="t-s">&quot;avg_quality&quot;</span>],
+            <span class="t-s">&quot;b_avg_quality&quot;</span>: rep_b[<span class="t-s">&quot;avg_quality&quot;</span>],
+            <span class="t-s">&quot;a_wins&quot;</span>: wins_a,
+            <span class="t-s">&quot;b_wins&quot;</span>: wins_b,
+            <span class="t-s">&quot;ties&quot;</span>: ties,
+        },
+        <span class="t-s">&quot;per_item&quot;</span>: per_item,
+    }</code></pre></div>
+<p>It replays both versions over your items and reports, per item, which one won, then an overall winner by average quality. Version ids that do not exist raise an error.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/prompt_lifecycle.py --a v1 --b v2</code></pre></div>
+<p>You should see a table with one row per item (three CVE ids by default), the quality score for each version, and a winner column, followed by the same data as JSON. Add your own with <code>--item</code>. The same comparison is available at <code>GET /foundations/prompt-versions</code> and <code>POST /foundations/prompt-versions/compare</code>.</p>
+<aside class="callout note"><strong>Note</strong><p><code>--item</code> adds to the default list rather than replacing it, so your items run alongside the three defaults.</p></aside>
+<h2 id="the-part-the-code-leaves-to-you-the-decision-rule">The part the code leaves to you: the decision rule</h2>
+<p>The module gives you the comparison, not the ship decision. Before you compare, decide your rule, for example: "ship only if the new version wins on at least two thirds of items and costs no more than 20% more tokens." Fixing the rule first stops you from picking whichever numbers look good afterwards. The <code>token_proxy</code> field (a word count) is there so you can weigh cost alongside quality.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Add a <code>v3</code> to <code>data/prompts/f14_prompt_versions.json</code> and compare it with <code>v2</code>. 2) Write a deliberately bad prompt that avoids the scorer's keywords and see how it ranks, then ask whether that ranking is fair. 3) Replace <code>_simulate_quality</code> with a function that scores something you can measure, such as length, and re-run. 4) Break the JSON file on purpose and note the error.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Editing a prompt in place with no version.</strong> You cannot compare or roll back.</li><li><strong>Testing on one example.</strong> Use a fixed set that covers easy and hard cases.</li><li><strong>Changing the examples between runs.</strong> Then the comparison is meaningless.</li><li><strong>Trusting a stand-in scorer.</strong> Know what the score actually measures.</li><li><strong>Deciding the rule after seeing the results.</strong></li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why replay on the same fixed examples?</summary><p>So any difference in score comes from the prompt change, not from different inputs.</p></details>
+<details><summary>Why does <code>v2</code> score higher in the demo, and should you trust that?</summary><p>The simulated scorer rewards certain words that <code>v2</code> contains. It shows the workflow, not real quality, so no.</p></details>
+<details><summary>What should you decide before you run a comparison?</summary><p>The ship-or-rollback rule: the thresholds for quality and cost that a new version must meet.</p></details>
+<p>Next: <a href="model-selection.html">Model selection</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="prompting.html"><small>Previous</small>Prompting techniques</a><a class="next" href="model-selection.html"><small>Next</small>Model selection</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#versions-live-in-data-not-in-code">Versions live in data, not in code</a><a class="l2" href="#replaying-a-version">Replaying a version</a><a class="l2" href="#an-important-honesty-note-about-the-scorer">An important honesty note about the scorer</a><a class="l2" href="#comparing-two-versions">Comparing two versions</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#the-part-the-code-leaves-to-you-the-decision-rule">The part the code leaves to you: the decision rule</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
