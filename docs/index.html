@@ -1,350 +1,52 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vigil — GenAI Learning Lab Documentation</title>
-<style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-         line-height:1.6; color:#0f172a; background:#f8fafc; }
-  header { background:linear-gradient(135deg,#1e1b4b,#4c1d95); color:#fff; padding:48px 24px; }
-  header h1 { margin:0 0 8px; font-size:2rem; }
-  header p { margin:0; opacity:.9; }
-  nav { position:sticky; top:0; background:#111827; padding:10px 24px; display:flex; gap:18px; flex-wrap:wrap; z-index:5; }
-  nav a { color:#c7d2fe; text-decoration:none; font-size:.9rem; font-weight:600; }
-  nav a:hover { color:#fff; }
-  main { max-width:1040px; margin:0 auto; padding:24px; }
-  section { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px 24px; margin:18px 0; }
-  h2 { margin-top:0; color:#4c1d95; font-size:1.25rem; }
-  table { width:100%; border-collapse:collapse; font-size:.92rem; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #eef2f7; vertical-align:top; }
-  th { color:#64748b; font-weight:600; }
-  .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.85rem; color:#334155; }
-  .small { font-size:.78rem; }
-  .badge { color:#fff; padding:2px 8px; border-radius:999px; font-size:.72rem; font-weight:700; }
-  .stats { display:flex; gap:16px; flex-wrap:wrap; }
-  .stat { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 20px; flex:1; min-width:150px; }
-  .stat .n { font-size:1.5rem; font-weight:800; color:#4c1d95; }
-  .muted { color:#64748b; font-size:.88rem; }
-  pre.tree { background:#0f172a; color:#e2e8f0; padding:16px 18px; border-radius:10px; overflow:auto;
-             font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.82rem; line-height:1.5; }
-  footer { text-align:center; color:#94a3b8; padding:24px; font-size:.85rem; }
-</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome · Vigil Guide</title>
+<meta name="description" content="What Vigil is, who this guide is for, and how to use it.">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
-<body>
-<header>
-  <h1>🛡️ Vigil — GenAI Learning Lab</h1>
-  <p>From a single LLM call to autonomous agents — with reliability, governance, and Claude-architect foundations.</p>
+<body data-base="">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
 </header>
-
-    <nav>
-      <a href="#structure">Structure</a>
-      <a href="#modules">Modules</a>
-      <a href="#api">API</a>
-      <a href="#run">Run</a>
-      <a href="#spec-reliability">Specs</a>
-      <a href="#cert">Cert</a>
-    </nav>
-    
-<main>
-  <div class="stats">
-    <div class="stat"><div class="n">35</div><div class="muted">documented specs</div></div>
-    <div class="stat"><div class="n">L0-L6</div><div class="muted">capability levels</div></div>
-    <div class="stat"><div class="n">A1-A4</div><div class="muted">architectures</div></div>
-    <div class="stat"><div class="n">69</div><div class="muted">API endpoints</div></div>
-    <div class="stat"><div class="n">173 passed, 7 skipped</div><div class="muted">test suite</div></div>
-  </div>
-  
-    <section id="structure">
-      <h2>Repository structure</h2>
-      <p class="muted">Auto-scanned Python modules by area (excludes caches and generated files).</p>
-      <pre class="tree">vigil/
-├── levels/
-│     l0_single_call.py
-│     l1_chain.py
-│     l2_parallel.py
-│     l3_routing.py
-│     l4_tool_use.py
-│     l4b_multimodal.py
-│     l5_memory.py
-│     l6_autonomous.py
-├── levels/foundations/
-│     factuality.py
-│     finetuning.py
-│     model_selection.py
-│     privacy.py
-│     prompt_lifecycle.py
-│     prompting.py
-│     responsible_ai.py
-│     retrieval_quality.py
-│     semantic_cache.py
-│     tokenization.py
-├── levels/themes/
-│     incident_ops.py
-├── architectures/
-│     a1_react.py
-│     a2_plan_execute.py
-│     a3_reflection.py
-│     a4_multi_agent.py
-├── architectures/frameworks/
-│     a1_react_langgraph.py
-├── reliability/
-│     r1_guardrails.py
-│     r2_evaluation.py
-│     r3_observability.py
-│     r4_resilience.py
-│     r5_cost_control.py
-│     r6_online_eval_drift.py
-│     r7_action_governance.py
-│     r8_supply_chain.py
-│     r9_release_safety.py
-├── vigil/
-│     api.py
-│     cache.py
-│     claude_provider.py
-│     inference.py
-│     models.py
-│     pricing.py
-├── vigil_mcp/
-│     vigil_client.py
-│     vigil_server.py
-├── ui/
-│     app.py
-├── tests/
-│     conftest.py
-│     test_action_governance.py
-│     test_agent_comms.py
-│     test_architectures.py
-│     test_claude_bridge.py
-│     test_context_window.py
-│     test_cost_control.py
-│     test_evaluation.py
-│     test_exercises.py
-│     test_factuality.py
-│     test_finetuning.py
-│     test_foundations_api.py
-│     test_frameworks.py
-│     test_guardrails.py
-│     test_hardening.py
-│     test_human_in_the_loop.py
-│     test_hybrid_retrieval.py
-│     test_inference_layer.py
-│     test_l6_scan.py
-│     test_mcp.py
-│     test_model_selection.py
-│     test_multimodal.py
-│     test_notebooks.py
-│     test_observability.py
-│     test_online_drift.py
-│     test_privacy.py
-│     test_prompt_lifecycle.py
-│     test_prompting.py
-│     test_providers.py
-│     test_release_safety.py
-│     test_resilience.py
-│     test_responsible_ai.py
-│     test_retrieval_eval.py
-│     test_retrieval_quality.py
-│     test_semantic_cache.py
-│     test_semantic_memory.py
-│     test_supply_chain.py
-│     test_theme_incident_ops.py
-│     test_tokenization.py</pre>
-    </section>
-    
-  
-    <section id="modules">
-      <h2>Key modules &amp; functions</h2>
-      <table>
-        <thead><tr><th>Module</th><th>Role</th><th>Public functions</th></tr></thead>
-        <tbody><tr><td class='code'>levels/l0_single_call.py</td><td>L0 — single LLM call</td><td class='code small'>get_usage(), explain_cve()</td></tr><tr><td class='code'>levels/l1_chain.py</td><td>L1 — prompt chain + structured output</td><td class='code small'>get_usage(), call_llm(), step1_summarise(), step2_assess_risk(), step3_remediation(), display_results()</td></tr><tr><td class='code'>levels/l4_tool_use.py</td><td>L4 — tool use / ReAct loop</td><td class='code small'>get_usage(), discover_tools(), tools_for_openai(), fetch_nvd_data(), fetch_epss_score(), run_tool_loop(), analyse_cve(), display_tool_log()</td></tr><tr><td class='code'>levels/l5_memory.py</td><td>L5 — memory &amp; feedback</td><td class='code small'>embedding_dims(), count_tokens(), get_usage(), init_db(), embed_text(), save_semantic_vector(), semantic_recall(), build_semantic_context()</td></tr><tr><td class='code'>levels/l6_autonomous.py</td><td>L6 — autonomous monitor</td><td class='code small'>init_db_l6(), add_to_watchlist(), remove_from_watchlist(), get_watchlist(), get_scan_state(), save_scan_state(), save_alert(), get_alerts()</td></tr><tr><td class='code'>levels/foundations/retrieval_quality.py</td><td>F11/F12/F16 — retrieval + metrics + hybrid</td><td class='code small'>chunk_text(), build_index(), retrieve(), retrieval_lab(), load_retrieval_golden(), recall_at_k(), reciprocal_rank(), ndcg_at_k()</td></tr><tr><td class='code'>levels/foundations/factuality.py</td><td>F13 — factuality / citations</td><td class='code small'>split_claims(), factuality_check(), render_factuality_table(), main()</td></tr><tr><td class='code'>levels/foundations/finetuning.py</td><td>F21 — build-vs-tune advisor</td><td class='code small'>recommend_approach(), validate_finetune_dataset(), main()</td></tr><tr><td class='code'>levels/foundations/model_selection.py</td><td>F22 — Claude model selection</td><td class='code small'>claude_tiers(), recommend_model(), main()</td></tr><tr><td class='code'>reliability/r1_guardrails.py</td><td>R1 — guardrails</td><td class='code small'>get_usage(), fetch_nvd_data(), fetch_epss_score(), check_cisa_kev(), scan_for_injection(), isolate_untrusted_data(), execute_tool(), parse_llm_guarded_verdict()</td></tr><tr><td class='code'>reliability/r6_online_eval_drift.py</td><td>F17 — online drift</td><td class='code small'>reset_window(), record_sample(), drift_report(), main()</td></tr><tr><td class='code'>reliability/r9_release_safety.py</td><td>F20 — release safety</td><td class='code small'>evaluate_release(), shadow_compare(), main()</td></tr><tr><td class='code'>vigil/inference.py</td><td>Inference seam (providers/routing/fallback)</td><td class='code small'>get_providers(), make_client(), get_policy(), get_all_policies(), acomplete(), acomplete_json(), compare_inference(), astream()</td></tr><tr><td class='code'>vigil/claude_provider.py</td><td>Claude Messages bridge</td><td class='code small'>map_messages_to_claude(), map_tools_to_claude(), anthropic_available(), acomplete_claude()</td></tr><tr><td class='code'>vigil_mcp/vigil_client.py</td><td>MCP client path</td><td class='code small'>discover(), invoke(), run_tool_loop()</td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="api">
-      <h2>API endpoints <span class="muted">(69)</span></h2>
-      <table>
-        <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
-        <tbody><tr><td class='code'>GET</td><td class='code'>/health</td><td>Liveness check — returns 200 if the service is up.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/</td><td>API info and available endpoints.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/admin/ratelimit</td><td>Inspect in-memory rate bucket state (local diagnostics).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/tokenize</td><td>F4: tokenize text, report token count vs context limit and projected cost.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/prompt-compare</td><td>F6: compare prompt techniques on the same CVE task.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/retrieval-lab</td><td>F11: tune chunking/indexing settings and inspect ranked retrieval hits.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/retrieval-eval</td><td>F12: evaluate retrieval quality using Recall@k, MRR, and nDCG.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/factuality-check</td><td>F13: verify answer claims against provided evidence snippets.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/foundations/prompt-versions</td><td>F14: list available prompt versions for replay/experimentation.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/prompt-versions/compare</td><td>F14: compare prompt versions on fixed items and return a winner.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/privacy/redact</td><td>F15: redact sensitive patterns and produce a safe log snapshot.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/hybrid-retrieval</td><td>F16: compare lexical, vector, and hybrid retrieval with optional reranking.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/drift/sample</td><td>F17: record one online-eval sample into the rolling window.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/drift/report</td><td>F17: compute drift signals and SLO breaches over the rolling window.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/action/check</td><td>F18: evaluate an agent action against least-privilege permission policy.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/reliability/supply-chain/verify</td><td>F19: verify AI artifact integrity against the tracked manifest.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/supply-chain/promote</td><td>F19: gate promotion on artifact integrity plus eval status.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/release/evaluate</td><td>F20: evaluate a staged rollout (canary) and decide promote/hold/rollback.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/adaptation/recommend</td><td>F21: recommend prompt/few-shot/RAG/fine-tune approach from task traits.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/finetune/validate</td><td>F21: validate a chat-style fine-tuning dataset for common quality issues.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/model-select</td><td>F22: recommend a Claude model tier (Haiku/Sonnet/Opus) from constraints.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/claude/map-messages</td><td>Claude bridge: map OpenAI-style messages to Claude Messages API shape.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/mcp/tool-loop</td><td>MCP client path: run a deterministic tool loop over the MCP server tools.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/responsible-ai</td><td>F23: content moderation + fairness (demographic parity) evaluation.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/foundations/semantic-cache</td><td>F24: replay queries through a similarity-based semantic cache.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/themes/incident/analyse</td><td>T1: domain transfer demo from CVE workflows to incident-response operations.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/inference/policy</td><td>Return configured inference routing/fallback policies.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/inference/providers</td><td>List configured inference providers and their capability flags (F3).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/inference/compare</td><td>Run the same prompt across providers and compare latency/cost/output (F3).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/frameworks/a1</td><td>F7: run the A1-style LangGraph port (or fallback when deps are absent).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l0/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l1/analyse</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l1/stream</td><td>E4 demo endpoint: stream a concise CVE summary token-by-token.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l2/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l3/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l4/analyse</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l4/tools</td><td>F8: discover available L4 tools from inline definitions or MCP.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l4b/image</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l4b/pdf</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r1/scan</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r1/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r2/evaluate</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r3/trace/run</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r3/trace/{trace_id}</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r4/health</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r4/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r5/budget</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r5/report</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l5/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l5/feedback</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l5/history/{cve_id}</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l5/similar/{cve_id}</td><td>E1 extension: semantic recall over prior analyses for related incidents.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l6/watchlist</td><td>Add a CVE to the autonomous monitoring watchlist.</td></tr>
-<tr><td class='code'>DELETE</td><td class='code'>/l6/watchlist/{cve_id}</td><td>Remove a CVE from the watchlist (soft delete — history is preserved).</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l6/watchlist</td><td>List all CVEs currently being autonomously monitored.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l6/scan</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l6/alerts</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l6/alerts/{alert_id}/acknowledge</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l6/monitor/start</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/l6/monitor/stop</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/l6/monitor/status</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a1/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/start</td><td>E2 extension: create a paused Plan-and-Execute run awaiting human approval.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/a2/runs/{run_id}</td><td>Return current HITL run state and any completed artifacts.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/runs/{run_id}/decision</td><td>Submit approve/reject/edit/request_changes for the current open gate.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a3/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a4/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a4/collaborate</td><td>E3 extension: run A4 with explicit inter-agent communication mode.</td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="run">
-      <h2>How to run</h2>
-      <pre class="tree"># Install (choose extras as needed)
-pip install -e .              # L0-L4 core
-pip install -e ".[full]"      # API + UI
-pip install -e ".[claude]"    # optional Anthropic bridge
-
-# API server
-uvicorn vigil.api:app --reload
-
-# Learning UI
-streamlit run ui/app.py
-
-# Tests
-python -m pytest -q
-
-# Regenerate this documentation
-python docs/build_docs.py</pre>
-    </section>
-    
-  
-    <section id="spec-reliability">
-      <h2>Reliability &amp; Safety (R)</h2>
-      <table>
-        <thead><tr><th>Spec</th><th>Title</th><th>Status</th><th>Teaching goal</th></tr></thead>
-        <tbody><tr><td class='code'>R1-guardrails.md</td><td>R1 — Guardrails &amp; Prompt-Injection Defense</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner sees a live prompt-injection attack succeed against the naive agent, then sees layered guardrails neutralize it.</td></tr>
-<tr><td class='code'>R2-evaluation.md</td><td>R2 — Agent Evaluation &amp; Regression Testing</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner builds a golden dataset and an LLM-as-judge, then watches a deliberately worsened prompt get caught by a regression score.</td></tr>
-<tr><td class='code'>R3-observability.md</td><td>R3 — Observability &amp; Tracing</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner instruments an agent run and views a tree of nested spans</td></tr>
-<tr><td class='code'>R4-resilience.md</td><td>R4 — Resilience in the Agent Loop</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner injects flaky/slow/failing tools and watches the agent recover</td></tr>
-<tr><td class='code'>R5-cost-control.md</td><td>R5 — Cost Control &amp; Token Economics</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner sets a budget, enables caching, and watches repeated/over-budget runs be short-circuited</td></tr>
-<tr><td class='code'>README.md</td><td>Vigil Specs — Spec-Driven Development</td><td><span class="badge" style="background:#6b7280">Unknown</span></td><td></td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="spec-axis">
-      <h2>Axis Extensions (E)</h2>
-      <table>
-        <thead><tr><th>Spec</th><th>Title</th><th>Status</th><th>Teaching goal</th></tr></thead>
-        <tbody><tr><td class='code'>E1-semantic-memory.md</td><td>E1 — Semantic Memory / RAG (extends L5)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner adds vector retrieval over past CVE analyses and watches the agent recall a semantically similar prior incident</td></tr>
-<tr><td class='code'>E2-human-in-the-loop.md</td><td>E2 — Human-in-the-Loop Approval Gates (extends A2)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner runs an agent that halts at a checkpoint, surfaces its proposed plan/ action, and waits for a human to approve, edit, or reject</td></tr>
-<tr><td class='code'>E3-agent-communication.md</td><td>E3 — Agent-to-Agent Communication (extends A4)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner sees three collaboration topologies beyond fan-out</td></tr>
-<tr><td class='code'>E4-model-inference-layer.md</td><td>E4 — Model / Inference Layer (shared)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner introduces a thin inference layer that picks a model per task, falls back on failure, and streams tokens</td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="spec-foundations">
-      <h2>Foundations &amp; Frontier (F)</h2>
-      <table>
-        <thead><tr><th>Spec</th><th>Title</th><th>Status</th><th>Teaching goal</th></tr></thead>
-        <tbody><tr><td class='code'>F1-real-embeddings-rag.md</td><td>F1 — Real Embeddings &amp; Vector RAG (upgrades E1 / L5)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner replaces a fake embedding with a real embedding model (`text-embedding-3-small`), stores vectors in a vector store, and watches the agent recall a _semantically_ similar prior incident</td></tr>
-<tr><td class='code'>F2-multimodal.md</td><td>F2 — Multimodal Inputs: Vision &amp; Document Parsing</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner sends an image (advisory screenshot) and a PDF (patch bulletin) to a vision-capable model and extracts structured CVE data from them</td></tr>
-<tr><td class='code'>F3-multi-provider-local-models.md</td><td>F3 — Multi-Provider &amp; Local Models (extends E4)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner runs the same level against OpenAI and a local model (Ollama) by changing a policy, and compares cost, latency, and quality.</td></tr>
-<tr><td class='code'>F4-tokenization.md</td><td>F4 — Tokenization &amp; Context Economics</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner tokenizes real strings with `tiktoken`, counts tokens for a full prompt, and sees the live cost/length trade-off.</td></tr>
-<tr><td class='code'>F5-context-window-management.md</td><td>F5 — Context-Window Management (extends L5)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner caps the memory context to a token budget and watches the agent summarize and prioritize older history instead of failing.</td></tr>
-<tr><td class='code'>F6-prompt-engineering.md</td><td>F6 — Prompt Engineering Techniques</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner runs the same CVE task with zero-shot, few-shot, and chain-of-thought prompts and compares the outputs and token cost.</td></tr>
-<tr><td class='code'>F7-framework-bridge.md</td><td>F7 — Framework Bridge: LangGraph / LlamaIndex / CrewAI</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner re-implements an existing Vigil architecture (e.g. A1 ReAct or A4 multi-agent) in LangGraph and sees the 1:1 mapping</td></tr>
-<tr><td class='code'>F8-mcp-tool-servers.md</td><td>F8 — Model Context Protocol (MCP) Tool Servers</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner exposes Vigil&#x27;s NVD/EPSS tools as an MCP server, then has the agent discover and call them over MCP instead of inline definitions.</td></tr>
-<tr><td class='code'>F9-learning-scaffolding.md</td><td>F9 — Learning Scaffolding: Notebooks &amp; Exercises</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner opens a notebook, changes one parameter, and immediately sees the effect</td></tr>
-<tr><td class='code'>F10-production-hardening.md</td><td>F10 — Production Hardening: Auth, Rate Limiting, Caching, Faithfulness Eval</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner adds API-key auth + rate limiting, a real response/tool cache, and a faithfulness metric, then sees abuse blocked, repeat calls served from cache, and ungrounded outputs flagged.</td></tr>
-<tr><td class='code'>F11-retrieval-data-prep.md</td><td>F11 — Retrieval Data Preparation and Index Quality</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner changes chunk size/overlap and sees retrieval hit quality shift in real time.</td></tr>
-<tr><td class='code'>F12-retrieval-evaluation.md</td><td>F12 — Retrieval Evaluation and Search Metrics</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner computes Recall@k and MRR on a tiny labeled retrieval set and can explain which retrieval configuration is objectively better.</td></tr>
-<tr><td class='code'>F13-factuality-citations.md</td><td>F13 — Factuality, Hallucination, and Citation Verification</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can identify unsupported statements and compute a simple faithfulness score from citation coverage.</td></tr>
-<tr><td class='code'>F14-prompt-lifecycle-experiments.md</td><td>F14 — Prompt Lifecycle, Versioning, and Experiments</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can version prompts, run side-by-side experiments, and decide ship/rollback using objective thresholds.</td></tr>
-<tr><td class='code'>F15-privacy-governance.md</td><td>F15 — Privacy, Data Governance, and Safe Logging</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can classify sensitive fields, redact them before model calls, and verify that logs and traces remain useful without leaking secrets.</td></tr>
-<tr><td class='code'>F16-hybrid-rag-reranking.md</td><td>F16 — Hybrid Retrieval and Reranking</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can compare lexical-only, vector-only, and hybrid retrieval with and without reranking, then justify the best configuration from metrics.</td></tr>
-<tr><td class='code'>F17-online-evaluation-and-drift.md</td><td>F17 — Online Evaluation and Drift Monitoring</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can set online quality SLOs, detect drift, and trigger rollback or human review gates when thresholds are crossed.</td></tr>
-<tr><td class='code'>F18-agent-permissions-sandboxing.md</td><td>F18 — Agent Permissions, Sandboxing, and Action Governance</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can design and enforce action permission policies that prevent unsafe agent behavior while preserving task completion.</td></tr>
-<tr><td class='code'>F19-ai-supply-chain-security.md</td><td>F19 — AI Supply Chain and Dependency Security</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can track and verify critical AI artifacts with provenance metadata, integrity checks, and controlled promotion workflows.</td></tr>
-<tr><td class='code'>F20-release-safety-shadow-canary.md</td><td>F20 — Release Safety: Shadow, Canary, and Rollback</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can run a staged rollout, compare treatment vs control, and trigger rollback from objective guardrails.</td></tr>
-<tr><td class='code'>F21-finetuning-adapters.md</td><td>F21 — Fine-tuning, Adapters, and Build-vs-Tune Decisions</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can choose an adaptation strategy from task characteristics and validate a fine-tuning dataset for readiness — without running real training.</td></tr>
-<tr><td class='code'>F22-claude-model-selection.md</td><td>F22 — Claude Model Selection &amp; Context Engineering</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can pick a Claude tier from constraints, see how OpenAI-style messages map to the Claude Messages API, and run an MCP client tool loop.</td></tr>
-<tr><td class='code'>F23-responsible-ai-eval.md</td><td>F23 — Responsible-AI Evaluation (Bias/Fairness + Moderation)</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can screen outputs for policy violations and check outcome parity across groups, then decide whether a batch is safe to ship.</td></tr>
-<tr><td class='code'>F24-semantic-caching.md</td><td>F24 — Semantic Caching</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can explain semantic vs exact-key caching and tune a similarity threshold to balance reuse against false hits.</td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="spec-theme">
-      <h2>Theme Tracks (T)</h2>
-      <table>
-        <thead><tr><th>Spec</th><th>Title</th><th>Status</th><th>Teaching goal</th></tr></thead>
-        <tbody><tr><td class='code'>T1-incident-response-ops.md</td><td>T1 — Incident Response Ops Theme</td><td><span class="badge" style="background:#16a34a">Done</span></td><td>A learner can classify a production incident from alert text and produce a first-hour response plan with explicit urgency and escalation targets.</td></tr></tbody>
-      </table>
-    </section>
-    
-  
-    <section id="cert">
-      <h2>Claude Certified Architect - Foundations mapping</h2>
-      <table>
-        <thead><tr><th>Domain</th><th>Weight</th><th>Coverage</th><th>Where</th></tr></thead>
-        <tbody><tr><td>Agentic Architecture &amp; Orchestration</td><td>27%</td><td>Strong</td><td>L0-L6, A1-A4</td></tr>
-<tr><td>Prompt Engineering &amp; Structured Output</td><td>20%</td><td>Strong</td><td>F6, L1 structured output</td></tr>
-<tr><td>Tool Design &amp; MCP Integration</td><td>18%</td><td>Strong</td><td>L4, F8, MCP client (F22)</td></tr>
-<tr><td>Context Management &amp; Reliability</td><td>15%</td><td>Strong</td><td>F5, R1-R5, F17</td></tr>
-<tr><td>Claude Code Configuration &amp; Workflows</td><td>20%</td><td>External</td><td>Anthropic Academy</td></tr></tbody>
-      </table>
-      <p class="muted">Claude-branded specifics (Claude Code, Messages API, model tiers,
-      Bedrock/Vertex) also need Anthropic Academy courses; this project covers the
-      transferable architecture, RAG, evaluation, and governance foundations.</p>
-    </section>
-    
-</main>
-<footer>Generated by docs/build_docs.py · Vigil GenAI Learning Project</footer>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="index.html" aria-current=page>Welcome</a><a href="pages/getting-started.html">Getting started</a><a href="pages/concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="pages/l0.html">L0: A single call</a><a href="pages/l1.html">L1: Chaining and structure</a><a href="pages/l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="pages/learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="pages/glossary.html">Glossary</a><a href="pages/reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Start here</p>
+      <h1 id="learn-genai-by-building-a-security-agent">Learn GenAI by building a security agent</h1>
+<p>Vigil is a small, real project that grows from <strong>one call to a language model</strong> into an <strong>autonomous agent</strong> that watches for security vulnerabilities (CVEs), decides which ones matter, and follows up on them.</p>
+<p>You do not need to know any AI to start. You do need to be comfortable reading basic Python.</p>
+<aside class="callout note"><strong>Note</strong><p>This guide is a work in progress. Levels L0 to L2 are fully written. L3 to L6 are still being turned into guide pages; until then, each level file in <code>levels/</code> has a long explanatory comment at the top, and the <a href="pages/learning-path.html">learning path</a> lists everything.</p></aside>
+<h2 id="the-idea-in-one-picture">The idea in one picture</h2>
+<p>Every level adds exactly one new idea on top of the one before it.</p>
+<div class="flow" role="img"><div class="node"><b>L0</b><small>one call</small></div><span class="arr">→</span><div class="node"><b>L1</b><small>a chain</small></div><span class="arr">→</span><div class="node"><b>L2</b><small>parallel agents</small></div><span class="arr">→</span><div class="node"><b>L3</b><small>routing</small></div><span class="arr">→</span><div class="node"><b>L4</b><small>tools</small></div><span class="arr">→</span><div class="node"><b>L5</b><small>memory</small></div><span class="arr">→</span><div class="node"><b>L6</b><small>autonomy</small></div></div>
+<p>By the end you will have seen, in running code, how an AI <em>system</em> turns into an AI <em>agent</em>.</p>
+<h2 id="why-a-security-problem">Why a security problem?</h2>
+<p>Organisations face thousands of new CVEs a year and cannot fix them all. The useful question is not "what is this CVE?" but "does it matter to <em>us</em>, and what do we do first?". That question needs facts, judgement, tools and follow-up, which is exactly what makes it a good way to learn agents.</p>
+<h2 id="how-to-use-this-guide">How to use this guide</h2>
+<ol><li>Read <a href="pages/getting-started.html">Getting started</a> and get the code running (15 minutes, no API key needed for the first part).</li><li>Read <a href="pages/concepts.html">How LLMs work</a>. It covers just enough theory to follow the code.</li><li>Work through the levels in order. Each page follows the same shape: the question, the idea in plain English, a diagram, the real code, a run, experiments, mistakes to avoid, and a short self-check.</li><li>Do the matching exercise after each level. Use the <a href="pages/glossary.html">glossary</a> whenever a word is new.</li></ol>
+<div class="cards">
+<a class="card" href="pages/getting-started.html"><em>START</em><b>Getting started</b><span>Install, run the tests, run your first level.</span></a>
+<a class="card" href="pages/concepts.html"><em>THEORY</em><b>How LLMs work</b><span>Tokens, messages, temperature and cost in plain English.</span></a>
+<a class="card" href="pages/l0.html"><em>LEVEL 0</em><b>A single call</b><span>The one primitive every agent is built from.</span></a>
+<a class="card" href="pages/learning-path.html"><em>MAP</em><b>Learning path</b><span>Every level, notebook and exercise in order.</span></a>
+</div>
+<h2 id="what-this-guide-does-not-claim">What this guide does not claim</h2>
+<p>Vigil is a <strong>teaching</strong> project. It shows the shape of real techniques with small, readable code. It is not a production security product, its cost figures are estimates, and the model's answers about a CVE can be wrong. Always check a model's claims against the official advisory before acting on them.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><span></span><a class="next" href="pages/getting-started.html"><small>Next</small>Getting started</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-one-picture">The idea in one picture</a><a class="l2" href="#why-a-security-problem">Why a security problem?</a><a class="l2" href="#how-to-use-this-guide">How to use this guide</a><a class="l2" href="#what-this-guide-does-not-claim">What this guide does not claim</a></aside>
+</div>
+<script src="assets/search-index.js"></script>
+<script src="assets/app.js"></script>
 </body>
 </html>

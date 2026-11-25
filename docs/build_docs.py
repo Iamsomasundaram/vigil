@@ -2,8 +2,9 @@
 Static HTML documentation generator for Vigil (additive, no runtime deps).
 
 Scans the repository, specs, and API to emit a single self-contained
-`docs/index.html` covering structure, modules, functions, endpoints, and specs.
-Run:  python docs/build_docs.py
+`docs/pages/reference.html` covering structure, modules, functions, endpoints, and specs.
+Output: `docs/pages/reference.html` (linked from the guide built by `docs/build_site.py`).
+Run:  python docs/build_site.py   (builds the guide and calls this)
 """
 
 from __future__ import annotations
@@ -285,6 +286,7 @@ def build() -> Path:
 
     nav = """
     <nav>
+      <a href="../index.html">← Back to the guide</a>
       <a href="#structure">Structure</a>
       <a href="#modules">Modules</a>
       <a href="#api">API</a>
@@ -357,8 +359,8 @@ def build() -> Path:
 </body>
 </html>
 """
-    DOCS.mkdir(exist_ok=True)
-    out = DOCS / "index.html"
+    (DOCS / "pages").mkdir(parents=True, exist_ok=True)
+    out = DOCS / "pages" / "reference.html"
     out.write_text(page, encoding="utf-8")
     return out
 

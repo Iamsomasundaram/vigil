@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L0: A single call · Vigil Guide</title>
+<meta name="description" content="One prompt in, one answer out. The primitive every agent is built from.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html" aria-current=page>L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-0-a-single-call">Level 0: A single call</h1>
+<p><strong>The question this level answers:</strong> how do I get a language model to do one useful thing from code?</p>
+<p>Every system in this project, including the autonomous agent at L6, is built on this one move: send messages to a model, read the reply. Understand it well and the rest is composition.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>You hire a specialist for one job. First you hand over a <strong>job description</strong> (the <em>system prompt</em>). Then you hand over the <strong>task</strong> (the <em>user prompt</em>). They write back. That is all L0 does.</p>
+<div class="flow" role="img"><div class="node"><b>System prompt</b><small>who the model is</small></div><span class="arr">→</span><div class="node"><b>User prompt</b><small>the task</small></div><span class="arr">→</span><div class="node"><b>Model</b></div><span class="arr">→</span><div class="node"><b>Reply text</b></div></div>
+<h2 id="part-1-the-job-description">Part 1: the job description</h2>
+<p>The system prompt sets the model's role, tone and limits. Specific beats generic every time.</p>
+<div class="code"><div class="code-cap">levels/l0_single_call.py · SYSTEM_PROMPT</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>SYSTEM_PROMPT = <span class="t-s">&quot;&quot;&quot;You are a senior cybersecurity analyst specialising in vulnerability management.
+Your job is to explain CVEs clearly and concisely to security teams who need to act fast.
+
+Guidelines:
+- Use plain English, not jargon
+- Be specific about affected systems and versions
+- Explain the real-world risk, not just the CVSS score
+- Do not provide exploit code or step-by-step attack instructions
+- If you are uncertain about specific details of a CVE, say so explicitly&quot;&quot;&quot;</span></code></pre></div>
+<p>Look at what it does:</p>
+<ul><li><strong>Defines a role</strong>: "senior cybersecurity analyst". This shapes the model's point of view.</li><li><strong>Sets a style</strong>: "plain English, not jargon".</li><li><strong>Draws a boundary</strong>: "do not provide exploit code". Safety rules belong here.</li><li><strong>Allows honesty</strong>: "if you are uncertain... say so". This reduces confident guessing.</li></ul>
+<p>Compare with the weak version, <code>&quot;You are a helpful assistant.&quot;</code>. The model would still answer, but with no angle, no limits and no guidance.</p>
+<h2 id="part-2-the-call">Part 2: the call</h2>
+<p>Here is the whole function. Read the comments, which explain each choice.</p>
+<div class="code"><div class="code-cap">levels/l0_single_call.py · explain_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> explain_cve(cve_id: str) -&gt; str:
+    <span class="t-s">&quot;&quot;&quot;
+    A single LLM call that explains a CVE in plain English.
+
+    This is Level 0 — the atomic unit of all AI systems.
+    Input:  a CVE identifier (e.g. CVE-2021-44228)
+    Output: a plain-English explanation as a string
+    &quot;&quot;&quot;</span>
+
+    <span class="t-c"># ─── USER PROMPT ──────────────────────────────────────────────────────────</span>
+    <span class="t-c"># The user prompt is the specific task for this call.</span>
+    <span class="t-c"># It should be:</span>
+    <span class="t-c">#   - Specific (not &quot;tell me about this CVE&quot; but exactly what you need)</span>
+    <span class="t-c">#   - Structured (use sections/bullets to guide the model&#x27;s response)</span>
+    <span class="t-c">#   - Bounded (tell the model what scope to stay within)</span>
+
+    user_prompt = <span class="t-s">f&quot;&quot;</span>&quot;Explain {cve_id} <span class="t-k">for</span> a security team that needs to respond quickly.
+
+Cover the following:
+<span class="t-n">1</span>. What <span class="t-k">is</span> the vulnerability? (one paragraph, plain English)
+<span class="t-n">2</span>. Which systems <span class="t-k">and</span> versions are affected?
+<span class="t-n">3</span>. How can it be exploited? (describe the attack vector — no exploit code)
+<span class="t-n">4</span>. What <span class="t-k">is</span> the severity <span class="t-k">and</span> why?
+<span class="t-n">5</span>. What should defenders do right now?<span class="t-s">&quot;&quot;</span>&quot;
+
+    <span class="t-c"># ─── THE API CALL ─────────────────────────────────────────────────────────</span>
+    <span class="t-c"># client.chat.completions.create() is the core OpenAI call.</span>
+    <span class="t-c">#</span>
+    <span class="t-c"># The `messages` list is the conversation history:</span>
+    <span class="t-c">#   {&quot;role&quot;: &quot;system&quot;}  → the model&#x27;s instructions/persona</span>
+    <span class="t-c">#   {&quot;role&quot;: &quot;user&quot;}    → what the user (or your code) is asking</span>
+    <span class="t-c">#   {&quot;role&quot;: &quot;assistant&quot;} → what the model replied (used in multi-turn)</span>
+    <span class="t-c">#</span>
+    <span class="t-c"># temperature controls randomness:</span>
+    <span class="t-c">#   0.0  → always picks the most likely next token  (precise, deterministic)</span>
+    <span class="t-c">#   1.0  → samples more freely                      (creative, varied)</span>
+    <span class="t-c">#   For factual security analysis: 0.2 is a good balance.</span>
+    <span class="t-c">#</span>
+    <span class="t-c"># max_tokens caps the response length.</span>
+    <span class="t-c">#   1 token ≈ 4 characters in English.</span>
+    <span class="t-c">#   600 tokens ≈ ~450 words — enough for a thorough CVE summary.</span>
+
+    _reset_usage()
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: SYSTEM_PROMPT},
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: user_prompt},
+        ],
+        temperature=<span class="t-n">0.2</span>,
+        max_tokens=<span class="t-n">600</span>,
+    )
+    _track(response)
+
+    <span class="t-c"># ─── EXTRACTING THE RESPONSE ──────────────────────────────────────────────</span>
+    <span class="t-c"># The response is a structured object, not just a string.</span>
+    <span class="t-c"># The actual text lives at: response.choices[0].message.content</span>
+    <span class="t-c">#</span>
+    <span class="t-c"># Why choices[0]?  OpenAI can return multiple completions (n=2, n=3...).</span>
+    <span class="t-c"># We only asked for one (the default), so we always take index 0.</span>
+
+    <span class="t-k">return</span> response.choices[<span class="t-n">0</span>].message.content</code></pre></div>
+<p>The part that matters is this call:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>response = client.chat.completions.create(
+    model=MODEL,
+    messages=[
+        {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: SYSTEM_PROMPT},
+        {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: user_prompt},
+    ],
+    temperature=<span class="t-n">0.2</span>,
+    max_tokens=<span class="t-n">600</span>,
+)</code></pre></div>
+<div class='table'><table><thead><tr><th>Piece</th><th>What it does</th><th>Why this value</th></tr></thead><tbody><tr><td><code>model</code></td><td>Which model answers</td><td>Read from <code>OPENAI_MODEL</code>, defaulting to <code>gpt-4o-mini</code>, a cheap, fast model that is good enough here</td></tr><tr><td><code>messages</code></td><td>The conversation so far</td><td>System prompt first, then the task</td></tr><tr><td><code>temperature</code></td><td>How adventurous the wording is</td><td><code>0.2</code> keeps factual answers steady</td></tr><tr><td><code>max_tokens</code></td><td>A cap on the reply length</td><td><code>600</code> tokens is roughly 450 words, enough for a clear summary and a hard stop on runaway cost</td></tr></tbody></table></div>
+<p>The reply is an object, not a string. The text is at <code>response.choices[0].message.content</code>. The <code>[0]</code> is there because the API can return several alternative answers; you asked for one, so you take the first.</p>
+<h2 id="part-3-the-task-prompt">Part 3: the task prompt</h2>
+<p>The user prompt inside <code>explain_cve</code> is <strong>specific, structured and bounded</strong>. It asks five numbered questions instead of "tell me about this CVE". Numbered questions produce answers that are easier to read and easier to compare between runs.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l0_single_call.py CVE-2021-44228
+python levels/l0_single_call.py CVE-2023-44487</code></pre></div>
+<p>You should see a header showing the model and CVE, then a panel with the explanation. Check it against the five questions in the prompt. Does it answer all five?</p>
+<aside class="callout warning"><strong>Warning</strong><p>Do not trust the details blindly. The model answers from memory, not from a live database. Compare version numbers and severity with the official advisory. Level 4 fixes this by letting the model look things up.</p></aside>
+<h2 id="what-the-code-also-does">What the code also does</h2>
+<p>Three small helpers sit above the main function: <code>_reset_usage</code>, <code>_track</code> and <code>get_usage</code>. They add up the tokens used in a run and turn them into an <strong>estimated</strong> cost. The API and the web interface read these numbers. You can ignore them while learning the core idea.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>Change one thing at a time and re-run. Write down what changed. 1) Set <code>temperature</code> to <code>0.0</code>, then <code>1.0</code>, and run the same CVE three times each. Which setting gives more varied answers? 2) Replace <code>SYSTEM_PROMPT</code> with <code>&quot;You are a helpful assistant.&quot;</code> and compare the quality. 3) Lower <code>max_tokens</code> to <code>60</code> and see where the answer is cut off.</p></aside>
+<p>The notebook <code>02_prompting.ipynb</code> runs experiments like these offline, and the first exercise lets you practise building the message list yourself:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>pytest exercises/l0_prompting -q</code></pre></div>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>A vague system prompt.</strong> You get a generic answer. Be specific about role, style and limits.</li><li><strong>Treating the reply as a fact.</strong> It is a draft from a model that can be wrong.</li><li><strong>No token cap.</strong> Long replies cost more and can run on. Always set <code>max_tokens</code>.</li><li><strong>Expecting identical output each run.</strong> Even at low temperature the wording can vary. Design code that tolerates that.</li><li><strong>Forgetting L0 has no memory.</strong> A second call knows nothing about the first.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What are the two messages sent in L0, and what is each for?</summary><p>A <code>system</code> message that gives the model its role and rules, and a <code>user</code> message that carries the specific task.</p></details>
+<details><summary>Why is <code>temperature</code> 0.2 and not 1.0 here?</summary><p>A security analysis should be steady and careful. A high value would make answers more varied and more likely to wander.</p></details>
+<details><summary>What is the main weakness of L0 that later levels address?</summary><p>It is one call from memory: no structure you can program against (L1), no specialists (L2), no live data (L4), no memory (L5).</p></details>
+<p>Next: <a href="l1.html">Level 1</a> chains calls together and makes the output machine-readable.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="concepts.html"><small>Previous</small>How LLMs work</a><a class="next" href="l1.html"><small>Next</small>L1: Chaining and structure</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#part-1-the-job-description">Part 1: the job description</a><a class="l2" href="#part-2-the-call">Part 2: the call</a><a class="l2" href="#part-3-the-task-prompt">Part 3: the task prompt</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#what-the-code-also-does">What the code also does</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

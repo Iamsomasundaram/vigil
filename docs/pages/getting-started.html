@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started · Vigil Guide</title>
+<meta name="description" content="Install Vigil, prove it works offline, then run your first level.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html" aria-current=page>Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Start here</p>
+      <h1 id="getting-started">Getting started</h1>
+<p>This takes about 15 minutes. Steps 1 to 3 need <strong>no API key and cost nothing</strong>, so you can confirm everything works before you spend a cent.</p>
+<h2 id="what-you-need">What you need</h2>
+<ul><li><strong>Python 3.11 or newer.</strong> Check with <code>python --version</code>.</li><li><strong>Git</strong>, to clone the repository.</li><li><strong>An OpenAI API key</strong>, but only from step 4. Get one from the OpenAI platform. Running the levels uses a small amount of paid credit.</li><li><strong>Docker</strong> is optional. You only need it for levels L5 and L6, which use a database.</li></ul>
+<h2 id="step-1-get-the-code-and-install-it">Step 1. Get the code and install it</h2>
+<p>On macOS or Linux:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>git clone https://github.com/Iamsomasundaram/vigil.git
+cd vigil
+python -m venv .venv
+source .venv/bin/activate
+pip install -e <span class="t-s">&quot;.[full,dev,foundations,notebooks]&quot;</span></code></pre></div>
+<p>On Windows PowerShell:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>git clone https://github.com/Iamsomasundaram/vigil.git
+cd vigil
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e <span class="t-s">&quot;.[full,dev,foundations,notebooks]&quot;</span></code></pre></div>
+<aside class="callout tip"><strong>Tip</strong><p>If PowerShell refuses to run the activate script, run <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> once, or skip activation and call <code>.venv\Scripts\python.exe</code> directly.</p></aside>
+<p>A <em>virtual environment</em> (<code>.venv</code>) is a private folder of Python packages for this project, so it cannot clash with anything else on your machine.</p>
+<h2 id="step-2-prove-it-works-offline">Step 2. Prove it works, offline</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python -m pytest -q</code></pre></div>
+<p>Every test replaces the real model with a stand-in, so this makes no network calls. You should see a long row of dots and a summary such as <code>passed, skipped</code>. A few tests are skipped when an optional package is missing, which is normal. Any <strong>failure</strong> on a fresh install is a bug worth reporting.</p>
+<h2 id="step-3-look-around-with-a-notebook">Step 3. Look around with a notebook</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>jupyter lab notebooks/</code></pre></div>
+<p>Open <code>00_setup.ipynb</code>. The notebooks run fully offline and let you change one value at a time to see what happens.</p>
+<h2 id="step-4-add-your-api-key">Step 4. Add your API key</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>cp .env.example .env         <span class="t-c"> # Windows: Copy-Item .env.example .env</span></code></pre></div>
+<p>Open <code>.env</code> and set the key:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>OPENAI_API_KEY=your-key-here</code></pre></div>
+<aside class="callout warning"><strong>Warning</strong><p><code>.env</code> holds a secret. It is already listed in <code>.gitignore</code>, so git will not commit it. Never paste the key into code, chat, or a screenshot.</p></aside>
+<h2 id="step-5-run-level-0">Step 5. Run Level 0</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l0_single_call.py CVE-2021-44228</code></pre></div>
+<p>You should see a header with the model name and CVE, then one panel containing a plain-English explanation of Log4Shell. The exact wording changes on every run; that is normal for a language model.</p>
+<p>Now open <a href="l0.html">Level 0</a> and read the code next to the output you just produced.</p>
+<h2 id="if-something-goes-wrong">If something goes wrong</h2>
+<div class='table'><table><thead><tr><th>What you see</th><th>What it usually means</th></tr></thead><tbody><tr><td><code>The api_key client option must be set</code></td><td>The key was not loaded. Check <code>.env</code> exists in the repo root and run from there.</td></tr><tr><td><code>ModuleNotFoundError: vigil</code></td><td>You skipped <code>pip install -e ...</code> or the virtual environment is not active.</td></tr><tr><td>PowerShell blocks the activate script</td><td>See the tip above.</td></tr><tr><td>A <code>401</code> or <code>insufficient_quota</code> error</td><td>The key is wrong, or the account has no credit.</td></tr></tbody></table></div>
+<p>The README has a longer troubleshooting table.</p>
+<h2 id="optional-the-web-interface">Optional: the web interface</h2>
+<p>If you prefer clicking to typing, start the API and the Streamlit interface in two terminals:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>uvicorn vigil.api:app --reload
+streamlit run ui/app.py</code></pre></div>
+<p>Then open the address Streamlit prints (normally <code>http://localhost:8501</code>). There is one page per level.</p>
+<aside class="callout note"><strong>Note</strong><p>Levels L5 and L6 store data in PostgreSQL. The simplest way to run them is <code>docker compose up --build</code>, which starts the API, the database and the interface together. Leave them until L0 to L4 feel comfortable.</p></aside>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="../index.html"><small>Previous</small>Welcome</a><a class="next" href="concepts.html"><small>Next</small>How LLMs work</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#what-you-need">What you need</a><a class="l2" href="#step-1-get-the-code-and-install-it">Step 1. Get the code and install it</a><a class="l2" href="#step-2-prove-it-works-offline">Step 2. Prove it works, offline</a><a class="l2" href="#step-3-look-around-with-a-notebook">Step 3. Look around with a notebook</a><a class="l2" href="#step-4-add-your-api-key">Step 4. Add your API key</a><a class="l2" href="#step-5-run-level-0">Step 5. Run Level 0</a><a class="l2" href="#if-something-goes-wrong">If something goes wrong</a><a class="l2" href="#optional-the-web-interface">Optional: the web interface</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

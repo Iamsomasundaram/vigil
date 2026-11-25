@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L2: Parallel agents · Vigil Guide</title>
+<meta name="description" content="Four specialists analyse the same CVE at once, then a moderator makes the call.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html" aria-current=page>L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-2-parallel-agents">Level 2: Parallel agents</h1>
+<p><strong>The question this level answers:</strong> what if several different experts should look at the same problem, and I do not want to wait for them one at a time?</p>
+<p>In L1 each step depended on the one before it, so they had to run in order. Some work has no such dependency. How exploitable a CVE is does not depend on its business impact, so those two analyses can run <strong>at the same time</strong>.</p>
+<h2 id="the-idea-in-plain-english">The idea in plain English</h2>
+<p>You convene a small committee. Four specialists each read the same file and write their own report independently. A chair then reads all four reports and delivers the verdict.</p>
+<div class="fan" role="img"><div class="node">One CVE</div><span class="arr">→</span><div class="lane"><div class="node">Exploitability agent</div><div class="node">Impact agent</div><div class="node">Patch agent</div><div class="node">Business agent</div></div><span class="arr">→</span><div class="node">Moderator's verdict</div></div>
+<p>This pattern is called <strong>fan-out then fan-in</strong>. The fan-out is parallel. The final synthesis is sequential, because the moderator needs all four reports first.</p>
+<h2 id="what-is-an-agent-here">What is an "agent" here?</h2>
+<p>At this level an agent is nothing mysterious. It is three things:</p>
+<ol><li>a <strong>system prompt</strong> that defines a specialist role,</li><li>a <strong>schema</strong> that defines the shape of its report, and</li><li>a function that calls the model with both.</li></ol>
+<p>Same model, same API, different persona. The four agents are defined as plain data:</p>
+<div class="code"><div class="code-cap">levels/l2_parallel.py · AGENTS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>AGENTS = [
+    {
+        <span class="t-s">&quot;name&quot;</span>:    <span class="t-s">&quot;Exploitability Agent&quot;</span>,
+        <span class="t-s">&quot;system&quot;</span>:  <span class="t-s">&quot;You are a penetration tester. Assess how easy this CVE is to exploit. Focus on attack complexity, required privileges, and whether exploit code is publicly available.&quot;</span>,
+        <span class="t-s">&quot;schema&quot;</span>:  ExploitabilityReport,
+    },
+    {
+        <span class="t-s">&quot;name&quot;</span>:    <span class="t-s">&quot;Impact Agent&quot;</span>,
+        <span class="t-s">&quot;system&quot;</span>:  <span class="t-s">&quot;You are a security architect. Assess the blast radius and data exposure if this CVE is successfully exploited. Focus on CIA triad impacts.&quot;</span>,
+        <span class="t-s">&quot;schema&quot;</span>:  ImpactReport,
+    },
+    {
+        <span class="t-s">&quot;name&quot;</span>:    <span class="t-s">&quot;Patch Agent&quot;</span>,
+        <span class="t-s">&quot;system&quot;</span>:  <span class="t-s">&quot;You are a patch management specialist. Assess the availability and complexity of fixes for this CVE. Focus on practical remediation guidance.&quot;</span>,
+        <span class="t-s">&quot;schema&quot;</span>:  PatchReport,
+    },
+    {
+        <span class="t-s">&quot;name&quot;</span>:    <span class="t-s">&quot;Business Impact Agent&quot;</span>,
+        <span class="t-s">&quot;system&quot;</span>:  <span class="t-s">&quot;You are a risk manager. Assess the business and compliance exposure from this CVE. Focus on affected services, regulatory implications, and customer data risk.&quot;</span>,
+        <span class="t-s">&quot;schema&quot;</span>:  BusinessReport,
+    },
+]</code></pre></div>
+<p>Each one has its own report class, such as <code>ExploitabilityReport</code> and <code>ImpactReport</code>, so each speaks about its own specialty in typed fields (the same structured-output idea you met in <a href="l1.html">Level 1</a>).</p>
+<h2 id="running-one-agent">Running one agent</h2>
+<div class="code"><div class="code-cap">levels/l2_parallel.py · run_agent</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> run_agent(agent: dict, cve_id: str) -&gt; tuple[str, BaseModel]:
+    <span class="t-s">&quot;&quot;&quot;
+    Run a single agent asynchronously.
+
+    Returns (agent_name, result) so we know which output belongs to which agent
+    after asyncio.gather() collects everything.
+
+    The `await` keyword is crucial here:
+      Without await: the call blocks — other agents must wait
+      With await:    Python can context-switch to other agents while waiting
+                     for the API response
+    &quot;&quot;&quot;</span>
+    schema = agent[<span class="t-s">&quot;schema&quot;</span>]
+    response = <span class="t-k">await</span> client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: agent[<span class="t-s">&quot;system&quot;</span>]},
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: <span class="t-s">f&quot;Analyse this CVE: {cve_id}&quot;</span>},
+        ],
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   schema.__name__,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(schema),
+            },
+        },
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">4096</span>,
+    )
+    _track(response)
+    result = schema.model_validate(json.loads(response.choices[<span class="t-n">0</span>].message.content))
+    <span class="t-k">return</span> agent[<span class="t-s">&quot;name&quot;</span>], result</code></pre></div>
+<p>The new words are <code>async</code> and <code>await</code>. They let Python start a slow job, such as waiting on the model, and do other work while it waits, instead of freezing. If you have not met them before, read the next section slowly.</p>
+<h2 id="why-parallel-a-short-timing-story">Why parallel? A short timing story</h2>
+<p>If each call takes about three seconds:</p>
+<div class='table'><table><thead><tr><th>Approach</th><th>Total time</th></tr></thead><tbody><tr><td>One after another (L1 style)</td><td>about 3 + 3 + 3 + 3 = <strong>12 seconds</strong></td></tr><tr><td>All at once (this level)</td><td>about <strong>3 seconds</strong></td></tr></tbody></table></div>
+<p>The moderator call is added after, because it must wait for all four. You pay for the same number of tokens either way; parallelism saves <strong>time</strong>, not money. These timings are an illustration, and real latency varies.</p>
+<h2 id="async-and-asyncio-gather-in-plain-terms"><code>async</code> and <code>asyncio.gather</code>, in plain terms</h2>
+<p>A normal function call blocks: nothing else happens until it returns. An <code>async</code> function can pause at an <code>await</code> and let others run while it waits for the network.</p>
+<p><code>asyncio.gather</code> takes several of these and starts them all together. It returns once every one has finished, with results in the same order you passed them in. Here is the whole pipeline:</p>
+<div class="code"><div class="code-cap">levels/l2_parallel.py · analyse_cve</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">async</span> <span class="t-k">def</span> analyse_cve(cve_id: str) -&gt; tuple[dict, FinalVerdict]:
+    <span class="t-s">&quot;&quot;&quot;
+    The full fan-out + synthesis pipeline.
+
+    Step 1: Run all four agents IN PARALLEL using asyncio.gather()
+    Step 2: Collect their results into a dict
+    Step 3: Run the moderator SEQUENTIALLY after all four complete
+
+    asyncio.gather(*coroutines) is the key call:
+      - Takes any number of coroutines
+      - Starts all of them immediately
+      - Waits until ALL of them finish
+      - Returns their results in the same order they were passed
+    &quot;&quot;&quot;</span>
+    _reset_usage()
+    console.print(<span class="t-s">&quot;\n[dim]  Launching 4 agents in parallel...[/dim]&quot;</span>)
+
+    <span class="t-c"># ── Fan-out: all four agents start simultaneously ──────────────────────</span>
+    start = time.perf_counter()
+
+    results = <span class="t-k">await</span> asyncio.gather(
+        *[run_agent(agent, cve_id) <span class="t-k">for</span> agent <span class="t-k">in</span> AGENTS]
+        <span class="t-c"># ↑ This creates 4 coroutines and runs them all at once.</span>
+        <span class="t-c"># Each yields control while waiting for the API, letting the others run.</span>
+    )
+
+    elapsed = time.perf_counter() - start
+    console.print(<span class="t-s">f&quot;[dim]  All 4 agents completed in {elapsed:.1f}s[/dim]&quot;</span>)
+
+    <span class="t-c"># Convert list of (name, result) tuples into a dict</span>
+    agent_reports = {name: report <span class="t-k">for</span> name, report <span class="t-k">in</span> results}
+
+    <span class="t-c"># ── Synthesis: moderator runs after all agents complete ────────────────</span>
+    console.print(<span class="t-s">&quot;[dim]  Running moderator...[/dim]&quot;</span>)
+    verdict = <span class="t-k">await</span> run_moderator(cve_id, agent_reports)
+
+    <span class="t-k">return</span> agent_reports, verdict</code></pre></div>
+<p>Find these three beats in the code:</p>
+<ol><li><strong>Fan-out.</strong> <code>asyncio.gather(*[run_agent(agent, cve_id) for agent in AGENTS])</code> starts all four agents.</li><li><strong>Collect.</strong> The results become a dictionary keyed by agent name.</li><li><strong>Synthesise.</strong> <code>run_moderator</code> receives all four reports as its context and returns a <code>FinalVerdict</code>: priority, a patch deadline in days, an executive summary, three actions and a confidence level.</li></ol>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l2_parallel.py CVE-2021-44228</code></pre></div>
+<p>You should see a line saying four agents were launched in parallel, then a time for how long they took, then one card per agent and a verdict from the moderator. Compare the reported time with what four separate calls would take.</p>
+<aside class="callout note"><strong>Note</strong><p>Agents can disagree. The Patch agent may call the work easy while the Business agent calls the risk severe. That is useful, not a bug: the moderator's job is to weigh them.</p></aside>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) Add a fifth agent, for example a "Compliance Agent", by adding one entry and one report class. Notice how little code a new specialist needs. 2) Time the run, then change <code>asyncio.gather</code> into a plain <code>for</code> loop with <code>await</code> inside and compare the time. 3) Give two agents deliberately conflicting system prompts and read how the moderator handles it.</p></aside>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Parallelising dependent work.</strong> If step B needs step A's output, they cannot run together.</li><li><strong>Calling <code>await</code> one at a time in a loop.</strong> That is sequential again. Collect the coroutines and use <code>asyncio.gather</code>.</li><li><strong>Too many agents at once.</strong> Providers limit how many requests you can send per minute. A large fan-out can hit those limits.</li><li><strong>Assuming more agents means more truth.</strong> Four agents share one model and one training set, so they can share the same blind spot.</li><li><strong>Forgetting the cost.</strong> Five calls cost about five times one call.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why can the four agents run in parallel but the moderator cannot?</summary><p>The agents are independent of each other. The moderator needs all four reports as input, so it must wait.</p></details>
+<details><summary>Does running in parallel reduce the cost?</summary><p>No. The same tokens are used. It reduces the waiting time.</p></details>
+<details><summary>In this level, what is an agent?</summary><p>A system prompt, an output schema and a function that calls the model with them. It does not decide what to do next yet; that comes with routing (L3) and tools (L4).</p></details>
+<p>Next up: routing (L3), where the system decides <em>which</em> specialists to call. That page is not written yet; see the <a href="learning-path.html">learning path</a> and the heavily commented <code>levels/l3_routing.py</code>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l1.html"><small>Previous</small>L1: Chaining and structure</a><a class="next" href="learning-path.html"><small>Next</small>Learning path</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#the-idea-in-plain-english">The idea in plain English</a><a class="l2" href="#what-is-an-agent-here">What is an &quot;agent&quot; here?</a><a class="l2" href="#running-one-agent">Running one agent</a><a class="l2" href="#why-parallel-a-short-timing-story">Why parallel? A short timing story</a><a class="l2" href="#async-and-asyncio-gather-in-plain-terms">async and asyncio.gather, in plain terms</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

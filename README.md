@@ -81,14 +81,16 @@ Time estimates are rough guides, not measured.
 
 ## Documentation
 
-A browsable, self-contained HTML reference (structure, key modules & functions,
-all API endpoints, and the spec index) is generated from the code:
+A beginner-friendly **guide** lives in [`docs/`](docs/index.html): plain-English explanations, diagrams,
+real code walked through line by line, experiments and self-check questions. Open it locally, no server needed:
 
 ```bash
-python docs/build_docs.py     # regenerates docs/index.html
+python docs/build_site.py      # rebuilds docs/index.html and docs/pages/*.html
 ```
 
-Open [`docs/index.html`](docs/index.html) in a browser.
+Then open [`docs/index.html`](docs/index.html) in a browser. The guide is written in Markdown under `docs/src/`, and code snippets
+are pulled straight from the source files, so they cannot drift. Levels L0–L2 are written so far; the generated
+module/endpoint/spec reference is at [`docs/pages/reference.html`](docs/pages/reference.html).
 
 ---
 
@@ -307,7 +309,7 @@ vigil/
 ├── ui/               Streamlit learning UI
 ├── specs/            One spec per feature + progress board
 ├── tests/            Full pytest suite
-├── docs/             HTML documentation generator + output
+├── docs/             Beginner guide (Markdown in docs/src) + generated reference
 ├── notebooks/        Interactive, offline-friendly notebooks
 ├── exercises/        Graded "try it yourself" challenges
 ├── data/             Sample assets, eval sets, manifests

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning path · Vigil Guide</title>
+<meta name="description" content="Every level, notebook and exercise in the order to do them.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html" aria-current=page>Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Practice</p>
+      <h1 id="learning-path">Learning path</h1>
+<p>Do the <strong>Core</strong> path first. It is enough to understand how an AI system becomes an agent. The rest goes deeper and can be done in any order that interests you.</p>
+<h2 id="core-path">Core path</h2>
+<div class='table'><table><thead><tr><th>Step</th><th>Do this</th><th>Time</th><th>Guide page</th></tr></thead><tbody><tr><td>1</td><td>Install and run the tests</td><td>15 min</td><td><a href="getting-started.html">Getting started</a></td></tr><tr><td>2</td><td>Read the theory</td><td>20 min</td><td><a href="concepts.html">How LLMs work</a></td></tr><tr><td>3</td><td>Notebook <code>00_setup.ipynb</code></td><td>15 min</td><td><code>notebooks/</code></td></tr><tr><td>4</td><td><strong>L0</strong>: a single call</td><td>30 min</td><td><a href="l0.html">L0</a></td></tr><tr><td>5</td><td>Exercise <code>l0_prompting</code></td><td>20 min</td><td><code>exercises/l0_prompting</code></td></tr><tr><td>6</td><td><strong>L1</strong>: chaining and structured output</td><td>45 min</td><td><a href="l1.html">L1</a></td></tr><tr><td>7</td><td>Exercise <code>l1_chaining</code></td><td>20 min</td><td><code>exercises/l1_chaining</code></td></tr><tr><td>8</td><td><strong>L2</strong>: parallel agents</td><td>45 min</td><td><a href="l2.html">L2</a></td></tr><tr><td>9</td><td><strong>L3</strong>: routing</td><td>45 min</td><td>not written yet, read <code>levels/l3_routing.py</code></td></tr><tr><td>10</td><td><strong>L4</strong>: tool use</td><td>60 min</td><td>not written yet, read <code>levels/l4_tool_use.py</code></td></tr><tr><td>11</td><td>Exercise <code>l4_tool_dispatch</code></td><td>30 min</td><td><code>exercises/l4_tool_dispatch</code></td></tr></tbody></table></div>
+<p>The times are rough estimates for a first read, not measurements.</p>
+<h2 id="then-go-further">Then go further</h2>
+<div class='table'><table><thead><tr><th>Topic</th><th>Where to look</th></tr></thead><tbody><tr><td>Memory and feedback loops (L5)</td><td><code>levels/l5_memory.py</code> (needs PostgreSQL)</td></tr><tr><td>Autonomous monitoring (L6)</td><td><code>levels/l6_autonomous.py</code> (needs PostgreSQL)</td></tr><tr><td>Reading PDFs and images (L4b)</td><td><code>levels/l4b_multimodal.py</code></td></tr><tr><td>Agent designs: ReAct, plan-and-execute, reflection, multi-agent</td><td><code>architectures/</code></td></tr><tr><td>Making agents safe and reliable: guardrails, evaluation, observability, cost control</td><td><code>reliability/</code></td></tr><tr><td>Retrieval, tokenization, prompting, privacy and more</td><td><code>levels/foundations/</code> and the notebooks</td></tr><tr><td>The full feature list and its status</td><td><code>specs/progress-board.md</code></td></tr><tr><td>Every module, function and endpoint</td><td><a href="reference.html">Code reference</a></td></tr></tbody></table></div>
+<aside class="callout tip"><strong>Tip</strong><p>Tokenization, prompting and embeddings each have a runnable notebook: <code>01_tokenization</code>, <code>02_prompting</code> and <code>03_embeddings_rag</code>. They are the quickest way to build intuition, because you change a value and watch the result.</p></aside>
+<h2 id="how-to-learn-from-each-level">How to learn from each level</h2>
+<ol><li>Read the guide page first so you know what to look for.</li><li>Run the level and read its output.</li><li>Open the level's Python file. The comments at the top explain the concepts.</li><li>Change one thing and run it again.</li><li>Do the exercise, if there is one.</li><li>Answer the self-check questions out loud.</li></ol>
+<h2 id="when-you-get-stuck">When you get stuck</h2>
+<p>Search the guide with the box at the top (press <code>/</code>), check the <a href="glossary.html">glossary</a>, then the troubleshooting table in the project README.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l2.html"><small>Previous</small>L2: Parallel agents</a><a class="next" href="glossary.html"><small>Next</small>Glossary</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#core-path">Core path</a><a class="l2" href="#then-go-further">Then go further</a><a class="l2" href="#how-to-learn-from-each-level">How to learn from each level</a><a class="l2" href="#when-you-get-stuck">When you get stuck</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How LLMs work · Vigil Guide</title>
+<meta name="description" content="Tokens, messages, temperature, context windows and cost, in just enough depth to read the code.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html" aria-current=page>How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Start here</p>
+      <h1 id="how-llms-work-just-enough">How LLMs work (just enough)</h1>
+<p>You do not need the maths. You need five ideas, because every level in Vigil is built from them.</p>
+<h2 id="1-a-language-model-predicts-the-next-piece-of-text">1. A language model predicts the next piece of text</h2>
+<p>A large language model (LLM) is a program trained on a huge amount of text. Given some text, it predicts what should come next, one small piece at a time, until it decides to stop. Everything else, such as answering questions, writing code or following instructions, comes out of doing that very well.</p>
+<p>Two consequences matter for Vigil:</p>
+<ul><li>The model <strong>does not look things up</strong>. It answers from patterns it learned during training, so it can be confidently wrong about a specific CVE. Later levels fix this by giving it tools (L4).</li><li>The model <strong>does not remember</strong> earlier calls. Each call starts blank. Anything it should know, you must send again (L5 is about doing that well).</li></ul>
+<h2 id="2-tokens">2. Tokens</h2>
+<p>Models read and write <strong>tokens</strong>, not letters or words. A token is a chunk of text, roughly four characters or three quarters of a word in English.</p>
+<div class="flow" role="img"><div class="node"><b>"Log4Shell is critical"</b><small>your text</small></div><span class="arr">→</span><div class="node">Log</div><div class="node">4</div><div class="node">Shell</div><div class="node"> is</div><div class="node"> critical</div></div>
+<p>The split above is only an illustration; real tokenizers cut text in their own ways.</p>
+<p>Tokens matter because <strong>you are billed per token</strong> and because every model has a <strong>context window</strong>, a maximum number of tokens it can handle in one call (your input plus its reply). The notebook <code>01_tokenization.ipynb</code> lets you see this directly.</p>
+<h2 id="3-messages-and-roles">3. Messages and roles</h2>
+<p>You do not send the model a single string. You send a <strong>list of messages</strong>, each with a <em>role</em>:</p>
+<div class='table'><table><thead><tr><th>Role</th><th>Who writes it</th><th>What it is for</th></tr></thead><tbody><tr><td><code>system</code></td><td>You, the developer</td><td>The job description: who the model is and how it should behave</td></tr><tr><td><code>user</code></td><td>You or your end user</td><td>The actual task or question</td></tr><tr><td><code>assistant</code></td><td>The model</td><td>Its earlier replies, which you send back to continue a conversation</td></tr></tbody></table></div>
+<p>In code that is just a list of dictionaries:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>messages = [
+    {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;You are a senior security analyst.&quot;</span>},
+    {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>, <span class="t-s">&quot;content&quot;</span>: <span class="t-s">&quot;Explain CVE-2021-44228.&quot;</span>},
+]</code></pre></div>
+<p>This list is the atomic unit of every level in Vigil. Even the autonomous agent in L6 is, underneath, building and sending lists like this.</p>
+<h2 id="4-temperature">4. Temperature</h2>
+<p>Temperature controls how adventurous the next-token choice is.</p>
+<ul><li><strong>Low (0.0 to 0.3)</strong>: the model sticks to the most likely wording. Answers are consistent. Good for facts and structured data.</li><li><strong>High (0.8 and above)</strong>: the model takes less likely paths. Answers vary and feel more creative. Good for brainstorming, risky for facts.</li></ul>
+<p>Vigil uses low values (0.1 to 0.2) because a security team wants steady, careful answers. Even at 0.0 you cannot assume identical output every time.</p>
+<h2 id="5-cost-and-latency">5. Cost and latency</h2>
+<p>A call has a price and a delay, and both grow with the number of tokens in and out. That is why later levels care about prompt size, caching and picking a cheaper model for easy jobs.</p>
+<aside class="callout note"><strong>Note</strong><p>Vigil shows a cost per run, but it is an <strong>estimate</strong> from list prices stored in <code>vigil/pricing.py</code>. Provider prices change and are not synced, so treat the number as a rough guide, not a bill.</p></aside>
+<h2 id="what-a-model-call-looks-like">What a model call looks like</h2>
+<div class="flow" role="img"><div class="node"><b>Your messages</b><small>system + user</small></div><span class="arr">→</span><div class="node"><b>The model</b><small>predicts tokens</small></div><span class="arr">→</span><div class="node"><b>Reply text</b><small>plus token counts</small></div></div>
+<p>The reply also reports how many tokens went in and out. Vigil adds these up to give each run its token and cost summary.</p>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why can a model be confidently wrong about a specific CVE?</summary><p>It answers from patterns in its training data, not from a live database. If it never saw reliable details about that CVE, or saw them only in passing, it may produce a fluent answer that is wrong. Tools (L4) and retrieval (the F-series) exist to ground it in real data.</p></details>
+<details><summary>A call fails because the input is too long. What limit did you hit?</summary><p>The context window: the maximum tokens for input plus output in one call.</p></details>
+<details><summary>Why is temperature set low for a security analysis?</summary><p>You want consistent, careful answers. High temperature trades consistency for variety, which is the wrong trade for facts.</p></details>
+<p>Ready for code? Continue to <a href="l0.html">Level 0</a>.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="getting-started.html"><small>Previous</small>Getting started</a><a class="next" href="l0.html"><small>Next</small>L0: A single call</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#1-a-language-model-predicts-the-next-piece-of-text">1. A language model predicts the next piece of text</a><a class="l2" href="#2-tokens">2. Tokens</a><a class="l2" href="#3-messages-and-roles">3. Messages and roles</a><a class="l2" href="#4-temperature">4. Temperature</a><a class="l2" href="#5-cost-and-latency">5. Cost and latency</a><a class="l2" href="#what-a-model-call-looks-like">What a model call looks like</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L1: Chaining and structure · Vigil Guide</title>
+<meta name="description" content="Three focused calls in sequence, each feeding the next, with typed output instead of free text.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html" aria-current=page>L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Levels</p>
+      <h1 id="level-1-chaining-and-structure">Level 1: Chaining and structure</h1>
+<p><strong>The question this level answers:</strong> how do I get reliable, usable results instead of one long paragraph?</p>
+<p>L0 returned a block of prose. A person can read that, but your code cannot reliably act on it. L1 fixes two problems at once: it splits one big task into <strong>a chain of small ones</strong>, and it makes each step return <strong>typed data</strong>.</p>
+<h2 id="idea-1-a-chain-beats-one-big-prompt">Idea 1: a chain beats one big prompt</h2>
+<p>If you ask one prompt to "explain the CVE, assess the risk, and write a remediation plan", each part gets a fraction of the model's attention. Three focused prompts do better, and each can use what the one before it found.</p>
+<div class="flow" role="img"><div class="node"><b>Step 1</b><small>summarise the CVE</small></div><span class="arr">→</span><div class="node"><b>Step 2</b><small>assess the risk</small></div><span class="arr">→</span><div class="node"><b>Step 3</b><small>plan the fix</small></div></div>
+<p>The output of step 1 becomes part of the input to step 2, and steps 1 and 2 both feed step 3. This is called <strong>context accumulation</strong>.</p>
+<h2 id="idea-2-structured-output">Idea 2: structured output</h2>
+<p>Free text is awkward for code. If the model returns "the severity seems quite high, maybe 9ish", what do you store in a database?</p>
+<p>With <strong>structured output</strong> you describe the shape you want, and the model must return data in exactly that shape. Vigil describes shapes with Pydantic classes. Here is step 1's shape:</p>
+<div class="code"><div class="code-cap">levels/l1_chain.py · CVESummary</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">class</span> CVESummary(_Base):
+    cve_id: str
+    one_line_description: str
+    affected_product: str
+    affected_versions: list[str]
+    attack_vector: Literal[<span class="t-s">&quot;Network&quot;</span>, <span class="t-s">&quot;Adjacent Network&quot;</span>, <span class="t-s">&quot;Local&quot;</span>, <span class="t-s">&quot;Physical&quot;</span>]
+    authentication_required: bool
+    severity: Literal[<span class="t-s">&quot;Critical&quot;</span>, <span class="t-s">&quot;High&quot;</span>, <span class="t-s">&quot;Medium&quot;</span>, <span class="t-s">&quot;Low&quot;</span>]
+    cvss_score: float = Field(ge=<span class="t-n">0.0</span>, le=<span class="t-n">10.0</span>)</code></pre></div>
+<p>Notice what the types do for you:</p>
+<ul><li><code>Literal[&quot;Critical&quot;, &quot;High&quot;, &quot;Medium&quot;, &quot;Low&quot;]</code> means the model can only answer with one of those exact words. No "CRITCAL", no "high".</li><li><code>Field(ge=0.0, le=10.0)</code> keeps the score between 0 and 10.</li><li><code>list[str]</code> and <code>bool</code> give you real lists and true/false values to program against.</li></ul>
+<p>Steps 2 and 3 have their own shapes, <code>RiskAssessment</code> and <code>RemediationPlan</code>. The urgency in step 2 is a fixed set of choices such as "Patch immediately" or "Patch within 7 days", so downstream code can sort and filter on it.</p>
+<h2 id="the-helper-that-does-the-work">The helper that does the work</h2>
+<p>One small function wraps every call in the chain:</p>
+<div class="code"><div class="code-cap">levels/l1_chain.py · call_llm</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> call_llm(system: str, user: str, response_model):
+    <span class="t-s">&quot;&quot;&quot;
+    Call the LLM and return a validated Pydantic object.
+
+    The key difference from L0:
+      L0 → response is a free-form string
+      L1 → response is a typed Python object: result.severity, result.cvss_score, etc.
+    &quot;&quot;&quot;</span>
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;system&quot;</span>, <span class="t-s">&quot;content&quot;</span>: system},
+            {<span class="t-s">&quot;role&quot;</span>: <span class="t-s">&quot;user&quot;</span>,   <span class="t-s">&quot;content&quot;</span>: user},
+        ],
+        <span class="t-c"># response_format with json_schema tells the model to return valid JSON</span>
+        <span class="t-c"># matching the exact schema — no parsing surprises, no extra validation loop.</span>
+        response_format={
+            <span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;json_schema&quot;</span>,
+            <span class="t-s">&quot;json_schema&quot;</span>: {
+                <span class="t-s">&quot;name&quot;</span>:   response_model.__name__,
+                <span class="t-s">&quot;strict&quot;</span>: <span class="t-k">True</span>,
+                <span class="t-s">&quot;schema&quot;</span>: _strict_schema(response_model),
+            },
+        },
+        temperature=<span class="t-n">0.1</span>,
+        max_tokens=<span class="t-n">8192</span>,
+    )
+    _track(response)
+    raw = response.choices[<span class="t-n">0</span>].message.content
+    <span class="t-k">return</span> response_model.model_validate(json.loads(raw))</code></pre></div>
+<p>Two details are worth understanding:</p>
+<ul><li><code>response_format</code> with a JSON schema tells the model to return JSON that matches your class. The key line is <code>&quot;strict&quot;: True</code>.</li><li><code>model_validate(json.loads(raw))</code> turns that JSON back into a real Python object and checks it. If anything is off, you get an error instead of silent bad data.</li></ul>
+<p>The difference from L0 is simple. L0 returns a string. <code>call_llm</code> returns an object, so you write <code>result.severity</code> and <code>result.cvss_score</code> instead of parsing text.</p>
+<h2 id="the-chain-itself">The chain itself</h2>
+<p>Step 2 receives the whole of step 1's output. Read how it builds its prompt from the previous result:</p>
+<div class="code"><div class="code-cap">levels/l1_chain.py · step2_assess_risk</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> step2_assess_risk(summary: CVESummary) -&gt; RiskAssessment:
+    <span class="t-s">&quot;&quot;&quot;Assess risk based on the CVE summary from step 1.&quot;&quot;&quot;</span>
+    <span class="t-k">return</span> call_llm(
+        system=<span class="t-s">&quot;You are a risk analyst. Assess the real-world risk of this vulnerability for enterprise environments.&quot;</span>,
+        user=<span class="t-s">f&quot;&quot;</span>&quot;Based on this CVE summary, assess the risk:
+
+CVE ID:            {summary.cve_id}
+Description:       {summary.one_line_description}
+Affected product:  {summary.affected_product} ({<span class="t-s">&#x27;, &#x27;</span>.join(summary.affected_versions)})
+Attack vector:     {summary.attack_vector}
+Auth required:     {summary.authentication_required}
+CVSS Score:        {summary.cvss_score} ({summary.severity})
+
+Provide a concrete risk assessment <span class="t-k">with</span> urgency SLA.<span class="t-s">&quot;&quot;</span>&quot;,
+        response_model=RiskAssessment,
+    )</code></pre></div>
+<p>The prompt is not "assess CVE-2021-44228". It contains the facts step 1 established: the product, versions, attack vector and score. The risk assessment is <strong>informed by</strong> the summary. Step 3 does the same with both earlier results.</p>
+<h2 id="run-it">Run it</h2>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/l1_chain.py CVE-2021-44228</code></pre></div>
+<p>You should see three stages printed in order: a CVE summary, a risk assessment, then a remediation plan. Check that the plan reflects the risk. A critical, easy-to-exploit CVE should produce urgent immediate actions.</p>
+<h2 id="try-it">Try it</h2>
+<aside class="callout try-it"><strong>Try it</strong><p>1) In <code>step2_assess_risk</code>, delete the lines that pass the summary in and re-run. Does the assessment get worse or more generic? That difference is the value of chaining. 2) Add a new <code>Literal</code> option to <code>urgency</code> and see whether the model uses it. 3) Make a field optional by giving it a default and note when it comes back empty.</p></aside>
+<p>The exercise <code>exercises/l1_chaining</code> practises threading one step's output into the next:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>pytest exercises/l1_chaining -q</code></pre></div>
+<h2 id="common-mistakes">Common mistakes</h2>
+<ul><li><strong>Making steps too big.</strong> If a step does three jobs, split it.</li><li><strong>Passing too little forward.</strong> A later step can only use what you give it.</li><li><strong>Passing too much forward.</strong> Every extra token costs money and can distract the model. Pass what the next step needs.</li><li><strong>Trusting the type, not the content.</strong> The shape is guaranteed; the facts are still the model's, so they can be wrong.</li><li><strong>Forgetting the cost.</strong> Three calls cost roughly three times one. Chains buy quality, not savings.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>What is context accumulation?</summary><p>Each step receives the useful results of earlier steps, so later steps build on earlier findings instead of starting from nothing.</p></details>
+<details><summary>Why use <code>Literal</code> types for severity?</summary><p>It limits the model to a fixed set of exact values, which removes typos and variations and lets your code branch on the result safely.</p></details>
+<details><summary>What does structured output guarantee, and what does it not?</summary><p>It guarantees the shape: the right fields and types. It does not guarantee that the content is true.</p></details>
+<p>Next: <a href="l2.html">Level 2</a> runs several specialists at the same time.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="l0.html"><small>Previous</small>L0: A single call</a><a class="next" href="l2.html"><small>Next</small>L2: Parallel agents</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#idea-1-a-chain-beats-one-big-prompt">Idea 1: a chain beats one big prompt</a><a class="l2" href="#idea-2-structured-output">Idea 2: structured output</a><a class="l2" href="#the-helper-that-does-the-work">The helper that does the work</a><a class="l2" href="#the-chain-itself">The chain itself</a><a class="l2" href="#run-it">Run it</a><a class="l2" href="#try-it">Try it</a><a class="l2" href="#common-mistakes">Common mistakes</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
