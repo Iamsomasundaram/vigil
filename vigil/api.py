@@ -29,7 +29,7 @@ Endpoints:
 
 Layout:
   vigil/api.py        app, lifespan, middleware, router registration (this file)
-  vigil/hardening.py  optional API-key auth, rate limit, response cache
+  vigil/hardening.py  API-key auth + scopes, rate limit, request limits, CORS config, cache
   vigil/schemas.py    request/response models for the API
   vigil/routers/      one module per area: system, levels, reliability, foundations,
                       architectures, extensions
@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from vigil import hardening
 from vigil.routers import (
     architectures,
@@ -60,6 +61,7 @@ from vigil.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    hardening.validate_config()  # prod without API keys refuses to start
     yield  # App is running
     # Shutdown: stop the autonomous monitor if it's running
     try:
@@ -80,6 +82,15 @@ app = FastAPI(
 )
 
 app.middleware("http")(hardening.enforce_hardening)
+# Added after the hardening middleware so it is outermost: preflight requests are
+# answered, and 401/429 responses still carry CORS headers. No wildcard, no cookies.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=hardening._CORS_ORIGINS,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["x-api-key", "content-type"],
+    allow_credentials=False,
+)
 
 for _router in (
     system.router,

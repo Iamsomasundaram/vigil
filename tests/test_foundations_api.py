@@ -75,7 +75,7 @@ def test_framework_a1_endpoint(monkeypatch):
     api = _fresh_api()
     client = TestClient(api.app)
 
-    r = client.post("/frameworks/a1", json={"cve_id": "CVE-1"})
+    r = client.post("/frameworks/a1", json={"cve_id": "CVE-2021-0001"})
     assert r.status_code == 200
     assert r.json()["framework"] == "langgraph"
 
@@ -261,7 +261,7 @@ def test_foundations_prompt_versions_endpoints(monkeypatch):
                 "ties": 0,
             },
             "per_item": [
-                {"item": "CVE-1", "a_quality": 0.6, "b_quality": 0.7, "winner": "b"},
+                {"item": "CVE-2021-0001", "a_quality": 0.6, "b_quality": 0.7, "winner": "b"},
             ],
         },
     )
@@ -273,7 +273,7 @@ def test_foundations_prompt_versions_endpoints(monkeypatch):
     assert rv.status_code == 200
     assert rv.json()[0]["id"] == "v1"
 
-    rc = client.post("/foundations/prompt-versions/compare", json={"version_a": "v1", "version_b": "v2", "items": ["CVE-1"]})
+    rc = client.post("/foundations/prompt-versions/compare", json={"version_a": "v1", "version_b": "v2", "items": ["CVE-2021-0001"]})
     assert rc.status_code == 200
     assert rc.json()["overall_winner"] == "b"
 

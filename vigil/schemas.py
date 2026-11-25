@@ -7,7 +7,8 @@ are specific to the API layer. Routers import from here.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Annotated
 from vigil.models import (
     CacheInfo,
     ContextBudgetReport,
@@ -21,8 +22,13 @@ from vigil.pricing import PRICING_NOTE
 
 # ─── REQUEST / RESPONSE SCHEMAS ───────────────────────────────────────────────
 
+# Request-side CVE identifier: rejects anything that is not CVE-YYYY-NNNN... before it
+# reaches a prompt, a SQL parameter or a URL. Keep in sync with CVE_ID_PATTERN.
+CVE_ID_PATTERN = r"^CVE-\d{4}-\d{4,19}$"
+CveId = Annotated[str, StringConstraints(pattern=CVE_ID_PATTERN, max_length=30)]
+
 class CVERequest(BaseModel):
-    cve_id: str = Field(
+    cve_id: CveId = Field(
         default="CVE-2021-44228",
         description="CVE identifier to analyse",
         examples=["CVE-2021-44228", "CVE-2023-44487", "CVE-2022-22965"],
@@ -132,12 +138,12 @@ class R2EvaluateRequest(BaseModel):
 
 
 class R3RunRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
     export_path: str | None = None
 
 
 class R4Request(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
     chaos: str = Field(default="", description="Optional chaos config, e.g. epss=timeout,nvd=500")
 
 
@@ -158,11 +164,11 @@ class R5BudgetRequest(BaseModel):
 
 
 class A2StartRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
 
 
 class A4CollaborateRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
     mode: str = Field(default="handoff", description="handoff | debate | blackboard")
     rounds: int = Field(default=2, ge=1, le=5)
 
@@ -180,7 +186,7 @@ class L4bPdfRequest(BaseModel):
 
 
 class InferenceCompareRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
     task: str = Field(default="default")
     providers: list[str] = Field(default_factory=lambda: ["openai"])
 
@@ -191,7 +197,7 @@ class TokenizeRequest(BaseModel):
 
 
 class PromptCompareRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
     advisory_text: str = Field(default="")
 
 
@@ -308,7 +314,7 @@ class ClaudeMapRequest(BaseModel):
 
 
 class McpLoopRequest(BaseModel):
-    cve_id: str = Field(default="CVE-2021-44228")
+    cve_id: CveId = Field(default="CVE-2021-44228")
 
 
 class ResponsibleAIRequest(BaseModel):
@@ -391,7 +397,7 @@ class AlertEntry(BaseModel):
 #          and improves recommendations based on what happened after past analyses
 
 class FeedbackRequest(BaseModel):
-    cve_id:  str = Field(examples=["CVE-2021-44228"])
+    cve_id:  CveId = Field(examples=["CVE-2021-44228"])
     status:  str = Field(
         description="patched | dismissed | in_progress | still_vulnerable | monitoring",
         examples=["patched"],
@@ -406,7 +412,7 @@ class FeedbackRequest(BaseModel):
 #   Watchlist management → manual scan → alerts → monitor start/stop/status
 
 class WatchlistRequest(BaseModel):
-    cve_id: str = Field(examples=["CVE-2021-44228"])
+    cve_id: CveId = Field(examples=["CVE-2021-44228"])
 
 
 class AcknowledgeRequest(BaseModel):

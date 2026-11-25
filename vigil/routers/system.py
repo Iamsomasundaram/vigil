@@ -4,7 +4,7 @@ vigil/routers/system.py — System endpoints: health, API info and rate-limit di
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter
 from vigil import hardening
 from vigil.schemas import HealthResponse
 
@@ -52,10 +52,6 @@ def root():
 
 
 @router.get("/admin/ratelimit", tags=["system"])
-def admin_ratelimit(request: Request):
-    """Inspect in-memory rate bucket state (local diagnostics)."""
-    if hardening._API_KEYS:
-        api_key = request.headers.get("x-api-key")
-        if api_key not in hardening._API_KEYS:
-            raise HTTPException(status_code=401, detail="Missing or invalid API key")
+def admin_ratelimit():
+    """Inspect in-memory rate bucket state (local diagnostics). Needs an admin-scope key."""
     return {"rate_per_min": hardening._RATE_PER_MIN, "buckets": hardening._RATE_STATE}

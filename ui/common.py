@@ -7,6 +7,8 @@ import streamlit as st
 
 
 API_BASE = os.getenv("VIGIL_API_URL", "http://localhost:8000")
+# Key the UI sends as X-API-Key when the API has VIGIL_API_KEYS set (give it a run-scope key).
+AUTH_HEADERS = {"x-api-key": os.environ["VIGIL_UI_API_KEY"]} if os.getenv("VIGIL_UI_API_KEY") else {}
 # The UI image does not ship the vigil package, so this mirrors vigil.pricing.PRICING_NOTE.
 COST_NOTE = "Estimate from indicative list prices; not a bill. Provider prices change and are not synced here."
 
@@ -23,7 +25,8 @@ def api(method: str, path: str, **kwargs) -> dict | None:
     """
     url = f"{API_BASE}{path}"
     try:
-        r = httpx.request(method, url, timeout=TIMEOUT, **kwargs)
+        headers = {**kwargs.pop("headers", {}), **AUTH_HEADERS}
+        r = httpx.request(method, url, timeout=TIMEOUT, headers=headers, **kwargs)
         r.raise_for_status()
         return r.json()
     except httpx.HTTPStatusError as e:

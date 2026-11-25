@@ -21,6 +21,10 @@ services:
       - DATABASE_URL=postgresql://vigil:vigil@db:5432/vigil
       # Redis URL — used from L6 onwards
       - REDIS_URL=redis://redis:6379/0
+      # Security (see docs: Security defaults). dev = open API; prod = keys required.
+      - VIGIL_ENV=${VIGIL_ENV:-dev}
+      - VIGIL_API_KEYS=${VIGIL_API_KEYS:-}
+      - VIGIL_CORS_ORIGINS=${VIGIL_CORS_ORIGINS:-http://localhost:8501,http://127.0.0.1:8501}
     volumes:
       # Mount source code so --reload picks up changes without rebuilding
       - ./vigil:/app/vigil
@@ -131,6 +135,8 @@ services:
     environment:
       # Point the UI at the API container by its service name, not localhost
       - VIGIL_API_URL=http://api:8000
+      # Needed only when the API has VIGIL_API_KEYS set: a key with run scope.
+      - VIGIL_UI_API_KEY=${VIGIL_UI_API_KEY:-}
     volumes:
       # Hot-reload: edit ui/app.py on the host → reflected immediately
       - ./ui:/app/ui

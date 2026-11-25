@@ -14,6 +14,7 @@ from vigil.models import DiscoveredTool, RecalledMemory
 from vigil.schemas import (
     AcknowledgeRequest,
     CVERequest,
+    CveId,
     FeedbackRequest,
     L0Response,
     L1Response,
@@ -117,7 +118,7 @@ def analyse_l1(req: CVERequest):
 
 
 @router.get("/l1/stream", tags=["levels"])
-async def stream_l1(cve_id: str = "CVE-2021-44228"):
+async def stream_l1(cve_id: CveId = "CVE-2021-44228"):
     """E4 demo endpoint: stream a concise CVE summary token-by-token."""
     try:
         from openai import AsyncOpenAI
@@ -421,7 +422,7 @@ async def feedback_l5(req: FeedbackRequest):
 
 
 @router.get("/l5/history/{cve_id}", tags=["levels"])
-async def history_l5(cve_id: str):
+async def history_l5(cve_id: CveId):
     """
     Retrieve the full analysis history for a CVE from memory.
 
@@ -450,7 +451,7 @@ async def history_l5(cve_id: str):
 
 
 @router.get("/l5/similar/{cve_id}", response_model=RecalledMemory, tags=["levels"])
-async def similar_l5(cve_id: str, k: int = 5, threshold: float = 0.55):
+async def similar_l5(cve_id: CveId, k: int = 5, threshold: float = 0.55):
     """E1 extension: semantic recall over prior analyses for related incidents."""
     try:
         from levels.l5_memory import get_similar_cves
@@ -479,7 +480,7 @@ async def add_to_watchlist_l6(req: WatchlistRequest):
 
 
 @router.delete("/l6/watchlist/{cve_id}", tags=["levels"])
-async def remove_from_watchlist_l6(cve_id: str):
+async def remove_from_watchlist_l6(cve_id: CveId):
     """Remove a CVE from the watchlist (soft delete — history is preserved)."""
     try:
         import asyncpg

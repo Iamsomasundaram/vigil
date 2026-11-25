@@ -4,6 +4,7 @@ import httpx
 import streamlit as st
 
 from common import (
+    AUTH_HEADERS,
     API_BASE,
     cost_line,
 )
@@ -57,7 +58,7 @@ def render_a1() -> None:
 
     if st.button("Run ReAct Investigation", type="primary"):
         with st.spinner("Agent is thinking and acting..."):
-            resp = httpx.post(f"{API_BASE}/a1/analyse", json={"cve_id": cve_id}, timeout=120)
+            resp = httpx.post(f"{API_BASE}/a1/analyse", json={"cve_id": cve_id}, headers=AUTH_HEADERS, timeout=120)
 
         if resp.status_code == 200:
             data  = resp.json()
@@ -157,7 +158,7 @@ PHASE 2 — EXECUTE  (one action per step)
 
     if st.button("Run Plan-and-Execute", type="primary"):
         with st.spinner("Planning investigation..."):
-            resp = httpx.post(f"{API_BASE}/a2/analyse", json={"cve_id": cve_id}, timeout=120)
+            resp = httpx.post(f"{API_BASE}/a2/analyse", json={"cve_id": cve_id}, headers=AUTH_HEADERS, timeout=120)
 
         if resp.status_code == 200:
             data    = resp.json()
@@ -266,7 +267,7 @@ PHASE 3 — REVISE
 
     if st.button("Run Reflection Analysis", type="primary"):
         with st.spinner("Researching, critiquing, and revising..."):
-            resp = httpx.post(f"{API_BASE}/a3/analyse", json={"cve_id": cve_id}, timeout=120)
+            resp = httpx.post(f"{API_BASE}/a3/analyse", json={"cve_id": cve_id}, headers=AUTH_HEADERS, timeout=120)
 
         if resp.status_code == 200:
             data     = resp.json()
@@ -391,7 +392,7 @@ ThreatIntel    Impact      Remediation
 
     if st.button("Run Multi-Agent Analysis", type="primary"):
         with st.spinner("Three agents working in parallel..."):
-            resp = httpx.post(f"{API_BASE}/a4/analyse", json={"cve_id": cve_id}, timeout=180)
+            resp = httpx.post(f"{API_BASE}/a4/analyse", json={"cve_id": cve_id}, headers=AUTH_HEADERS, timeout=180)
 
         if resp.status_code == 200:
             data         = resp.json()
