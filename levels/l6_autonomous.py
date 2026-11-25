@@ -42,7 +42,8 @@ HOW L6 COMPOSES EVERY PRIOR LEVEL
   L6 doesn't replace earlier levels — it orchestrates them:
 
     L2 (parallel fan-out)   → scan multiple CVEs simultaneously each loop tick
-    L3 (routing)            → decide alert severity: is this Critical or just Monitor?
+    L3 (routing)            → same idea of a rule-based decision: severity comes from a fixed
+                              lookup on the change type (plain code, not a model call)
     L4 (tool use)           → fetch live NVD + EPSS data on each scan cycle
     L5 (memory)             → compare current data against last known state to detect change
 
@@ -61,7 +62,7 @@ THE MONITOR LOOP PATTERN
             fetch current data      (L4 tools)
             compare against memory  (L5)
             if significant change:
-                route alert severity (L3)
+                map the change type to a severity (lookup table)
                 store alert in DB
         sleep until next scan interval
 
@@ -80,9 +81,12 @@ CHANGE DETECTION: WHAT IS "SIGNIFICANT"?
     • CVSS score increased           (vendor re-assessed and it's worse)
 
   NOISE (no alert):
-    • EPSS changed by < 0.05        (normal daily fluctuation)
+    • EPSS rose by less than 0.15 without crossing 0.5 (not enough on its own)
     • No data changed at all        (routine confirm, just update last-checked)
-    • CVE already has "patched" feedback (we fixed it — don't keep alerting)
+
+  Not implemented (ideas to add): a dead band for tiny EPSS wobble, and
+  suppressing alerts for CVEs already marked "patched" in L5 feedback.
+  Note also that the FIRST scan of any CVE always alerts (change type "new_cve").
 
   This threshold logic is why the agent is useful: it does the triage for you.
   A human checking 500 CVEs manually every morning would miss the subtle ones.
@@ -451,8 +455,12 @@ async def fetch_current_nvd(cve_id: str) -> dict:
         return {"cvss_score": 0.0, "severity": "Unknown", "patch_known": False}
 
 
-async def fetch_current_epss(cve_id: str) -> float:
-    """Fetch current EPSS score. Returns 0.0 on any failure."""
+async def fetch_current_epss(cve_id: str) -> float | None:
+    """Fetch current EPSS score. Returns None on any failure (network, HTTP error, bad JSON).
+
+    None means "unknown", which is different from a real score of 0.0. Callers
+    must not store an unknown value as the new baseline — see resolve_epss().
+    """
     url = f"https://api.first.org/data/v1/epss?cve={cve_id}"
     try:
         r = await http.get(url)
@@ -460,7 +468,20 @@ async def fetch_current_epss(cve_id: str) -> float:
         items = r.json().get("data", [])
         return float(items[0].get("epss", 0)) if items else 0.0
     except Exception:
-        return 0.0
+        return None
+
+
+def resolve_epss(fetched: float | None, last_state: dict | None) -> float:
+    """
+    Pick the EPSS value to use for this scan.
+
+    A failed fetch (None) falls back to the last known score, so a network
+    blip neither fakes a drop now nor a spike on the next scan. With no history
+    at all, 0.0 is the only value available.
+    """
+    if fetched is not None:
+        return fetched
+    return last_state["epss_score"] if last_state else 0.0
 
 
 # ─── CHANGE DETECTION ─────────────────────────────────────────────────────────
@@ -630,12 +651,15 @@ async def scan_one(cve_id: str, db_url: str = DB_URL) -> AutonomousAlert | None:
         # Fetch NVD and EPSS simultaneously — L2's parallel pattern applied here.
         # Note: these are pure HTTP calls, not DB operations, so they don't touch
         # our connection and are safe to run in parallel.
-        nvd_data, epss_score = await asyncio.gather(
+        nvd_data, fetched_epss = await asyncio.gather(
             fetch_current_nvd(cve_id),
             fetch_current_epss(cve_id),
         )
 
         last_state = await get_scan_state(conn, cve_id)
+        if fetched_epss is None:
+            console.print(f"  [yellow]EPSS unavailable for {cve_id}; keeping the last known score[/yellow]")
+        epss_score = resolve_epss(fetched_epss, last_state)
         signal     = detect_changes(cve_id, last_state, nvd_data, epss_score)
 
         # Save the current state as the new baseline, regardless of whether we alert

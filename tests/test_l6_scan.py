@@ -205,3 +205,21 @@ async def test_monitor_start_and_stop(clean_watchlist):
         await asyncio.sleep(0.1)
 
     assert not is_running(), "Monitor should be stopped after stop_monitor()"
+
+
+def test_resolve_epss_keeps_last_score_when_fetch_failed():
+    """A failed EPSS fetch (None) must not overwrite the stored baseline with 0.0."""
+    from levels.l6_autonomous import resolve_epss
+
+    last = {"epss_score": 0.42, "cvss_score": 7.5, "patch_known": False}
+    assert resolve_epss(None, last) == 0.42
+    assert resolve_epss(0.0, last) == 0.0  # a real zero is still honoured
+    assert resolve_epss(None, None) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_fetch_current_epss_returns_none_on_error():
+    from levels import l6_autonomous
+
+    with patch.object(l6_autonomous.http, "get", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        assert await l6_autonomous.fetch_current_epss("CVE-TEST") is None
