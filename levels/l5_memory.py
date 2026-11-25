@@ -704,8 +704,9 @@ async def build_budgeted_memory_context(
 
     Priority: keep the most recent `recent_k` analyses verbatim; consolidate older
     history into a summary when the full block would exceed `max_tokens`. If even
-    the trimmed block overflows, drop oldest verbatim entries (truncation). The
-    returned report flags whether summarization and/or truncation occurred.
+    the trimmed block overflows, drop oldest verbatim entries (truncation). If a
+    single entry is still larger than the whole budget, cut it to fit, so `max_tokens`
+    is a hard ceiling. The returned report flags whether summarization and/or truncation occurred.
     """
     if not history:
         text = "No prior analyses found for this CVE."
