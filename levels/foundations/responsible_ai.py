@@ -15,7 +15,7 @@ console = Console()
 
 # Illustrative moderation lexicon for teaching; not a production classifier.
 _MODERATION_PATTERNS: list[tuple[str, str]] = [
-    ("hate", r"\b(kill|exterminate|inferior race|subhuman)\b"),
+    ("hate", r"\b(exterminate|inferior race|subhuman|kill (?:all|every(?:one)?) (?:the )?\w+)\b"),
     ("harassment", r"\b(idiot|stupid|worthless|loser)\b"),
     ("self_harm", r"\b(suicide|self[- ]harm|hurt myself)\b"),
     ("violence", r"\b(bomb|shoot up|massacre)\b"),

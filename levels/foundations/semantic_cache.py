@@ -37,6 +37,10 @@ class SemanticCache:
 
     Unlike an exact-key cache, this returns a stored answer when a new query is
     semantically close enough (cosine over term sets) to a previous one.
+
+    Limit: this is word overlap, not meaning. Two questions that share most words
+    but differ in intent (e.g. "is it patched" vs "is it exploited") can score as
+    similar, so a low threshold can return a wrong cached answer.
     """
 
     def __init__(self, *, threshold: float = 0.8, ttl_seconds: int = 300) -> None:
@@ -108,7 +112,7 @@ def main() -> None:
 
     pairs = [
         {"query": "What is CVE-2021-44228?", "response": "Log4Shell RCE"},
-        {"query": "Tell me about CVE-2021-44228", "response": "Log4Shell RCE"},
+        {"query": "Explain CVE-2021-44228", "response": "Log4Shell RCE"},
         {"query": "How do I bake bread?", "response": "Use flour and yeast"},
     ]
     console.print(json.dumps(simulate(pairs, threshold=args.threshold), indent=2))

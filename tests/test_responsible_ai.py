@@ -35,3 +35,10 @@ def test_responsible_ai_report_safe_to_ship_flag():
     )
     assert out["flagged_texts"] == 0
     assert out["safe_to_ship"] is True
+
+
+def test_kill_the_process_is_not_flagged_as_hate():
+    from levels.foundations.responsible_ai import moderate_text
+
+    assert not moderate_text("kill the process and restart the worker")["flagged"]
+    assert moderate_text("exterminate them")["flagged"]

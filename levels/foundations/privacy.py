@@ -21,10 +21,43 @@ _PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
 ]
 
 
+_CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+
+
+def _luhn_ok(digits: str) -> bool:
+    total, flip = 0, False
+    for ch in reversed(digits):
+        d = int(ch)
+        if flip:
+            d = d * 2 - 9 if d * 2 > 9 else d * 2
+        total += d
+        flip = not flip
+    return total % 10 == 0
+
+
 def redact_text(text: str) -> dict[str, Any]:
-    """Redact common sensitive patterns and return findings metadata."""
+    """Redact common sensitive patterns and return findings metadata.
+
+    Covers emails, IPv4 addresses, API keys, secret fields and payment card numbers
+    (13-19 digits that pass the Luhn check). It does NOT detect personal names or
+    addresses: that needs a named-entity model, not a regex.
+    """
     out = text
     findings: list[dict[str, Any]] = []
+
+    card_count = 0
+
+    def _mask_card(m: re.Match[str]) -> str:
+        nonlocal card_count
+        digits = re.sub(r"\D", "", m.group(0))
+        if _luhn_ok(digits):
+            card_count += 1
+            return "<REDACTED_CARD>"
+        return m.group(0)
+
+    out = _CARD.sub(_mask_card, out)
+    if card_count:
+        findings.append({"type": "card", "count": card_count})
 
     for kind, pattern, replacement in _PATTERNS:
         matches = list(pattern.finditer(out))

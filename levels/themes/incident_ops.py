@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 
 from rich.console import Console
 from rich.table import Table
@@ -49,8 +50,9 @@ _DOMAIN_RULES: list[tuple[str, str]] = [
 
 
 def _contains_any(text: str, terms: set[str]) -> bool:
+    # Whole-word match, so "rce" does not fire inside "resource".
     lowered = text.lower()
-    return any(term in lowered for term in terms)
+    return any(re.search(rf"\b{re.escape(term)}\b", lowered) for term in terms)
 
 
 def _likely_domains(text: str, signals: list[str]) -> list[str]:

@@ -38,9 +38,28 @@
 <div class='table'><table><thead><tr><th>Rule</th><th>Catches</th><th>Becomes</th></tr></thead><tbody><tr><td><code>email</code></td><td>Typical email addresses</td><td><code>&lt;REDACTED_EMAIL&gt;</code></td></tr><tr><td><code>ipv4</code></td><td>Four dotted groups of digits</td><td><code>&lt;REDACTED_IP&gt;</code></td></tr><tr><td><code>api_key</code></td><td>Strings starting <code>sk-</code> or <code>pk-</code> followed by 16 or more characters</td><td><code>&lt;REDACTED_KEY&gt;</code></td></tr><tr><td><code>token</code></td><td><code>token</code>, <code>secret</code> or <code>password</code>, then <code>:</code> or <code>=</code>, then a value</td><td><code>&lt;REDACTED_SECRET_FIELD&gt;</code></td></tr></tbody></table></div>
 <h2 id="redacting-text">Redacting text</h2>
 <div class="code"><div class="code-cap">levels/foundations/privacy.py · redact_text</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code><span class="t-k">def</span> redact_text(text: str) -&gt; dict[str, Any]:
-    <span class="t-s">&quot;&quot;&quot;Redact common sensitive patterns and return findings metadata.&quot;&quot;&quot;</span>
+    <span class="t-s">&quot;&quot;&quot;Redact common sensitive patterns and return findings metadata.
+
+    Covers emails, IPv4 addresses, API keys, secret fields and payment card numbers
+    (13-19 digits that pass the Luhn check). It does NOT detect personal names or
+    addresses: that needs a named-entity model, not a regex.
+    &quot;&quot;&quot;</span>
     out = text
     findings: list[dict[str, Any]] = []
+
+    card_count = <span class="t-n">0</span>
+
+    <span class="t-k">def</span> _mask_card(m: re.Match[str]) -&gt; str:
+        nonlocal card_count
+        digits = re.sub(r<span class="t-s">&quot;\D&quot;</span>, <span class="t-s">&quot;&quot;</span>, m.group(<span class="t-n">0</span>))
+        <span class="t-k">if</span> _luhn_ok(digits):
+            card_count += <span class="t-n">1</span>
+            <span class="t-k">return</span> <span class="t-s">&quot;&lt;REDACTED_CARD&gt;&quot;</span>
+        <span class="t-k">return</span> m.group(<span class="t-n">0</span>)
+
+    out = _CARD.sub(_mask_card, out)
+    <span class="t-k">if</span> card_count:
+        findings.append({<span class="t-s">&quot;type&quot;</span>: <span class="t-s">&quot;card&quot;</span>, <span class="t-s">&quot;count&quot;</span>: card_count})
 
     <span class="t-k">for</span> kind, pattern, replacement <span class="t-k">in</span> _PATTERNS:
         matches = list(pattern.finditer(out))

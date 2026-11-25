@@ -26,7 +26,7 @@ WHAT IS PLAN-AND-EXECUTE?
     ┌──────────────────────────────────────────────────────────────────────┐
     │  Work through the plan step by step.                                 │
     │  Each step gets fresh context: the original goal + prior results.   │
-    │  Steps can be re-planned if a result changes the picture.            │
+    │  (This implementation does not re-plan; see execute_plan.)           │
     └──────────────────────────────────────────────────────────────────────┘
 
 HOW PLAN-AND-EXECUTE DIFFERS FROM ReAct
@@ -52,9 +52,9 @@ WHY SEPARATE PLANNING FROM EXECUTION?
      runs. In security workflows, this is important: "The agent plans to
      quarantine this host — approve?" is better than learning after the fact.
 
-  2. Parallelism — steps that don't depend on each other can run in parallel
-     once the plan is produced. A planner might produce 3 independent data
-     fetches that all run simultaneously.
+  2. Parallelism — in principle, steps that don't depend on each other can run
+     in parallel once the plan is produced. (This implementation runs the steps
+     one after another; running independent ones concurrently is a good exercise.)
 
   3. Cost control — planning uses one cheap LLM call. If the plan is bad,
      you discard it without paying for execution.
@@ -342,7 +342,7 @@ _RUNS: dict[str, dict[str, Any]] = {}
 
 def _is_high_risk_step(step: PlanStep) -> bool:
     text = (step.description + " " + step.tool_name).lower()
-    return any(k in text for k in ("critical", "offline", "shutdown", "immediate", "kev"))
+    return any(k in text for k in ("critical", "offline", "shutdown", "immediate"))
 
 
 def _serialize_paused(run: dict[str, Any]) -> PausedRun:

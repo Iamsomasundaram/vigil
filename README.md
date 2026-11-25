@@ -38,7 +38,7 @@ L5 and L6 need PostgreSQL, so start them only once L0–L4 are comfortable.
 | L1    | `levels/l1_chain.py`       | Prompt chaining + structured output | 3-step chain: summarise → assess risk → remediation plan              |
 | L2    | `levels/l2_parallel.py`    | Parallel agent fan-out              | 4 specialist agents run simultaneously, moderator synthesises         |
 | L3    | `levels/l3_routing.py`     | Conditional routing                 | System classifies CVE type, activates the right specialist track      |
-| L4    | `levels/l4_tool_use.py`    | Real tool use                       | Queries NVD, EPSS, and your asset inventory                           |
+| L4    | `levels/l4_tool_use.py`    | Real tool use                       | Queries live NVD and EPSS data                                       |
 | L5    | `levels/l5_memory.py`      | Memory + feedback loops             | Tracks remediation, follows up, learns from history                   |
 | L6    | `levels/l6_autonomous.py`  | Fully autonomous                    | Monitors CVE feeds, assigns tickets, verifies fixes — no human needed |
 
@@ -263,7 +263,7 @@ Model text differs on every run, so compare the *shape* of the output, not the w
 | L1    | Three stages in order: CVE summary, risk assessment, remediation plan                                            | Each stage reuses facts from the one before                       |
 | L2    | One card per specialist agent, then a moderator's final verdict                                                  | Wall time is about one agent's latency, not four added together   |
 | L3    | A routing decision first, then the result of one of four tracks: critical, standard patch, low risk, human review | A famous critical CVE should not land in the low-risk track       |
-| L4    | The same analysis, grounded in live NVD and EPSS lookups and your asset inventory in `data/assets.json`          | The scores shown match what NVD and EPSS return today             |
+| L4    | The same analysis, grounded in live NVD and EPSS lookups                                                                           | The scores shown match what NVD and EPSS return today             |
 | L5–L6 | Memory and autonomous-monitor output backed by PostgreSQL                                                        | A second run for the same CVE can draw on the first               |
 
 Token usage per run is available through each level's `get_usage()`. Each level's module docstring explains what it should do and why.

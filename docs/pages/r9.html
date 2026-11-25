@@ -64,7 +64,7 @@
 
     <span class="t-k">if</span> delta &lt; min_delta:
         decision = <span class="t-s">&quot;rollback&quot;</span>
-        stage = <span class="t-s">&quot;canary&quot;</span>
+        stage = <span class="t-s">&quot;stable&quot;</span>  <span class="t-c"># all traffic back on the control version</span>
     <span class="t-k">elif</span> delta &gt;= <span class="t-n">0.0</span>:
         decision = <span class="t-s">&quot;promote&quot;</span>
         stage = <span class="t-s">&quot;full&quot;</span>

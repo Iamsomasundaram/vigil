@@ -99,6 +99,10 @@
 
     Unlike an exact-key cache, this returns a stored answer when a new query is
     semantically close enough (cosine over term sets) to a previous one.
+
+    Limit: this is word overlap, not meaning. Two questions that share most words
+    but differ in intent (e.g. &quot;is it patched&quot; vs &quot;is it exploited&quot;) can score as
+    similar, so a low threshold can return a wrong cached answer.
     &quot;&quot;&quot;</span>
 
     <span class="t-k">def</span> __init__(self, *, threshold: float = <span class="t-n">0.8</span>, ttl_seconds: int = <span class="t-n">300</span>) -&gt; <span class="t-k">None</span>:

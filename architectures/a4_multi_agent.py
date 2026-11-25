@@ -84,7 +84,8 @@ HOW THIS DIFFERS FROM L2 (Parallel Fan-out)
     • Moderator synthesises; no orchestrator decides dispatch
 
   A4 Multi-Agent:
-    • Orchestrator dynamically describes each agent's specific subtask
+    • Orchestrator hands each agent a fixed, role-specific task (the roles are
+      hardcoded here; dynamic subtask assignment is left as an extension)
     • Each agent has its own real tools for live data
     • Agents report back with structured outputs the orchestrator interprets
     • The pattern is extensible: add a "Legal & Compliance" agent, etc.
@@ -619,6 +620,13 @@ async def collaborate(
     mode: str = "handoff",
     rounds: int = 2,
 ) -> Consensus:
+    """
+    Run the analysis once, then present it as a handoff, debate or blackboard transcript.
+
+    The transcript is built from fixed templates AFTER the run: it makes no extra
+    model calls and is not a real conversation between agents. It illustrates how
+    each communication pattern would be shaped.
+    """
     threat, impact, remediation, final, _tool_log = await analyse_cve(cve_id)
     transcript: list[AgentMessage] = []
 

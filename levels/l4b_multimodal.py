@@ -48,9 +48,9 @@ HOW A VISION PROMPT IS BUILT
 
 RUN THIS FILE
 ─────────────
-  python levels/l4b_multimodal.py --image data/samples/advisory.png
+  python levels/l4b_multimodal.py --image path/to/advisory.png
   python levels/l4b_multimodal.py --image https://example.com/advisory.png
-  python levels/l4b_multimodal.py --pdf   data/samples/bulletin.pdf
+  python levels/l4b_multimodal.py --pdf   path/to/bulletin.pdf
 """
 
 from __future__ import annotations

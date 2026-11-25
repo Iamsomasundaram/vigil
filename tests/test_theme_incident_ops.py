@@ -40,3 +40,10 @@ def test_incident_ops_monitor_track_for_low_signal_alerts():
     assert rep.severity == "Medium"
     assert rep.track == "monitor"
     assert rep.urgency_minutes == 240
+
+
+def test_rce_term_does_not_match_inside_other_words():
+    from levels.themes.incident_ops import _CRITICAL_TERMS, _contains_any
+
+    assert not _contains_any("resource exhaustion on the worker pool", _CRITICAL_TERMS)
+    assert _contains_any("suspected RCE on the gateway", _CRITICAL_TERMS)

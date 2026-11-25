@@ -26,3 +26,14 @@ def test_privacy_report_shape():
     out = privacy_report("reach me at bob@example.com")
     assert "safe_log_snapshot" in out
     assert isinstance(out["findings"], list)
+
+
+def test_card_numbers_redacted_only_when_luhn_valid():
+    from levels.foundations.privacy import redact_text
+
+    ok = redact_text("card 4111 1111 1111 1111 on file")
+    assert "<REDACTED_CARD>" in ok["redacted_text"]
+    assert {"type": "card", "count": 1} in ok["findings"]
+
+    not_a_card = redact_text("order 1234 5678 9012 3456 shipped")
+    assert "<REDACTED_CARD>" not in not_a_card["redacted_text"]

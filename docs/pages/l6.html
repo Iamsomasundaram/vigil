@@ -205,12 +205,15 @@
         <span class="t-c"># Fetch NVD and EPSS simultaneously — L2&#x27;s parallel pattern applied here.</span>
         <span class="t-c"># Note: these are pure HTTP calls, not DB operations, so they don&#x27;t touch</span>
         <span class="t-c"># our connection and are safe to run in parallel.</span>
-        nvd_data, epss_score = <span class="t-k">await</span> asyncio.gather(
+        nvd_data, fetched_epss = <span class="t-k">await</span> asyncio.gather(
             fetch_current_nvd(cve_id),
             fetch_current_epss(cve_id),
         )
 
         last_state = <span class="t-k">await</span> get_scan_state(conn, cve_id)
+        <span class="t-k">if</span> fetched_epss <span class="t-k">is</span> <span class="t-k">None</span>:
+            console.print(<span class="t-s">f&quot;  [yellow]EPSS unavailable for {cve_id}; keeping the last known score[/yellow]&quot;</span>)
+        epss_score = resolve_epss(fetched_epss, last_state)
         signal     = detect_changes(cve_id, last_state, nvd_data, epss_score)
 
         <span class="t-c"># Save the current state as the new baseline, regardless of whether we alert</span>

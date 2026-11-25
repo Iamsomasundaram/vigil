@@ -38,7 +38,7 @@ def evaluate_release(
 
     if delta < min_delta:
         decision = "rollback"
-        stage = "canary"
+        stage = "stable"  # all traffic back on the control version
     elif delta >= 0.0:
         decision = "promote"
         stage = "full"

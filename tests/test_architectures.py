@@ -497,7 +497,7 @@ async def test_a3_reflection_runs_research_critique_revise_in_order():
 
 
 @pytest.mark.asyncio
-async def test_a3_skips_revision_when_critique_says_acceptable():
+async def test_a3_still_revises_when_critique_says_acceptable():
     """
     Even when the critic flags the draft as acceptable, the reviser still
     runs (per current design — produces a polished version). This test
@@ -737,3 +737,13 @@ async def test_a4_run_agent_with_tools_dispatches_unknown_tool_safely():
     assert len(tool_log) == 1
     assert "error" in tool_log[0]["result"]
     assert "Unknown tool" in tool_log[0]["result"]["error"]
+
+
+def test_a2_kev_lookup_is_not_treated_as_high_risk():
+    """A read-only KEV lookup must not open the approval gate; a shutdown step should."""
+    from architectures.a2_plan_execute import PlanStep, _is_high_risk_step
+
+    lookup = PlanStep(step=1, description="Check CISA KEV for active exploitation", step_type="tool_call", tool_name="check_cisa_kev")
+    drastic = PlanStep(step=2, description="Shutdown the affected service", step_type="tool_call", tool_name="")
+    assert not _is_high_risk_step(lookup)
+    assert _is_high_risk_step(drastic)

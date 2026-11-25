@@ -30,7 +30,7 @@
 <h2 id="check-1-moderation">Check 1: Moderation</h2>
 <p>Moderation looks for categories of content you do not want to pass through. Vigil's version is a small set of word patterns, one list per category:</p>
 <div class="code"><div class="code-cap">levels/foundations/responsible_ai.py · _MODERATION_PATTERNS</div><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>_MODERATION_PATTERNS: list[tuple[str, str]] = [
-    (<span class="t-s">&quot;hate&quot;</span>, r<span class="t-s">&quot;\b(kill|exterminate|inferior race|subhuman)\b&quot;</span>),
+    (<span class="t-s">&quot;hate&quot;</span>, r<span class="t-s">&quot;\b(exterminate|inferior race|subhuman|kill (?:all|every(?:one)?) (?:the )?\w+)\b&quot;</span>),
     (<span class="t-s">&quot;harassment&quot;</span>, r<span class="t-s">&quot;\b(idiot|stupid|worthless|loser)\b&quot;</span>),
     (<span class="t-s">&quot;self_harm&quot;</span>, r<span class="t-s">&quot;\b(suicide|self[- ]harm|hurt myself)\b&quot;</span>),
     (<span class="t-s">&quot;violence&quot;</span>, r<span class="t-s">&quot;\b(bomb|shoot up|massacre)\b&quot;</span>),
