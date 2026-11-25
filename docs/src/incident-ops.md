@@ -64,7 +64,7 @@ Running three cases offline gives results that match the table:
 This is the most useful part of the page, because it shows why real systems need more than keyword rules. All of the following I confirmed by running the code offline.
 
 - **Critical needs the customer-impact flag.** The alert `Payment outage, remote code execution suspected` with customer impact **false** comes out as **Medium**. A suspected remote code execution is rated lower than a routine slowdown, purely because a flag was not set.
-- **Substring matching causes false alarms.** Terms are matched as plain substrings, and the term `rce` appears inside ordinary words. `Disk resource usage slightly elevated` with customer impact set is classified **Critical** and sent to containment, because `resource` contains `rce`. The same alert without the word "resource" is only High.
+- **Matching is whole-word, but still keyword-based.** Terms are matched as whole words, so the term `rce` no longer fires inside `resource`. `Disk resource usage slightly elevated` with customer impact set is **High**, sent to **mitigation** with 60 minutes. (An earlier version matched plain substrings and rated this alert Critical.) A real RCE described as "code execution" would still be missed, since only the listed phrases count.
 - **Severity never goes below Medium.** The report type allows `Low`, but this code never produces it.
 - **Keywords are not understanding.** A rare but serious problem described in different words will be missed.
 
@@ -94,14 +94,14 @@ You should see a table with the service, severity, track, urgency and likely dom
 
 ## Try it
 
-> **Try it** 1) Run the same alert with and without `--customer-impact` and compare the severity. 2) Reproduce the `resource` false alarm, then fix it by matching whole words only. 3) Add a new domain rule, such as `kafka` mapping to `messaging`, and confirm the domain shows up.
+> **Try it** 1) Run the same alert with and without `--customer-impact` and compare the severity. 2) Run `Disk resource usage slightly elevated` and confirm it is not Critical, then temporarily change `_contains_any` back to a plain `term in lowered` test and see the false alarm return. 3) Add a new domain rule, such as `kafka` mapping to `messaging`, and confirm the domain shows up.
 
 ## Common mistakes
 
 - **Letting one flag decide everything.** A missing input silently lowers the severity.
-- **Matching substrings.** Match whole words or use a better classifier.
+- **Naive keyword matching.** Whole-word matching fixed the `rce` inside `resource` case, but a keyword list is still not understanding. Use a better classifier for real work.
 - **No reasoning field.** People will not trust a verdict with no explanation.
-- **Skipping tests with awkward inputs.** The `resource` bug appears only if you try words that contain a keyword.
+- **Skipping tests with awkward inputs.** The `resource` false alarm appeared only when someone tried a word that contains a keyword, which is why there is now a test for it.
 - **Believing the domain transfer is automatic.** The pattern transfers; the rules and the data do not.
 
 ## Check yourself
@@ -109,8 +109,8 @@ You should see a table with the service, severity, track, urgency and likely dom
 ??? What stays the same between the CVE levels and this theme?
     The architecture: classify the input, route it to a track, and return a structured plan.
 
-??? Why can an alert about "resource usage" be rated Critical by this module?
-    Keywords are matched as substrings, and `rce` is a critical term that appears inside the word "resource".
+??? Why did an alert about "resource usage" used to be rated Critical, and why does it not now?
+    Keywords were matched as substrings, and `rce` is a critical term that appears inside the word "resource". Matching is now whole-word, so it no longer fires.
 
 ??? Why does the report use `Literal` types for severity and track?
     So downstream code receives only a fixed set of exact values and can act on them safely.

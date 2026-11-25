@@ -157,8 +157,8 @@
 <p>Because it compares sets of words, it is a <strong>lexical</strong> similarity, not a deep semantic one. A real semantic cache would compare embeddings from a trained model (see <a href="retrieval.html">Retrieval and RAG</a>).</p>
 <h2 id="the-threshold-is-the-whole-game">The threshold is the whole game</h2>
 <p>I ran the module's own two example queries offline:</p>
-<ul><li><code>What is CVE-2021-44228?</code> becomes the terms <code>cve</code>, <code>2021</code>, <code>44228</code>.</li><li><code>Tell me about CVE-2021-44228</code> becomes <code>me</code>, <code>about</code>, <code>cve</code>, <code>44228</code>, <code>tell</code>, <code>2021</code>.</li></ul>
-<p>Their similarity is <code>0.7071</code>. With the <strong>default threshold of 0.8, that is a miss</strong>: the second question would call the model again. The tests use a threshold of <code>0.5</code>, where it is a hit.</p>
+<ul><li><code>What is CVE-2021-44228?</code> becomes the terms <code>cve</code>, <code>2021</code>, <code>44228</code>.</li><li><code>Explain CVE-2021-44228</code> becomes <code>explain</code>, <code>cve</code>, <code>2021</code>, <code>44228</code>.</li></ul>
+<p>Their similarity is <code>0.866</code>. With the <strong>default threshold of 0.8, that is a hit</strong>: the second question returns the stored answer without calling the model. A wording further from the original, such as <code>Tell me about CVE-2021-44228</code>, scores only <code>0.7071</code> and would miss at 0.8, which shows how sensitive the result is to phrasing.</p>
 <p>So choosing the threshold trades cost against correctness:</p>
 <div class='table'><table><thead><tr><th>Threshold</th><th>Effect</th></tr></thead><tbody><tr><td>Too high</td><td>Few hits, little saving, behaves like an exact cache</td></tr><tr><td>Too low</td><td>Many hits, but some are <strong>wrong answers</strong></td></tr></tbody></table></div>
 <p>Here is a wrong answer, from running the code at threshold <code>0.5</code>. After storing the answer "Yes, in 2.17.1" for <code>Is CVE-2021-44228 patched?</code>, the question <code>Is CVE-2021-44228 exploited?</code> scored <code>0.75</code> and <strong>hit the cache</strong>, returning an answer to a different question. At the default <code>0.8</code> it correctly missed.</p>
@@ -180,14 +180,14 @@
 <h2 id="run-it">Run it</h2>
 <div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>python levels/foundations/semantic_cache.py
 python levels/foundations/semantic_cache.py --threshold 0.5</code></pre></div>
-<p>You should see a JSON trace for three queries, with a hit flag and similarity for each, and the final stats. Compare the output at the two thresholds.</p>
+<p>You should see a JSON trace for three queries, with a hit flag and similarity for each, and the final stats. At the default threshold the second query is a hit (similarity 0.866) and the others are misses. Compare the output at the two thresholds.</p>
 <h2 id="try-it">Try it</h2>
 <aside class="callout try-it"><strong>Try it</strong><p>1) Run with <code>--threshold 0.5</code> and then <code>0.8</code> and note which query pairs change from hit to miss. 2) Add two queries that differ by one important word, such as <code>patched</code> and <code>exploited</code>, and check whether they wrongly hit. 3) Set a very small <code>ttl_seconds</code> and show an entry expiring.</p></aside>
 <h2 id="common-mistakes">Common mistakes</h2>
 <ul><li><strong>Choosing the threshold by feel.</strong> Test it on real near-duplicate and near-miss pairs.</li><li><strong>Caching answers that go stale.</strong> Always use a TTL.</li><li><strong>Caching personalised or sensitive answers</strong> for everyone to share.</li><li><strong>Reading hit rate alone.</strong> A high hit rate with wrong hits is a bug, not a win.</li><li><strong>Forgetting the model and settings.</strong> Different models or temperatures should not share cache entries; the API's key includes the model for this reason.</li></ul>
 <h2 id="check-yourself">Check yourself</h2>
 <details><summary>What is the difference between an exact cache and a semantic cache?</summary><p>An exact cache hits only on an identical request. A semantic cache also hits when a new request is similar enough to a stored one.</p></details>
-<details><summary>Why does the default demo not get a hit at threshold 0.8?</summary><p>The two example queries have a similarity of about 0.71, below 0.8, so the second is a miss.</p></details>
+<details><summary>Why does the demo's second query hit at the default threshold of 0.8?</summary><p><code>Explain CVE-2021-44228</code> and <code>What is CVE-2021-44228?</code> share most of their meaningful words, giving a similarity of about 0.87, above 0.8. A less similar wording would score lower and miss.</p></details>
 <details><summary>What is the main risk of lowering the threshold?</summary><p>More hits, but some return the answer to a different question.</p></details>
 <p>Next: <a href="incident-ops.html">Theme: Incident response</a> applies these ideas to a different domain.</p>
     </article>

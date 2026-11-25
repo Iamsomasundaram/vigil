@@ -150,7 +150,7 @@
     console.print(<span class="t-s">f&quot;[dim]  Completed in {elapsed:.1f}s (3 LLM calls)[/dim]&quot;</span>)
 
     <span class="t-k">return</span> draft, critique, final</code></pre></div>
-<p>Read the middle carefully. After the critique, the code prints one of two messages depending on <code>improvement_needed</code>, but it then calls <code>revise_draft</code> <strong>either way</strong>. So the reviser always runs. The test <code>test_a3_skips_revision_when_critique_says_acceptable</code> is named as if it skipped revision, but its own docstring explains that revision is intentionally still invoked, and it asserts three model calls.</p>
+<p>Read the middle carefully. After the critique, the code prints one of two messages depending on <code>improvement_needed</code>, but it then calls <code>revise_draft</code> <strong>either way</strong>. So the reviser always runs. The test is called <code>test_a3_still_revises_when_critique_says_acceptable</code> for that reason: its docstring explains that revision is intentionally still invoked, and it asserts three model calls.</p>
 <p>A run is therefore always <strong>three model calls</strong>, in sequence, plus three data fetches that run together in phase 1.</p>
 <aside class="callout note"><strong>Note</strong><p>Reflection here is a single pass. The draft is critiqued once and revised once. There is no loop that critiques the revision. Adding "repeat until the critic is satisfied, up to N rounds" is a natural extension, and it would multiply cost.</p></aside>
 <h2 id="run-it">Run it</h2>

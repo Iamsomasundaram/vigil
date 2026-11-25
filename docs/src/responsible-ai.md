@@ -34,7 +34,7 @@ Running it offline on `You stupid loser` flags the `harassment` category, lists 
 
 A list like this is easy to understand and easy to fool, in both directions:
 
-- **False positives.** The sentence `This exploit will kill the process` is flagged as `hate` and blocked, because the word `kill` is on the list. In security work, "kill", "attack" and "bomb" appear in perfectly normal text.
+- **False positives.** The `hate` rule used to contain the bare word `kill`, so `This exploit will kill the process` was blocked. It now only matches `exterminate`, `inferior race`, `subhuman`, or `kill` followed by `all` or `every(one)` and a word, so that sentence passes. The general problem remains: in security work, "attack", "bomb" and similar words appear in perfectly normal text, and any word list will misfire somewhere.
 - **False negatives.** Anything harmful that avoids the listed words, or hides them with odd spelling, sails through.
 - **No context.** The filter cannot tell a quotation from a threat.
 
@@ -82,7 +82,7 @@ You should see a JSON report with the per-text moderation results, the fairness 
 
 ## Try it
 
-> **Try it** 1) Add a harmless sentence containing a listed word, such as one about killing a process, and note the false positive. 2) Add a sentence of genuinely harmful content that avoids every listed word and see it pass. 3) Build outcomes where both groups have the same rate and confirm the ratio is `1.0`.
+> **Try it** 1) Add a harmless sentence containing a listed word, such as one that says "the bomb squad arrived", and look for a false positive. 2) Add a sentence of genuinely harmful content that avoids every listed word and see it pass. 3) Build outcomes where both groups have the same rate and confirm the ratio is `1.0`.
 
 ## Common mistakes
 
@@ -94,8 +94,8 @@ You should see a JSON report with the per-text moderation results, the fairness 
 
 ## Check yourself
 
-??? Why is `This exploit will kill the process` a problem for this filter?
-    It contains a listed word, so it is blocked, but it is harmless technical language. That is a false positive.
+??? Why was `This exploit will kill the process` a problem for this filter, and what changed?
+    It contained a listed word, so it was blocked even though it is harmless technical language. That is a false positive. The rule now needs a more specific phrase, so that sentence passes, but word lists can always misfire on other text.
 
 ??? What is the disparate-impact ratio?
     The lowest group's selection rate divided by the highest group's. A value under 0.8 fails the 80% rule of thumb.

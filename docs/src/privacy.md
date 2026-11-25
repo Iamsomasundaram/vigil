@@ -29,6 +29,9 @@ Each rule is a name, a regular expression and a placeholder:
 | `ipv4` | Four dotted groups of digits | `<REDACTED_IP>` |
 | `api_key` | Strings starting `sk-` or `pk-` followed by 16 or more characters | `<REDACTED_KEY>` |
 | `token` | `token`, `secret` or `password`, then `:` or `=`, then a value | `<REDACTED_SECRET_FIELD>` |
+| card (a separate step) | 13 to 19 digits, spaces or dashes allowed, that pass the **Luhn check** | `<REDACTED_CARD>` |
+
+The card rule is a function, not just a pattern, because a long number is only treated as a card if it passes the Luhn checksum. `order 1234 5678 9012 3456 shipped` fails the check and is left alone, which avoids redacting every long number.
 
 ## Redacting text
 
@@ -54,7 +57,7 @@ The pattern to adopt: **never log a raw payload; log a redacted snapshot of it.*
 
 Be precise about the gaps, because a false sense of safety is worse than none. I ran this check offline:
 
-- **Names, addresses and phone numbers.** The sentence `Call Alice Smith on 555-0100, card 4111 1111 1111 1111` came back **unchanged**. A person's name and a credit card number pass straight through.
+- **Names, addresses and phone numbers.** The sentence `Call Alice Smith on 555-0100, card 4111 1111 1111 1111` comes back as `Call Alice Smith on 555-0100, card <REDACTED_CARD>`. The card number is caught, but the person's name and the phone number pass straight through. Detecting those needs a named-entity model, not a regex.
 - **Secrets in other formats.** Only keys shaped like `sk-` or `pk-` and fields named token, secret or password are matched. A cloud key with a different prefix, or a password written as plain prose, is not.
 - **IPv6 addresses.** Only the dotted IPv4 form is matched.
 - **Context.** It cannot tell that a free-text sentence describes a person.
@@ -91,7 +94,7 @@ You should see a JSON report with the input length, whether anything changed, th
     Writing the secret into the report would recreate the leak you were trying to prevent.
 
 ??? Does this module protect a customer's name?
-    No. It matches emails, IPv4 addresses, certain key formats and secret-looking fields. Names and card numbers pass through.
+    No. It matches emails, IPv4 addresses, certain key formats, secret-looking fields and Luhn-valid card numbers. Names, addresses and phone numbers pass through.
 
 ??? Where must redaction happen to be effective?
     Before the data is sent to the model provider or written to a log.

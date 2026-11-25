@@ -58,9 +58,9 @@ Because it compares sets of words, it is a **lexical** similarity, not a deep se
 I ran the module's own two example queries offline:
 
 - `What is CVE-2021-44228?` becomes the terms `cve`, `2021`, `44228`.
-- `Tell me about CVE-2021-44228` becomes `me`, `about`, `cve`, `44228`, `tell`, `2021`.
+- `Explain CVE-2021-44228` becomes `explain`, `cve`, `2021`, `44228`.
 
-Their similarity is `0.7071`. With the **default threshold of 0.8, that is a miss**: the second question would call the model again. The tests use a threshold of `0.5`, where it is a hit.
+Their similarity is `0.866`. With the **default threshold of 0.8, that is a hit**: the second question returns the stored answer without calling the model. A wording further from the original, such as `Tell me about CVE-2021-44228`, scores only `0.7071` and would miss at 0.8, which shows how sensitive the result is to phrasing.
 
 So choosing the threshold trades cost against correctness:
 
@@ -88,7 +88,7 @@ python levels/foundations/semantic_cache.py
 python levels/foundations/semantic_cache.py --threshold 0.5
 ```
 
-You should see a JSON trace for three queries, with a hit flag and similarity for each, and the final stats. Compare the output at the two thresholds.
+You should see a JSON trace for three queries, with a hit flag and similarity for each, and the final stats. At the default threshold the second query is a hit (similarity 0.866) and the others are misses. Compare the output at the two thresholds.
 
 ## Try it
 
@@ -107,8 +107,8 @@ You should see a JSON trace for three queries, with a hit flag and similarity fo
 ??? What is the difference between an exact cache and a semantic cache?
     An exact cache hits only on an identical request. A semantic cache also hits when a new request is similar enough to a stored one.
 
-??? Why does the default demo not get a hit at threshold 0.8?
-    The two example queries have a similarity of about 0.71, below 0.8, so the second is a miss.
+??? Why does the demo's second query hit at the default threshold of 0.8?
+    `Explain CVE-2021-44228` and `What is CVE-2021-44228?` share most of their meaningful words, giving a similarity of about 0.87, above 0.8. A less similar wording would score lower and miss.
 
 ??? What is the main risk of lowering the threshold?
     More hits, but some return the answer to a different question.
