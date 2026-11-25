@@ -21,6 +21,8 @@ from __future__ import annotations
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
+from vigil.pricing import PRICING_NOTE
+
 
 class _Base(BaseModel):
     """Strict base model for newer modules that require schema hardening."""
@@ -163,7 +165,7 @@ class Scorecard(_Base):
     n_cases: int = Field(ge=0)
     metrics: list[MetricResult]
     overall_score: float = Field(ge=0.0, le=1.0)
-    estimated_cost_usd: float = Field(ge=0.0)
+    estimated_cost_usd: float = Field(ge=0.0, description=PRICING_NOTE)
     regression_vs_baseline: float | None = None
     regression_threshold: float = Field(ge=0.0, default=0.05)
     passed_regression: bool = True
@@ -189,7 +191,7 @@ class Trace(_Base):
     spans: list[Span]
     total_duration_ms: float = Field(ge=0.0)
     total_tokens: int = Field(ge=0)
-    estimated_cost_usd: float = Field(ge=0.0)
+    estimated_cost_usd: float = Field(ge=0.0, description=PRICING_NOTE)
 
 
 # ─── R4: Resilience in the Agent Loop ──────────────────────────────────────
@@ -217,7 +219,7 @@ class CostEntry(_Base):
     model: str
     prompt_tokens: int = Field(ge=0)
     completion_tokens: int = Field(ge=0)
-    cost_usd: float = Field(ge=0.0)
+    cost_usd: float = Field(ge=0.0, description="Estimated. " + PRICING_NOTE)
     cache_hit: bool
 
 
@@ -230,7 +232,7 @@ class BudgetStatus(_Base):
 
 class CostReport(_Base):
     entries: list[CostEntry]
-    total_usd: float = Field(ge=0.0)
+    total_usd: float = Field(ge=0.0, description="Estimated total. " + PRICING_NOTE)
     by_feature: dict[str, float]
     by_model: dict[str, float]
     cache_savings_usd: float = Field(ge=0.0)
@@ -272,7 +274,7 @@ class TokenReport(_Base):
     token_count: int = Field(ge=0)
     context_limit: int = Field(ge=1)
     pct_of_context: float = Field(ge=0.0)
-    est_cost_usd: float = Field(ge=0.0)
+    est_cost_usd: float = Field(ge=0.0, description=PRICING_NOTE)
     sample_tokens: list[str]
 
 

@@ -26,6 +26,8 @@ import streamlit as st
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 API_BASE = os.getenv("VIGIL_API_URL", "http://localhost:8000")
+# The UI image does not ship the vigil package, so this mirrors vigil.pricing.PRICING_NOTE.
+COST_NOTE = "Estimate from indicative list prices; not a bill. Provider prices change and are not synced here."
 
 # How long to wait for LLM-backed endpoints (they can take 20–30s)
 TIMEOUT = httpx.Timeout(180.0)
@@ -205,7 +207,7 @@ def cost_line(data: dict) -> None:
             f"⏱ {data['elapsed_ms']}ms  ·  "
             f"🔢 {u.get('total_tokens', 0):,} tokens "
             f"({u.get('prompt_tokens', 0):,} in / {u.get('completion_tokens', 0):,} out)  ·  "
-            f"💰 ~${u.get('estimated_cost_usd', 0):.4f} USD"
+            f"💰 ~${u.get('estimated_cost_usd', 0):.4f} USD (est.)"
         )
     else:
         st.caption(f"⏱ {data['elapsed_ms']}ms")
@@ -1469,7 +1471,7 @@ elif page == "r2":
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Overall score", f"{data.get('overall_score', 0):.3f}")
                 col2.metric("Cases", data.get("n_cases", 0))
-                col3.metric("Estimated cost", f"${data.get('estimated_cost_usd', 0):.4f}")
+                col3.metric("Estimated cost", f"~${data.get('estimated_cost_usd', 0):.4f}", help=COST_NOTE)
 
                 if data.get("regression_vs_baseline") is None:
                     col4.metric("Regression", "N/A")
@@ -1560,7 +1562,7 @@ elif page == "r3":
                 if usage:
                     st.caption(
                         f"🔢 {usage.get('total_tokens', 0):,} tokens  ·  "
-                        f"💰 ~${usage.get('estimated_cost_usd', 0):.4f} USD"
+                        f"💰 ~${usage.get('estimated_cost_usd', 0):.4f} USD (est.)"
                     )
 
                 with st.expander("L4 analysis output", expanded=False):
@@ -1584,7 +1586,7 @@ elif page == "r3":
                 c1m.metric("Spans", len(trace.get("spans", [])))
                 c2m.metric("Total duration", f"{trace.get('total_duration_ms', 0):.1f} ms")
                 c3m.metric("Total tokens", trace.get("total_tokens", 0))
-                st.caption(f"Estimated cost: ${trace.get('estimated_cost_usd', 0):.6f}")
+                st.caption(f"Estimated cost: ~${trace.get('estimated_cost_usd', 0):.6f} · {COST_NOTE}")
 
                 spans = trace.get("spans", [])
                 children: dict[str | None, list[dict]] = {}
@@ -2029,7 +2031,7 @@ elif page == "f4":
             c1, c2, c3 = st.columns(3)
             c1.metric("Token count", data.get("token_count", 0))
             c2.metric("Context limit", data.get("context_limit", 0))
-            c3.metric("Est. cost", f"${data.get('est_cost_usd', 0.0):.6f}")
+            c3.metric("Est. cost", f"~${data.get('est_cost_usd', 0.0):.6f}", help=COST_NOTE)
             st.progress(min(float(data.get("pct_of_context", 0.0)) / 100.0, 1.0))
             st.caption(f"Prompt occupies {data.get('pct_of_context', 0.0):.4f}% of the context window.")
             st.markdown("#### Sample token pieces")

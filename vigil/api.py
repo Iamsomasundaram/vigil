@@ -45,6 +45,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from vigil.cache import CacheBackend
+from vigil.pricing import PRICING_NOTE
 from vigil.models import (
     BudgetStatus,
     CacheInfo,
@@ -196,7 +197,7 @@ class TokenUsage(BaseModel):
     prompt_tokens:      int
     completion_tokens:  int
     total_tokens:       int
-    estimated_cost_usd: float = Field(description="Estimated cost in USD (gpt-4o-mini pricing)")
+    estimated_cost_usd: float = Field(description="Estimated cost in USD. " + PRICING_NOTE)
 
 class L0Response(BaseModel):
     cve_id:      str
