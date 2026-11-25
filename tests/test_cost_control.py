@@ -122,3 +122,19 @@ def test_fit_context_trims_below_ceiling():
     fitted = r5.fit_context(messages, token_ceiling=600)
     assert r5.estimate_tokens_from_messages(fitted) <= 600
     assert len(fitted) < len(messages)
+
+
+def test_fit_context_keeps_system_prompt_and_the_task():
+    """With only [system, user], the user task must survive trimming (it used to be dropped)."""
+    messages = [
+        {"role": "system", "content": "You are a security analyst."},
+        {"role": "user", "content": "Q" * 4000},
+    ]
+
+    fitted = r5.fit_context(messages, token_ceiling=300)
+
+    assert [m["role"] for m in fitted] == ["system", "user"]
+    assert fitted[0]["content"] == "You are a security analyst."
+    assert fitted[1]["content"]  # not emptied
+    assert r5.estimate_tokens_from_messages(fitted) <= 300
+    assert messages[1]["content"] == "Q" * 4000  # input is not mutated

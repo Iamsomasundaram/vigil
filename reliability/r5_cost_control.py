@@ -25,7 +25,7 @@ from vigil.models import BudgetStatus, CostEntry, CostReport
 console = Console()
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-# USD per 1M tokens (simplified table for the learning project)
+# USD per 1M tokens. INDICATIVE ONLY: prices change and are not synced (see vigil/pricing.py).
 PRICING_PER_MILLION: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.150, 0.600),
     "gpt-4o": (2.500, 10.000),
@@ -49,10 +49,22 @@ def fit_context(messages: list[dict[str, str]], token_ceiling: int) -> list[dict
     if estimate_tokens_from_messages(messages) <= token_ceiling:
         return messages
 
+    # Protect the system prompt (first) and the actual task (last). Drop the oldest
+    # messages in between first.
     fitted = list(messages)
-    while fitted and estimate_tokens_from_messages(fitted) > token_ceiling:
-        drop_index = 1 if len(fitted) > 1 else 0
-        fitted.pop(drop_index)
+    while len(fitted) > 2 and estimate_tokens_from_messages(fitted) > token_ceiling:
+        fitted.pop(1)
+
+    # Still too big: shrink the final message, keeping its tail (the question usually
+    # comes last). The token estimate is len(joined text) // 4, so budget in characters.
+    if estimate_tokens_from_messages(fitted) > token_ceiling:
+        others = fitted[:-1]
+        used = sum(len(m.get("content", "")) for m in others) + len(others)  # +1 space per join
+        budget = max(0, token_ceiling * 4 - used)
+        last = dict(fitted[-1])
+        content = last.get("content", "")
+        last["content"] = content[-budget:] if budget else ""
+        fitted[-1] = last
     return fitted
 
 

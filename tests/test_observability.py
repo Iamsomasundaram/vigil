@@ -73,3 +73,20 @@ def test_token_attribution_to_active_span():
     root = trace.spans[0]
     assert root.tokens == 120
     assert trace.total_tokens == 120
+
+
+@pytest.mark.asyncio
+async def test_run_traced_l4_records_tool_call_spans(monkeypatch):
+    """Regression: span(name=...) collided with Tracer.span's own `name` parameter and raised TypeError."""
+    import levels.l4_tool_use as l4
+
+    async def fake_analyse(cve_id):
+        return {"ok": True}, [{"tool": "fetch_nvd_data"}, {"tool": "fetch_epss_score"}]
+
+    monkeypatch.setattr(l4, "analyse_cve", fake_analyse)
+    monkeypatch.setattr(l4, "get_usage", lambda: {"total_tokens": 0, "estimated_cost_usd": 0.0})
+
+    _, trace = await r3.run_traced_l4("CVE-TEST")
+
+    tool_spans = [s for s in trace.spans if s.name == "tool.call"]
+    assert [s.attributes["tool"] for s in tool_spans] == ["fetch_nvd_data", "fetch_epss_score"]

@@ -260,7 +260,7 @@ async def run_traced_l4(cve_id: str, export_path: str | None = None) -> tuple[di
         with tracer.span("llm.tool_loop", model="gpt-4o-mini"):
             analysis, tool_log = await analyse_cve(cve_id)
         for tc in tool_log:
-            with tracer.span("tool.call", name=tc.get("tool", "unknown")):
+            with tracer.span("tool.call", tool=tc.get("tool", "unknown")):
                 pass
 
     usage = get_usage()
