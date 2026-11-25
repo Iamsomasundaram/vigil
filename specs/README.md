@@ -66,7 +66,7 @@ implementation stops short of production patterns.
 | [F7](F7-framework-bridge.md)               | `architectures/frameworks/`               | Framework bridge: LangGraph / CrewAI / LlamaIndex     |          |
 | [F8](F8-mcp-tool-servers.md)               | `vigil_mcp/vigil_server.py`                     | Model Context Protocol (MCP) tool servers             |          |
 | [F9](F9-learning-scaffolding.md)           | `notebooks/`, `exercises/`                | Interactive notebooks + graded exercises              | **5**    |
-| [F10](F10-production-hardening.md)         | `vigil/api.py`, R2/R5                     | Auth, rate limiting, caching, faithfulness eval       |          |
+| [F10](F10-production-hardening.md)         | `vigil/hardening.py`, R2/R5            | Auth, rate limiting, caching, faithfulness eval       |          |
 | [F11](F11-retrieval-data-prep.md)          | `levels/foundations/retrieval_quality.py` | Data prep and retrieval index quality                 | done     |
 | [F12](F12-retrieval-evaluation.md)         | foundations + `data/eval/`                | Retrieval metrics (Recall@k, MRR, nDCG)               | done     |
 | [F13](F13-factuality-citations.md)         | foundations + reliability bridge          | Factuality and citation verification                  | done     |
@@ -150,6 +150,6 @@ These mirror the existing levels/architectures so new modules feel native:
 - **Rich output** — use `rich.console.Console` for CLI rendering.
 - **CLI entry** — `python reliability/rN_xxx.py CVE-2021-44228` runnable standalone.
 - **Structured output** — Pydantic models in `vigil/models.py` with strict JSON schema.
-- **API** — expose via FastAPI in `vigil/api.py` with `TokenUsage` in the response.
+- **API** — expose via a FastAPI router in `vigil/routers/` (request/response models in `vigil/schemas.py`) with `TokenUsage` in the response.
 - **Tests** — async pytest, stub OpenAI + external APIs, skip gracefully if DB down.
 - **pyproject extras** — add new optional dependencies under a named extra, not the base.

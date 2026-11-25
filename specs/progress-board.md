@@ -56,7 +56,7 @@ None.
 | 3   | Ollama / local-model route verified                             | Open   |
 | 4   | Sample outputs and per-level cost from one real run             | Open   |
 | 5   | Security defaults (mandatory auth outside dev, CORS, limits)    | Open   |
-| 6   | Split `vigil/api.py` and `ui/app.py`                            | In progress |
+| 6   | Split `vigil/api.py` and `ui/app.py`                            | Done   |
 | 7   | Quality tooling (coverage, type checking, stronger lint)        | Open   |
 | 8   | Housekeeping (line endings, CONTRIBUTING, changelog)            | Open   |
 

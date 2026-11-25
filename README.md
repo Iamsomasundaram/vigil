@@ -300,14 +300,14 @@ Still stuck? Run `python -m pytest -q` first. If it fails on a clean checkout, t
 
 ```
 vigil/
-├── vigil/            API, shared models, inference seam, pricing, cache, Claude bridge
+├── vigil/            API entrypoint, routers/, schemas, hardening, models, inference seam, pricing, cache, Claude bridge
 ├── levels/           L0–L6 capability levels
 │   ├── foundations/  F-series modules (tokenization, retrieval, factuality, …)
 │   └── themes/       T-series domain tracks (incident ops)
 ├── architectures/    A1–A4 orchestration patterns (+ frameworks/ bridge)
 ├── reliability/      R1–R9: guardrails, eval, observability, resilience, cost, drift, governance, supply chain, release safety
 ├── vigil_mcp/        MCP tool server + client path (see vigil_mcp/README.md)
-├── ui/               Streamlit learning UI
+├── ui/               Streamlit learning UI (app.py entrypoint, common.py, views/ one module per page group)
 ├── specs/            One spec per feature + progress board
 ├── tests/            Full pytest suite
 ├── docs/             Beginner guide (Markdown in docs/src) + generated reference
@@ -365,4 +365,3 @@ Vigil is a teaching codebase. PostgreSQL memory, a FastAPI service, a Streamlit 
 - Connect to real SIEM/ticketing systems (Jira, ServiceNow, Splunk)
 - Make API authentication mandatory (it is optional today) and add multi-tenancy
 - Add database migrations and managed secrets
-- Split `vigil/api.py` and `ui/app.py` into routers and per-page modules
