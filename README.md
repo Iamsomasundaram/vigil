@@ -286,8 +286,9 @@ Try different CVEs to see how the outputs vary:
 | PowerShell blocks `.venv\Scripts\Activate.ps1`                  | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or call `.venv\Scripts\python.exe` directly.      |
 | `python` opens the Microsoft Store (Windows)                    | Install Python 3.11+ and disable the "App execution aliases" for python in Windows Settings.                 |
 | L5/L6 fail to connect to the database                           | PostgreSQL isn't running, or `DATABASE_URL` still points at host `db`. Use Docker Compose or set your own URL. |
+| API won't start: `VIGIL_ENV=prod requires VIGIL_API_KEYS`      | By design: `prod` fails closed. Set keys, or use `VIGIL_ENV=dev` locally. See the guide page *API security defaults*. |
 | Streamlit pages show connection errors                          | The API isn't running. Start it, or set `VIGIL_API_URL` if it isn't on `localhost:8000`.                      |
-| `401` from the API                                              | `VIGIL_API_KEYS` is set in `.env`. Send a matching key, or leave the variable empty for local use.           |
+| `401` or `403` from the API                                     | `VIGIL_API_KEYS` is set. Send `X-API-Key` (UI: set `VIGIL_UI_API_KEY`); `403` means the key's scope is too low. Leave keys empty with `VIGIL_ENV=dev` for local use. |
 | L4 returns no NVD or EPSS data                                  | Those are live public APIs. Check your network connection and retry, since they can rate-limit or time out.  |
 | `pip install` fails with `No such file or directory` on a very long path (Windows) | Windows limits paths to 260 characters. Clone into a short folder such as `C:\src\vigil`. |
 | Tests are slow or fail on optional features                     | Install the extras CI uses: `pip install -e ".[full,dev,foundations]"`. Skipped tests mean an extra is absent. |

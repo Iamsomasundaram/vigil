@@ -23,8 +23,12 @@ ungrounded outputs flagged.** They learn the operational seams every GenAI servi
 
 ## Goals
 
-- **Auth** — optional API-key dependency (`X-API-Key`) on mutating/LLM endpoints, enabled
-  when `VIGIL_API_KEYS` is set; open by default for local learning.
+- **Auth** — API keys (`X-API-Key`), deny by default on every route except `/health`, enabled
+  when `VIGIL_API_KEYS` is set. Keys are `name:key:scope` (`read` < `run` < `admin`).
+  `VIGIL_ENV=dev` (default) stays open with a startup warning; `VIGIL_ENV=prod` refuses to
+  start without keys. Added later (finding #5): CORS allow-list (`VIGIL_CORS_ORIGINS`, no `*`),
+  body-size limits, concurrency cap, per-IP throttle on failed keys, strict CVE id validation.
+  OIDC/JWT is documented as the production upgrade, not built.
 - **Rate limiting** — simple token-bucket per key/IP (in-memory, or Redis when available).
 - **Caching** — wire the existing `redis` extra: cache tool results (NVD/EPSS) and
   identical analyse requests with a TTL; cache-hit shown in the response.
@@ -74,7 +78,8 @@ class FaithfulnessScore(_Base):
 
 - All LLM endpoints accept optional `X-API-Key`; return `cache: CacheInfo` when applicable.
 - `GET /admin/ratelimit` (key-gated) → current bucket state.
-- Env: `VIGIL_API_KEYS`, `VIGIL_RATE_PER_MIN`, `REDIS_URL`, `VIGIL_CACHE_TTL`.
+- Env: `VIGIL_ENV`, `VIGIL_API_KEYS`, `VIGIL_UI_API_KEY`, `VIGIL_CORS_ORIGINS`, `VIGIL_RATE_PER_MIN`,
+  `VIGIL_MAX_BODY_BYTES`, `VIGIL_MAX_UPLOAD_BYTES`, `VIGIL_MAX_CONCURRENCY`, `REDIS_URL`, `VIGIL_CACHE_TTL`.
 
 ## Tests (`tests/test_hardening.py`)
 

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API security defaults · Vigil Guide</title>
+<meta name="description" content="How the API decides who may call it, what they may call, and how much, plus the two modes that keep local learning easy and production safe.">
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{var t=localStorage.getItem('vigil-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body data-base="../">
+<a class="skip" href="#content">Skip to content</a>
+<header class="top">
+  <button id="menu" type="button" aria-label="Open menu">☰</button>
+  <a class="brand" href="../index.html"><span>🛡️</span> Vigil Guide</a>
+  <div class="search"><input id="q" type="search" placeholder="Search the guide…" autocomplete="off" aria-label="Search"><div id="results" hidden></div></div>
+  <button id="theme" type="button" aria-label="Toggle dark mode">◐</button>
+</header>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Guide"><div class="nav-sec"><h4>Start here</h4><a href="../index.html">Welcome</a><a href="getting-started.html">Getting started</a><a href="concepts.html">How LLMs work</a></div><div class="nav-sec"><h4>Levels</h4><a href="l0.html">L0: A single call</a><a href="l1.html">L1: Chaining and structure</a><a href="l2.html">L2: Parallel agents</a><a href="l3.html">L3: Routing</a><a href="l4.html">L4: Tool use</a><a href="l4b.html">L4b: Multimodal</a><a href="l5.html">L5: Memory</a><a href="l6.html">L6: Autonomous agent</a></div><div class="nav-sec"><h4>Architectures</h4><a href="architectures.html">Architectures overview</a><a href="a1.html">A1: ReAct</a><a href="a2.html">A2: Plan-and-Execute</a><a href="a3.html">A3: Reflection</a><a href="a4.html">A4: Multi-agent</a></div><div class="nav-sec"><h4>Reliability</h4><a href="reliability.html">Reliability overview</a><a href="r1.html">R1: Guardrails</a><a href="r2.html">R2: Evaluation</a><a href="r3.html">R3: Observability</a><a href="r4.html">R4: Resilience</a><a href="r5.html">R5: Cost control</a><a href="r6.html">R6: Online evaluation and drift</a><a href="r7.html">R7: Action governance</a><a href="r8.html">R8: AI supply chain</a><a href="r9.html">R9: Release safety</a><a href="security.html" aria-current=page>API security defaults</a></div><div class="nav-sec"><h4>Foundations</h4><a href="foundations.html">Foundations overview</a><a href="tokenization.html">Tokenization</a><a href="prompting.html">Prompting techniques</a><a href="prompt-lifecycle.html">Prompt lifecycle</a><a href="model-selection.html">Model selection</a><a href="finetuning.html">Fine-tuning decisions</a><a href="retrieval.html">Retrieval and RAG</a><a href="factuality.html">Factuality and citations</a><a href="privacy.html">Privacy and safe logging</a><a href="responsible-ai.html">Responsible AI</a><a href="semantic-cache.html">Semantic caching</a><a href="incident-ops.html">Theme: Incident response</a></div><div class="nav-sec"><h4>Practice</h4><a href="learning-path.html">Learning path</a></div><div class="nav-sec"><h4>Reference</h4><a href="glossary.html">Glossary</a><a href="reference.html">Code reference</a></div></nav>
+  <main id="content">
+    <article>
+      <p class="eyebrow">Reliability</p>
+      <h1 id="api-security-defaults">API security defaults</h1>
+<p><strong>The question this page answers:</strong> if I run Vigil anywhere other than my laptop, what stops a stranger from spending my LLM budget or switching off the monitor?</p>
+<p>Most Vigil endpoints call a paid model. An open API is an open wallet. The hardening layer in <code>vigil/hardening.py</code> applies five rules to every request, in this order:</p>
+<div class="flow" role="img"><div class="node"><b>Request size</b></div><span class="arr">→</span><div class="node"><b>API key</b></div><span class="arr">→</span><div class="node"><b>Scope</b></div><span class="arr">→</span><div class="node"><b>Rate limit</b></div><span class="arr">→</span><div class="node"><b>Concurrency cap</b></div><span class="arr">→</span><div class="node"><b>Your handler</b></div></div>
+<h2 id="two-modes">Two modes</h2>
+<div class='table'><table><thead><tr><th><code>VIGIL_ENV</code></th><th>Keys set?</th><th>What happens</th></tr></thead><tbody><tr><td><code>dev</code> (default)</td><td>no</td><td>API is open and a startup warning says so. Nothing to configure, so a first run just works.</td></tr><tr><td><code>dev</code></td><td>yes</td><td>Keys are enforced.</td></tr><tr><td><code>prod</code></td><td>no</td><td><strong>The app refuses to start.</strong> It fails closed rather than run unauthenticated.</td></tr><tr><td><code>prod</code></td><td>yes</td><td>Keys are enforced, and the <code>/docs</code> pages need a key too.</td></tr></tbody></table></div>
+<p>Never expose a <code>dev</code> instance on a network. The default exists for learning, not for hosting.</p>
+<h2 id="keys-and-scopes">Keys and scopes</h2>
+<p>Set <code>VIGIL_API_KEYS</code> to a comma-separated list. Each entry is <code>name:key:scope</code>:</p>
+<div class="code"><button class="copy" type="button" aria-label="Copy code">Copy</button><pre><code>VIGIL_API_KEYS=reader:r-9f2c...:read,runner:u-41ab...:run,ops:a-77de...:admin</code></pre></div>
+<div class='table'><table><thead><tr><th>Scope</th><th>Allows</th></tr></thead><tbody><tr><td><code>read</code></td><td>GET routes: history, watchlist, reports.</td></tr><tr><td><code>run</code></td><td>Everything in <code>read</code>, plus any route that can call the model or change state.</td></tr><tr><td><code>admin</code></td><td>Everything in <code>run</code>, plus the monitor start/stop (kill switch), <code>/r5/budget</code> and <code>/admin/*</code>.</td></tr></tbody></table></div>
+<p>Send the key in the <code>X-API-Key</code> header. A missing or wrong key returns <code>401</code>; a valid key without enough scope returns <code>403</code>. Only <code>/health</code> is always public. This is <strong>deny by default</strong>: a route you add later is protected without you remembering to list it.</p>
+<p>A bare key with no name or scope (for example <code>VIGIL_API_KEYS=mykey</code>) still works and gets <code>admin</code> scope, which suits a single-person setup.</p>
+<p>Keys are compared in constant time, and the rate limiter tracks the key's <em>name</em>, so the secret never appears in logs or in the <code>/admin/ratelimit</code> output. Wrong-key attempts are rate limited per IP address, so a key cannot be guessed by brute force.</p>
+<aside class="callout tip"><strong>Tip</strong><p>Generate a key with <code>python -c &quot;import secrets; print(secrets.token_urlsafe(32))&quot;</code>. The Streamlit UI sends the key in <code>VIGIL_UI_API_KEY</code>; give it a <code>run</code> key.</p></aside>
+<h2 id="request-limits">Request limits</h2>
+<div class='table'><table><thead><tr><th>Limit</th><th>Default</th><th>Setting</th><th>Result</th></tr></thead><tbody><tr><td>Body size</td><td>1,000,000 bytes</td><td><code>VIGIL_MAX_BODY_BYTES</code></td><td><code>413</code></td></tr><tr><td>Upload size (<code>/l4b/*</code>)</td><td>15,000,000 bytes</td><td><code>VIGIL_MAX_UPLOAD_BYTES</code></td><td><code>413</code></td></tr><tr><td>Chunked body with no length</td><td>rejected</td><td>none</td><td><code>411</code></td></tr><tr><td>Calls per minute, per caller</td><td>60</td><td><code>VIGIL_RATE_PER_MIN</code></td><td><code>429</code></td></tr><tr><td>Simultaneous model-calling requests</td><td>8</td><td><code>VIGIL_MAX_CONCURRENCY</code></td><td><code>503</code> with <code>Retry-After</code></td></tr><tr><td>CVE identifiers</td><td><code>CVE-YYYY-NNNN…</code> only</td><td>none</td><td><code>422</code></td></tr></tbody></table></div>
+<p>The CVE check matters because the id flows into prompts, URLs and database queries. Validating the shape at the door means a malformed or hostile string never gets that far.</p>
+<h2 id="cors">CORS</h2>
+<p>CORS controls which <em>browser</em> origins may call the API. Set <code>VIGIL_CORS_ORIGINS</code> to a comma-separated list of exact origins. A wildcard (<code>*</code>) is refused at startup. In <code>dev</code> the default is the local Streamlit UI; in <code>prod</code> the default is none.</p>
+<h2 id="what-this-does-not-do">What this does not do</h2>
+<ul><li>It is <strong>API-key</strong> security, suitable for service-to-service calls and small teams. It has no user accounts, expiry or revocation beyond editing the setting.</li><li>For real users, put an identity provider (OAuth2 / OpenID Connect) at a gateway in front of Vigil and treat these keys as internal credentials.</li><li>State is in memory in one process. Rate limits and the concurrency cap are per process, not shared across replicas.</li><li>The concurrency slot is released when the response <em>starts</em>, so a long stream counts only briefly.</li><li>Run it behind TLS. Keys sent over plain HTTP can be read on the network.</li></ul>
+<h2 id="check-yourself">Check yourself</h2>
+<details><summary>Why does <code>prod</code> refuse to start without keys instead of just warning?</summary><p>A warning can be missed, and a missing setting is the most common way an API ends up open. Failing at startup turns a silent misconfiguration into an error someone must fix before anything is exposed.</p></details>
+<details><summary>A <code>run</code> key calls <code>POST /l6/monitor/stop</code>. What status comes back, and why that one?</summary><p><code>403</code>. The key is valid, so it is not <code>401</code>, but the kill switch needs <code>admin</code> scope.</p></details>
+<details><summary>Why is CORS not a substitute for an API key?</summary><p>CORS is enforced by browsers only. A script or <code>curl</code> ignores it completely, so it cannot protect the API from non-browser callers.</p></details>
+<p>Continue with the <a href="foundations.html">Foundations</a> overview.</p>
+    </article>
+    <nav class="prevnext" aria-label="Previous and next page"><a class="prev" href="r9.html"><small>Previous</small>R9: Release safety</a><a class="next" href="foundations.html"><small>Next</small>Foundations overview</a></nav>
+  </main>
+  <aside class="toc"><h4>On this page</h4><a class="l2" href="#two-modes">Two modes</a><a class="l2" href="#keys-and-scopes">Keys and scopes</a><a class="l2" href="#request-limits">Request limits</a><a class="l2" href="#cors">CORS</a><a class="l2" href="#what-this-does-not-do">What this does not do</a><a class="l2" href="#check-yourself">Check yourself</a></aside>
+</div>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

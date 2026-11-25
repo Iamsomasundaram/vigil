@@ -93,7 +93,7 @@ revisited.
 | 2 | Docker image build and `docker compose up` | Open |
 | 3 | Ollama / local-model route verified | Open |
 | 4 | Sample outputs and per-level cost from one real run | Open |
-| 5 | Security defaults: mandatory API auth outside dev, CORS, request limits | Open |
+| 5 | Security defaults: mandatory API auth outside dev, CORS, request limits | Done: see F10 (VIGIL_ENV, scoped keys, CORS allow-list, request limits) |
 | 6 | Split `vigil/api.py` and `ui/app.py` | Done: API into routers/schemas/hardening, UI into common + views/ (OpenAPI identical before and after) |
 | 7 | Quality tooling: coverage report, type checking, stronger lint rules | Open |
 | 8 | Housekeeping: line-ending renormalisation, CONTRIBUTING, changelog | Open |
