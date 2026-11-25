@@ -43,6 +43,23 @@ Last updated: 2026-08-31
 
 None.
 
+## Proposed (not approved)
+
+- G1 — GenAI Coverage Gaps and Proposed Tracks ([spec](G1-genai-coverage-gaps.md)). Planning only; to be revisited after the original review findings are closed.
+
+## Review Findings Tracker
+
+| #   | Finding                                                         | Status |
+| --- | --------------------------------------------------------------- | ------ |
+| 1   | Clean-room install and test check                               | Done   |
+| 2   | Docker image build and `docker compose up`                      | Open   |
+| 3   | Ollama / local-model route verified                             | Open   |
+| 4   | Sample outputs and per-level cost from one real run             | Open   |
+| 5   | Security defaults (mandatory auth outside dev, CORS, limits)    | Open   |
+| 6   | Split `vigil/api.py` and `ui/app.py`                            | In progress |
+| 7   | Quality tooling (coverage, type checking, stronger lint)        | Open   |
+| 8   | Housekeeping (line endings, CONTRIBUTING, changelog)            | Open   |
+
 ## Theme Track Status
 
 - T1 — Incident Response Ops: Done
