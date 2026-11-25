@@ -100,3 +100,18 @@ async def test_empty_history_reports_zero_entries():
     assert report.was_truncated is False
     assert report.was_summarized is False
     assert "No prior analyses" in text
+
+
+@pytest.mark.asyncio
+async def test_single_oversized_entry_is_cut_to_fit_the_budget():
+    """The budget is a hard ceiling even when one entry alone exceeds it (exact or heuristic counting)."""
+    from levels.l5_memory import build_budgeted_memory_context, count_tokens
+
+    huge = _entry(0)
+    huge["feedback_status"] = "patched"
+    huge["feedback_notes"] = "word " * 2000
+    text, report = await build_budgeted_memory_context([huge], max_tokens=50, recent_k=1, summarizer=None)
+
+    assert report.was_truncated is True
+    assert report.used_tokens <= 50
+    assert count_tokens(text) <= 50

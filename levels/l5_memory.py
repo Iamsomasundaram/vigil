@@ -676,6 +676,23 @@ async def summarize_history(entries: list[dict]) -> str:
     return (response.choices[0].message.content or "").strip()
 
 
+def _hard_trim(text: str, max_tokens: int) -> str:
+    """Cut text to the longest prefix that fits the token budget (marked with an ellipsis).
+
+    Last resort for when even a single entry is larger than the whole budget, so the
+    budget is a real ceiling rather than a best effort.
+    """
+    marker = "\n[truncated]"
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if count_tokens(text[:mid] + marker) <= max_tokens:
+            lo = mid
+        else:
+            hi = mid - 1
+    return (text[:lo] + marker) if count_tokens(text[:lo] + marker) <= max_tokens else text[:lo]
+
+
 async def build_budgeted_memory_context(
     history: list[dict],
     *,
@@ -759,6 +776,9 @@ async def build_budgeted_memory_context(
             kept = kept[:-1]
             text = _assemble("", kept)
         recent = kept
+        if count_tokens(text) > max_tokens:
+            # One verbatim entry alone is bigger than the budget: cut it down.
+            text = _hard_trim(text, max_tokens)
 
     return text, ContextBudgetReport(
         budget_tokens=max_tokens,
