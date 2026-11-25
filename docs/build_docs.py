@@ -26,6 +26,7 @@ _CODE_DIRS = [
     "architectures/frameworks",
     "reliability",
     "vigil",
+    "vigil/routers",
     "vigil_mcp",
     "ui",
     "tests",
@@ -144,22 +145,24 @@ def _structure() -> str:
 # ─── API endpoints ─────────────────────────────────────────────────────────
 
 def _api_routes() -> list[dict[str, str]]:
-    text = _read(ROOT / "vigil" / "api.py")
-    lines = text.splitlines()
+    # Routes live in vigil/routers/*.py (and, for older layouts, vigil/api.py).
+    files = sorted((ROOT / "vigil" / "routers").glob("*.py")) + [ROOT / "vigil" / "api.py"]
     routes: list[dict[str, str]] = []
-    pat = re.compile(r'@app\.(get|post|delete|put)\(\s*"([^"]+)"')
-    for i, line in enumerate(lines):
-        m = pat.search(line)
-        if not m:
-            continue
-        method, path = m.group(1).upper(), m.group(2)
-        summary = ""
-        for j in range(i + 1, min(i + 8, len(lines))):
-            ds = re.search(r'"""\s*(.+)', lines[j])
-            if ds:
-                summary = ds.group(1).strip().rstrip('"').strip()
-                break
-        routes.append({"method": method, "path": path, "summary": summary})
+    pat = re.compile(r'@(?:app|router)\.(get|post|delete|put)\(\s*"([^"]+)"')
+    for f in files:
+        lines = _read(f).splitlines()
+        for i, line in enumerate(lines):
+            m = pat.search(line)
+            if not m:
+                continue
+            method, path = m.group(1).upper(), m.group(2)
+            summary = ""
+            for j in range(i + 1, min(i + 8, len(lines))):
+                ds = re.search(r'"""\s*(.+)', lines[j])
+                if ds:
+                    summary = ds.group(1).strip().rstrip('"').strip()
+                    break
+            routes.append({"method": method, "path": path, "summary": summary})
     return routes
 
 

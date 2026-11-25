@@ -105,9 +105,18 @@
 │     api.py
 │     cache.py
 │     claude_provider.py
+│     hardening.py
 │     inference.py
 │     models.py
 │     pricing.py
+│     schemas.py
+├── vigil/routers/
+│     architectures.py
+│     extensions.py
+│     foundations.py
+│     levels.py
+│     reliability.py
+│     system.py
 ├── vigil_mcp/
 │     vigil_client.py
 │     vigil_server.py
@@ -170,9 +179,18 @@
       <h2>API endpoints <span class="muted">(69)</span></h2>
       <table>
         <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
-        <tbody><tr><td class='code'>GET</td><td class='code'>/health</td><td>Liveness check — returns 200 if the service is up.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/</td><td>API info and available endpoints.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/admin/ratelimit</td><td>Inspect in-memory rate bucket state (local diagnostics).</td></tr>
+        <tbody><tr><td class='code'>POST</td><td class='code'>/frameworks/a1</td><td>F7: run the A1-style LangGraph port (or fallback when deps are absent).</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a1/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a2/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a2/start</td><td>E2 extension: create a paused Plan-and-Execute run awaiting human approval.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/a2/runs/{run_id}</td><td>Return current HITL run state and any completed artifacts.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a2/runs/{run_id}/decision</td><td>Submit approve/reject/edit/request_changes for the current open gate.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a3/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a4/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/a4/collaborate</td><td>E3 extension: run A4 with explicit inter-agent communication mode.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/inference/policy</td><td>Return configured inference routing/fallback policies.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/inference/providers</td><td>List configured inference providers and their capability flags (F3).</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/inference/compare</td><td>Run the same prompt across providers and compare latency/cost/output (F3).</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/tokenize</td><td>F4: tokenize text, report token count vs context limit and projected cost.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/prompt-compare</td><td>F6: compare prompt techniques on the same CVE task.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/retrieval-lab</td><td>F11: tune chunking/indexing settings and inspect ranked retrieval hits.</td></tr>
@@ -182,12 +200,6 @@
 <tr><td class='code'>POST</td><td class='code'>/foundations/prompt-versions/compare</td><td>F14: compare prompt versions on fixed items and return a winner.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/privacy/redact</td><td>F15: redact sensitive patterns and produce a safe log snapshot.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/hybrid-retrieval</td><td>F16: compare lexical, vector, and hybrid retrieval with optional reranking.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/drift/sample</td><td>F17: record one online-eval sample into the rolling window.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/drift/report</td><td>F17: compute drift signals and SLO breaches over the rolling window.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/action/check</td><td>F18: evaluate an agent action against least-privilege permission policy.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/reliability/supply-chain/verify</td><td>F19: verify AI artifact integrity against the tracked manifest.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/supply-chain/promote</td><td>F19: gate promotion on artifact integrity plus eval status.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/reliability/release/evaluate</td><td>F20: evaluate a staged rollout (canary) and decide promote/hold/rollback.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/adaptation/recommend</td><td>F21: recommend prompt/few-shot/RAG/fine-tune approach from task traits.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/finetune/validate</td><td>F21: validate a chat-style fine-tuning dataset for common quality issues.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/model-select</td><td>F22: recommend a Claude model tier (Haiku/Sonnet/Opus) from constraints.</td></tr>
@@ -196,10 +208,6 @@
 <tr><td class='code'>POST</td><td class='code'>/foundations/responsible-ai</td><td>F23: content moderation + fairness (demographic parity) evaluation.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/foundations/semantic-cache</td><td>F24: replay queries through a similarity-based semantic cache.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/themes/incident/analyse</td><td>T1: domain transfer demo from CVE workflows to incident-response operations.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/inference/policy</td><td>Return configured inference routing/fallback policies.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/inference/providers</td><td>List configured inference providers and their capability flags (F3).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/inference/compare</td><td>Run the same prompt across providers and compare latency/cost/output (F3).</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/frameworks/a1</td><td>F7: run the A1-style LangGraph port (or fallback when deps are absent).</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l0/analyse</td><td></td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l1/analyse</td><td></td></tr>
 <tr><td class='code'>GET</td><td class='code'>/l1/stream</td><td>E4 demo endpoint: stream a concise CVE summary token-by-token.</td></tr>
@@ -209,15 +217,6 @@
 <tr><td class='code'>GET</td><td class='code'>/l4/tools</td><td>F8: discover available L4 tools from inline definitions or MCP.</td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l4b/image</td><td></td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l4b/pdf</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r1/scan</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r1/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r2/evaluate</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r3/trace/run</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r3/trace/{trace_id}</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r4/health</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r4/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/r5/budget</td><td></td></tr>
-<tr><td class='code'>GET</td><td class='code'>/r5/report</td><td></td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l5/analyse</td><td></td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l5/feedback</td><td></td></tr>
 <tr><td class='code'>GET</td><td class='code'>/l5/history/{cve_id}</td><td></td></tr>
@@ -231,14 +230,24 @@
 <tr><td class='code'>POST</td><td class='code'>/l6/monitor/start</td><td></td></tr>
 <tr><td class='code'>POST</td><td class='code'>/l6/monitor/stop</td><td></td></tr>
 <tr><td class='code'>GET</td><td class='code'>/l6/monitor/status</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a1/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/start</td><td>E2 extension: create a paused Plan-and-Execute run awaiting human approval.</td></tr>
-<tr><td class='code'>GET</td><td class='code'>/a2/runs/{run_id}</td><td>Return current HITL run state and any completed artifacts.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a2/runs/{run_id}/decision</td><td>Submit approve/reject/edit/request_changes for the current open gate.</td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a3/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a4/analyse</td><td></td></tr>
-<tr><td class='code'>POST</td><td class='code'>/a4/collaborate</td><td>E3 extension: run A4 with explicit inter-agent communication mode.</td></tr></tbody>
+<tr><td class='code'>POST</td><td class='code'>/reliability/drift/sample</td><td>F17: record one online-eval sample into the rolling window.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/reliability/drift/report</td><td>F17: compute drift signals and SLO breaches over the rolling window.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/reliability/action/check</td><td>F18: evaluate an agent action against least-privilege permission policy.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/reliability/supply-chain/verify</td><td>F19: verify AI artifact integrity against the tracked manifest.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/reliability/supply-chain/promote</td><td>F19: gate promotion on artifact integrity plus eval status.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/reliability/release/evaluate</td><td>F20: evaluate a staged rollout (canary) and decide promote/hold/rollback.</td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r1/scan</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r1/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r2/evaluate</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r3/trace/run</td><td></td></tr>
+<tr><td class='code'>GET</td><td class='code'>/r3/trace/{trace_id}</td><td></td></tr>
+<tr><td class='code'>GET</td><td class='code'>/r4/health</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r4/analyse</td><td></td></tr>
+<tr><td class='code'>POST</td><td class='code'>/r5/budget</td><td></td></tr>
+<tr><td class='code'>GET</td><td class='code'>/r5/report</td><td></td></tr>
+<tr><td class='code'>GET</td><td class='code'>/health</td><td>Liveness check — returns 200 if the service is up.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/</td><td>API info and available endpoints.</td></tr>
+<tr><td class='code'>GET</td><td class='code'>/admin/ratelimit</td><td>Inspect in-memory rate bucket state (local diagnostics).</td></tr></tbody>
       </table>
     </section>
     

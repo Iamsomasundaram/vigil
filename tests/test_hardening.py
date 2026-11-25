@@ -4,6 +4,8 @@ import importlib
 
 from fastapi.testclient import TestClient
 
+from vigil import hardening
+
 
 def _patch_l0_module(monkeypatch):
     import levels.l0_single_call as l0
@@ -28,16 +30,18 @@ def _patch_l0_module(monkeypatch):
 
 
 def _fresh_api():
+    """Reload hardening (reset its module-level state) and the app that registers it."""
     import vigil.api as api
 
+    importlib.reload(hardening)
     return importlib.reload(api)
 
 
 def test_auth_blocks_without_key_and_allows_with_key(monkeypatch):
     calls = _patch_l0_module(monkeypatch)
     api = _fresh_api()
-    api._API_KEYS = {"good-key"}
-    api._RATE_STATE.clear()
+    hardening._API_KEYS = {"good-key"}
+    hardening._RATE_STATE.clear()
 
     client = TestClient(api.app)
 
@@ -52,9 +56,9 @@ def test_auth_blocks_without_key_and_allows_with_key(monkeypatch):
 def test_rate_limit_enforced(monkeypatch):
     _patch_l0_module(monkeypatch)
     api = _fresh_api()
-    api._API_KEYS = set()
-    api._RATE_PER_MIN = 1
-    api._RATE_STATE.clear()
+    hardening._API_KEYS = set()
+    hardening._RATE_PER_MIN = 1
+    hardening._RATE_STATE.clear()
 
     client = TestClient(api.app)
     r1 = client.post("/l0/analyse", json={"cve_id": "CVE-1"})
@@ -67,10 +71,10 @@ def test_rate_limit_enforced(monkeypatch):
 def test_response_cache_hit_on_second_identical_request(monkeypatch):
     calls = _patch_l0_module(monkeypatch)
     api = _fresh_api()
-    api._API_KEYS = set()
-    api._RATE_PER_MIN = 1000
-    api._RATE_STATE.clear()
-    api._CACHE._mem.clear()
+    hardening._API_KEYS = set()
+    hardening._RATE_PER_MIN = 1000
+    hardening._RATE_STATE.clear()
+    hardening._CACHE._mem.clear()
 
     client = TestClient(api.app)
     r1 = client.post("/l0/analyse", json={"cve_id": "CVE-SAME"})
