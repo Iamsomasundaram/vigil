@@ -19,6 +19,10 @@ Set DATABASE_URL to override the default connection string:
 import asyncio
 import os
 
+# The level modules create an OpenAI client at import time, which raises without a key.
+# Every test stubs the model, so a placeholder is enough; setdefault never overrides a real key.
+os.environ.setdefault("OPENAI_API_KEY", "test-key-not-used")
+
 import asyncpg
 import pytest
 import pytest_asyncio
