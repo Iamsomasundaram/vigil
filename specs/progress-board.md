@@ -60,6 +60,40 @@ None.
 | 7   | Quality tooling (coverage, type checking, stronger lint)        | Open   |
 | 8   | Housekeeping (line endings, CONTRIBUTING, changelog)            | Open   |
 
+### Open items in detail
+
+**#2 Docker image build and `docker compose up`** (next up; needs the user's go-ahead before running, it pulls and starts images)
+- Build the API and UI images; confirm `architectures/` and `vigil_mcp/` are in the API image (Dockerfile was edited, never built).
+- Verify the compose security pass-through added in finding #5 (`VIGIL_ENV`, `VIGIL_API_KEYS`, `VIGIL_CORS_ORIGINS`, `VIGIL_UI_API_KEY`) works end to end: UI to API with a key set, `prod` refusing to start without keys.
+- Bind Postgres (5432) and Redis (6379) to `127.0.0.1` in `docker-compose.yml`.
+- Confirm L5/L6 work against the compose database.
+
+**#3 Ollama / local-model route**
+- The README "Cost and Offline Options" route is unverified. Run one level against a local Ollama model and record what works.
+- Confirm whether `VIGIL_TOOL_SOURCE=mcp` really uses MCP or silently falls back to inline.
+
+**#4 Sample outputs and per-level cost from one real run** (needs the user's OpenAI key)
+- Capture real output and the estimated cost for each level, and add them to the docs so learners can compare.
+
+**#7 Quality tooling**
+- Coverage report, type checking (mypy or pyright), and lint rules beyond the current F-rules only.
+
+**#8 Housekeeping**
+- Renormalise line endings (repo has mixed LF/CRLF; `.gitattributes` is in place), add CONTRIBUTING and a changelog.
+
+### Known gaps to fold into the items above
+
+| Gap | Where | Fold into |
+| --- | --- | --- |
+| R4's 0.1 s timeout vs live services is untested | `reliability/r4_resilience.py` | #3 / #4 (real run) |
+| R3 span parenting under concurrency is untested | `reliability/r3_observability.py` | #7 (tests) |
+| Privacy redaction misses names and addresses (documented) | `levels/foundations/privacy.py` | G1 |
+| Semantic cache is word-overlap, not embeddings (documented) | `levels/foundations/semantic_cache.py` | G1 (real RAG track) |
+| L6: an EPSS fetch failure on a CVE's first scan records 0.0 | `levels/l6_autonomous.py` | #4 |
+| Mobile layout of the docs site unconfirmed on a real phone | `docs/assets/style.css` | #8 |
+| Security: rate limit and concurrency cap are per process; keys have no expiry or revocation; OIDC only documented | `vigil/hardening.py` | G1 (deployment reference) |
+| Leftover clean-room folders `D:\vigil-cr`, `D:\vigil-cr-log.txt` | outside the repo | user to delete |
+
 ## Theme Track Status
 
 - T1 — Incident Response Ops: Done
