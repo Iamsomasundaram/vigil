@@ -289,6 +289,7 @@ Try different CVEs to see how the outputs vary:
 | Streamlit pages show connection errors                          | The API isn't running. Start it, or set `VIGIL_API_URL` if it isn't on `localhost:8000`.                      |
 | `401` from the API                                              | `VIGIL_API_KEYS` is set in `.env`. Send a matching key, or leave the variable empty for local use.           |
 | L4 returns no NVD or EPSS data                                  | Those are live public APIs. Check your network connection and retry, since they can rate-limit or time out.  |
+| `pip install` fails with `No such file or directory` on a very long path (Windows) | Windows limits paths to 260 characters. Clone into a short folder such as `C:\src\vigil`. |
 | Tests are slow or fail on optional features                     | Install the extras CI uses: `pip install -e ".[full,dev,foundations]"`. Skipped tests mean an extra is absent. |
 
 Still stuck? Run `python -m pytest -q` first. If it fails on a clean checkout, that is a repo bug worth reporting.

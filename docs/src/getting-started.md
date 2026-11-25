@@ -89,6 +89,7 @@ Now open [Level 0](l0.md) and read the code next to the output you just produced
 | `The api_key client option must be set` | The key was not loaded. Check `.env` exists in the repo root and run from there. |
 | `ModuleNotFoundError: vigil` | You skipped `pip install -e ...` or the virtual environment is not active. |
 | PowerShell blocks the activate script | See the tip above. |
+| `pip install` fails with `No such file or directory` on a long path (Windows) | Windows limits paths to 260 characters. Clone into a short folder such as `C:\src\vigil`. |
 | A `401` or `insufficient_quota` error | The key is wrong, or the account has no credit. |
 
 The README has a longer troubleshooting table.
