@@ -37,8 +37,15 @@ trust against a known answer key.**
   in a sandbox) and teach the missing layer: scope, heuristics, classification, review,
   agency modes, guards, evidence and audit.
 - Reuse existing Vigil modules (R1, R2, R3, R5, R8, F18) instead of rewriting them.
-- Run offline in tests with a fake model and no browser; browser and live model are optional
-  extras, skipped when absent (same pattern as the rest of the repo).
+- **The agent is live.** The tester makes real model calls and decides for itself. There is
+  no mocked agent in the product. Mocks and recorded data are allowed **only in unit tests**
+  of our own code (classifier rules, scorer, guard, scope parsing), so those run fast and
+  offline in CI.
+- Quality of the live agent is measured by a **live evaluation**: real model, real browser,
+  the demo shop's answer key, repeated runs to expose variance, under a cost ceiling (R5).
+  It runs on demand, not in the default test suite (cost and non-determinism).
+- Browser and live model are optional extras for the base install; unit tests skip cleanly
+  when they are absent (same pattern as the rest of the repo).
 
 ## Non-Goals
 
@@ -168,7 +175,7 @@ optional extras, so the base install and the test suite stay light.
 | --- | --- | --- |
 | P1.1 | Demo shop, seeded bugs, answer key, scorer, offline tests | No |
 | P1.2 | Scope contract, heuristics v1, observation-only scan | Browser (optional extra) |
-| P1.3 | Validation strategy, classifier with confidence, re-triage, review queue | Fake model in tests; live model optional |
+| P1.3 | Validation strategy, classifier with confidence, re-triage, review queue; live model calls, first live evaluation against the answer key | Live model and browser (mocks in unit tests only) |
 | P1.4 | Harness adapter: generate, run and repair scripts; guard; agency modes; audit | Harness (parked choice) |
 | P1.5 | Guide section, UI page and API route, README links | No |
 
@@ -186,12 +193,16 @@ optional extras, so the base install and the test suite stay light.
    the owner until the project is final. Before choosing, verify current capabilities from
    the official docs, and keep the adapter swappable so the track is not tied to one vendor.
    Do not imply any partner status or endorsement.
-2. **Browser extra.** Confirm Playwright as the only browser dependency and that CI can
+2. ~~Browser extra.~~ **Decided:** Playwright is the only browser dependency, and CI can
    install it.
-3. **Does the demo shop ship its own tiny dataset, or generate it from the seed config?**
-   (Recommendation: generate, so the answer key and data cannot drift.)
-4. **Mode names and defaults.** Recommendation: default `observe`; `execute` needs an
-   explicit flag.
+3. ~~Demo shop data.~~ **Decided:** generated from the seed config, so the answer key and the
+   data cannot drift.
+4. **Default agency mode.** `observe` looks and reports without changing any state; `execute`
+   runs the tests. Proposed: `execute` for the bundled demo shop (harmless), `observe` for any
+   other URL, and `execute` always needs an explicit flag on a non-bundled target. Pending
+   the owner's confirmation.
+5. **Cost of live evaluation.** Set a per-run and per-evaluation ceiling before the first
+   live run; record cost and variance in the report.
 
 ## Acceptance Criteria (for this planning spec)
 
