@@ -180,7 +180,13 @@ docker compose up --build
 | API     | http://localhost:8000/docs    |
 | UI      | http://localhost:8501         |
 
-Run the test suite inside the same image: `docker compose --profile test run --rm test`.
+All four published ports (API, UI, PostgreSQL, Redis) are bound to `127.0.0.1`, so nothing is reachable from
+your network. The dev API is open unless you set `VIGIL_API_KEYS`; see the guide page *API security defaults*.
+
+Run the test suite inside Docker: `docker compose --profile test run --rm test`. The test image is
+profile-gated, so after changing the `Dockerfile` or `pyproject.toml` rebuild it with
+`docker compose --profile test build test` (a plain `docker compose build` skips it and you would test a stale image).
+Stop everything with `docker compose down` (add `-v` to also delete the database volume).
 
 **Option B — locally, without Docker (L0–L4 pages only):**
 

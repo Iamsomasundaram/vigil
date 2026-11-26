@@ -25,6 +25,8 @@ services:
       # Security (see docs: Security defaults). dev = open API; prod = keys required.
       - VIGIL_ENV=${VIGIL_ENV:-dev}
       - VIGIL_API_KEYS=${VIGIL_API_KEYS:-}
+      # This default lets the bundled UI origin through even with VIGIL_ENV=prod. Set it to your own
+      # origin list (or an unused value) when you deploy behind a different front end.
       - VIGIL_CORS_ORIGINS=${VIGIL_CORS_ORIGINS:-http://localhost:8501,http://127.0.0.1:8501}
     volumes:
       # Mount source code so --reload picks up changes without rebuilding
@@ -98,8 +100,14 @@ services:
   # Notes:
   #   - OPENAI_API_KEY is intentionally a fake value: every test stubs the
   #     OpenAI client and the live HTTP tools, so no real API is contacted.
-  #   - pytest + pytest-asyncio are installed at runtime so the production
+  #   - pytest + pytest-asyncio + pyyaml are installed at runtime so the production
   #     image stays slim.
+  #   - The suite also tests docs/, exercises/, notebooks/ and projects/, which are
+  #     not baked into the image, so they are mounted (read-only) below. docs/ is
+  #     copied first because its test rebuilds the site in place.
+  #   - After changing the Dockerfile or pyproject.toml, rebuild this service too
+  #     (profile-gated services are skipped by a plain `docker compose build`):
+  #       docker compose --profile test build test
   test:
     build:
       context: .
@@ -115,6 +123,12 @@ services:
       - ./vigil:/app/vigil
       - ./levels:/app/levels
       - ./architectures:/app/architectures
+      - ./reliability:/app/reliability
+      - ./vigil_mcp:/app/vigil_mcp
+      - ./projects:/app/projects:ro
+      - ./docs:/docs-host:ro   # copied to /app/docs below: the docs test rebuilds the site in place
+      - ./exercises:/app/exercises:ro
+      - ./notebooks:/app/notebooks:ro
       - ./pyproject.toml:/app/pyproject.toml
     depends_on:
       db:
@@ -122,7 +136,7 @@ services:
     command:
       - sh
       - -c
-      - "pip install --no-cache-dir pytest pytest-asyncio && pytest tests/ -v"
+      - "cp -r /docs-host /app/docs && pip install --no-cache-dir pytest pytest-asyncio pyyaml && pytest tests/ -q"
 
   # ── Vigil UI ───────────────────────────────────────────────────────────────
   # Streamlit frontend — one page per level (L0–L6).

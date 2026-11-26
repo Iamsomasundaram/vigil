@@ -65,7 +65,7 @@ systems or counts. A realistic use case from the owner's own experience will be 
 | #   | Finding                                                         | Status |
 | --- | --------------------------------------------------------------- | ------ |
 | 1   | Clean-room install and test check                               | Done   |
-| 2   | Docker image build and `docker compose up`                      | Open   |
+| 2   | Docker image build and `docker compose up`                      | Done   |
 | 3   | Ollama / local-model route verified                             | Open   |
 | 4   | Sample outputs and per-level cost from one real run             | Open   |
 | 5   | Security defaults (mandatory auth outside dev, CORS, limits)    | Done   |
@@ -75,11 +75,14 @@ systems or counts. A realistic use case from the owner's own experience will be 
 
 ### Open items in detail
 
-**#2 Docker image build and `docker compose up`** (next up; needs the user's go-ahead before running, it pulls and starts images)
-- Build the API and UI images; confirm `architectures/` and `vigil_mcp/` are in the API image (Dockerfile was edited, never built).
-- Verify the compose security pass-through added in finding #5 (`VIGIL_ENV`, `VIGIL_API_KEYS`, `VIGIL_CORS_ORIGINS`, `VIGIL_UI_API_KEY`) works end to end: UI to API with a key set, `prod` refusing to start without keys.
-- Bind Postgres (5432) and Redis (6379) to `127.0.0.1` in `docker-compose.yml`.
-- Confirm L5/L6 work against the compose database.
+**#2 Docker image build and `docker compose up`** (Done 2026-11-26, Docker Desktop 28.1.1, Compose v2.35.1)
+- Built: `vigil-api` 328 MB, `vigil-ui` 845 MB, and the profile-gated `vigil-test` image. API image contains `architectures/`, `reliability/` and `vigil_mcp/`.
+- `docker compose up --wait`: db, redis, api and ui all healthy. All four published ports bind to `127.0.0.1`.
+- Verified: API endpoints that need no model respond; L5/L6 round trip through compose Postgres (tables exist, watchlist row written, read and deleted); malformed CVE id returns 422; dev mode logs the "API is OPEN" warning.
+- Security pass-through verified in the containers: `VIGIL_ENV=prod` without keys exits with the clear error; with scoped keys the API returns 401 without a key, 403 for a run key on the kill switch, 200 for an admin key; the UI container sends `VIGIL_UI_API_KEY` and the API accepts it; CORS allows the Streamlit origin and rejects another.
+- Test service: found it ran a stale image and lacked `docs/`, `exercises/`, `notebooks/`, `projects/` and `reliability/`; fixed the mounts and the docs copy. Whole suite passes in Docker: 301 passed, 3 skipped.
+- Not verified: any call that uses a paid model (no model calls were made); the Streamlit pages beyond the health and index responses (the UI renders over a websocket, so curl cannot exercise it); `prod` default for CORS (Compose supplies the Streamlit origin as a default, now commented).
+- Known: the UI image is 845 MB (Streamlit and its dependencies); not optimised. Fixed container names (`vigil-api`, ...) can clash with other projects.
 
 **#3 Ollama / local-model route**
 - The README "Cost and Offline Options" route is unverified. Run one level against a local Ollama model and record what works.
