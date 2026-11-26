@@ -1,6 +1,6 @@
 # P1 — Autonomous Tester (capstone project)
 
-- **Status:** Proposed (concept, harness and default modes decided by the project owner; nothing built)
+- **Status:** Approved 2026-11-26; P1.1 in progress (harness and default modes decided by the project owner)
 - **Axis:** Projects (a small, real, extensible application built from the learning axes)
 - **Target folder:** `projects/autonomous_tester/` (new top-level `projects/`)
 - **Depends on:** R1 guardrails, R2 evaluation, R3 observability, R5 cost control, R8 action governance, F18 permissions; finding #2 (Docker) is independent
@@ -346,7 +346,7 @@ P1.3 and P1.4 produce exactly what the scorer reads.
 ## Acceptance Criteria (for this planning spec)
 
 - [x] Concept, scope, target, placement and confidentiality rule agreed with the owner.
-- [ ] Phase list and folder structure approved.
+- [x] Phase list and folder structure approved.
 - [x] Harness choice made: Codex SDK only; own orchestration where Codex has no native capability.
 - [ ] Codex auth, cost and capability checks verified against the installed version (before P1.4).
 - [ ] Each phase gets its own acceptance checklist before code is written.

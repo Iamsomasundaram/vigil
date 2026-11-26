@@ -41,12 +41,24 @@ Last updated: 2026-08-31
 
 ## Pending Approved Ideas
 
-None.
+### P1 — Autonomous Tester capstone project ([spec](P1-autonomous-tester.md))
+
+Approved by the owner on 2026-11-26. Codex SDK only, with our own orchestration where Codex has
+no native capability. The agent is live (real model calls); mocks are used only in unit tests.
+The bundled demo shop with seeded bugs is the only target. Generic by rule: no client names,
+systems or counts. A realistic use case from the owner's own experience will be added later.
+
+| Phase | Deliverable | Status |
+| ----- | ----------- | ------ |
+| P1.1 | Demo shop, seeded bugs, answer key, scorer, offline tests | In progress |
+| P1.2 | Scope contract, heuristics v1, observation-only scan (adds Playwright) | Not started |
+| P1.3 | Validation strategy, classifier with confidence, re-triage, review queue, first live evaluation | Not started |
+| P1.4 | Codex integration, guard, agency modes, audit (verify Codex auth and capabilities first) | Not started |
+| P1.5 | Guide section, UI page, API route, README links | Not started |
 
 ## Proposed (not approved)
 
 - G1 — GenAI Coverage Gaps and Proposed Tracks ([spec](G1-genai-coverage-gaps.md)). Planning only; to be revisited after the original review findings are closed.
-- P1 — Autonomous Tester capstone project ([spec](P1-autonomous-tester.md)). Concept, scope, demo-shop target, folder structure and phases agreed with the owner; harness decided (Codex SDK only, own orchestration where Codex has no native capability), default modes decided; no code until the phase list is approved. Generic by rule: no client names, systems or counts.
 
 ## Review Findings Tracker
 
