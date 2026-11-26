@@ -107,6 +107,19 @@ systems or counts. A realistic use case from the owner's own experience will be 
 | Security: rate limit and concurrency cap are per process; keys have no expiry or revocation; OIDC only documented | `vigil/hardening.py` | G1 (deployment reference) |
 | Leftover clean-room folders `D:\vigil-cr`, `D:\vigil-cr-log.txt` | outside the repo | user to delete |
 
+### P1 follow-ups carried forward (action items, do not lose)
+
+| # | Follow-up | Must be handled in |
+| --- | --- | --- |
+| F1 | Exploratory matching in the scorer is plain term matching, a deterministic baseline. Back it with, or replace it by, a semantic judge once the live tester exists, and report both so the baseline stays comparable | P1.3 |
+| F2 | A01 (renamed markup) only applies when scripts written for the version 1 markup run against version 2. The live run for `v2_markup` must execute stale v1 scripts first, then show repair; a freshly generated v2 script passes and does not test A01 | P1.4 |
+| F3 | Every verdict except "skipped" must carry an evidence reference (the schema rejects it otherwise, including for passes). The tester must emit one for every verdict | P1.3, P1.4 |
+| F4 | The answer key (`evals/seeded_bugs.yaml`) and the scorer must never be visible to the tester. The Codex workspace must be a generated folder that contains neither, and no `.env` | P1.4 (isolation) |
+| F5 | Set a per-run and per-evaluation cost ceiling, and show an estimate, before the first live run | P1.3 |
+| F6 | Verify Codex auth, billing behaviour (`OPENAI_API_KEY` vs `CODEX_API_KEY`), Python vs TypeScript SDK, hooks, subagents, MCP, usage events and spend limits against the installed version | Before P1.4 |
+| F7 | A new top-level package (`projects`) is not picked up by an existing editable install; re-run `pip install -e ".[tester]"` after pulling | README / P1.5 docs |
+| F8 | Add a realistic use case from the owner's own testing experience (generic, no client specifics) | Owner to supply, after P1.2 |
+
 ## Theme Track Status
 
 - T1 — Incident Response Ops: Done
