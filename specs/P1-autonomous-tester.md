@@ -193,6 +193,128 @@ optional extras, so the base install and the test suite stay light.
 - **Edit** `pyproject.toml` (include, extras), `README.md` (tree and "Which tracks"),
   `docs/` (Projects section), `vigil/routers/` and `ui/views/` only in P1.5.
 
+## Credentials and the existing OpenAI key
+
+Vigil's other learning topics already use one key, `OPENAI_API_KEY`, loaded from `.env` (see
+`.env.example`). This project reuses it so learners configure one key, with these rules:
+
+- The tester's own model calls (strategy, classification, re-triage) go through Vigil's
+  existing OpenAI client and read `OPENAI_API_KEY`.
+- Codex documents `CODEX_API_KEY` for non-interactive use and its TypeScript SDK. The Codex
+  integration therefore **passes the key to the Codex process explicitly**, mapping
+  `OPENAI_API_KEY` to `CODEX_API_KEY` in that child process's environment only. Never write
+  the key to disk, a prompt, a log, a trace or generated code. To be verified on the
+  installed Codex version before the first live run.
+- Codex runs with its working directory set to the generated-test workspace, which never
+  contains `.env` or any key file. This avoids the reported behaviour of picking up a project
+  `.env` and billing an unintended account.
+- Live runs and live evaluations are billed per token. Show an estimate before a live
+  evaluation and enforce the R5 ceiling (labelled as an estimate, as everywhere else in Vigil).
+
+---
+
+## P1.1 detailed plan: demo shop, answer key, scorer
+
+Everything in P1.1 runs offline with no model and no browser.
+
+### The shop
+
+A small FastAPI app using only the standard library for HTML (f-strings, no new template
+dependency). In-memory cart keyed by a session cookie.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /` | Product list |
+| `GET /product/{sku}` | Name, image, price, variant selector, quantity, add-to-cart |
+| `POST /cart/add` | Add a SKU, variant and quantity |
+| `GET /cart` | Lines, per-line price, subtotal |
+| `POST /cart/remove` | Remove a line |
+| `GET /health` | Liveness |
+
+Stable `data-testid` attributes on every element a test needs. Products are **generated from
+the seed config** (6 products: name, base price, variants with price deltas, stock, image or
+none), so data and answer key cannot drift.
+
+### Profiles (a run = one profile)
+
+| Profile | Meaning |
+| --- | --- |
+| `clean` | No seeded bugs. Anything the tester reports as a defect here is a false defect. |
+| `all_bugs` | Every seeded app defect, data issue and exploratory issue active. |
+| `env_down` | The cart returns an injected `503`; product pages respond slowly. |
+| `v2_markup` | No behaviour change; renamed and restructured markup (`SHOP_VERSION=2`). Tests written against v1 break for automation reasons only. |
+
+### Seeded issues (answer key v1, not final until reviewed)
+
+| ID | Kind | What is wrong | Expected verdict | Found by |
+| --- | --- | --- | --- | --- |
+| B01 | App defect | Cart shows the price 1 cent lower than the product page for one SKU | fail: app defect | formal case |
+| B02 | App defect | Choosing a larger variant does not update the displayed price (the cart still charges it) | fail: app defect | formal case |
+| B03 | App defect | Adding quantity 3 adds 2 | fail: app defect | formal case |
+| B04 | App defect | Removing a line leaves the subtotal stale until reload | fail: app defect | formal case |
+| B05 | App defect, silent-pass trap | The header badge count rises but no line appears in the cart for one SKU. A weakly written case that checks only the badge passes wrongly | fail: app defect (a pass here is a silent false pass) | formal case plus tester judgment |
+| D01 | Test data | One product is out of stock and correctly cannot be added; a case that adds it fails for data reasons | fail: test data issue | formal case |
+| D02 | Test data | One product has no image | fail: test data issue | formal case |
+| E01 | Environment | Cart returns an injected `503` | blocked: environment | formal case |
+| E02 | Environment | Product page responds after a long delay | blocked: environment | formal case |
+| A01 | Automation | `v2_markup` renames the add-to-cart test id and moves the price element | fail: automation issue | formal case |
+| X01 | Exploratory | A console error on product page load | exploratory observation | no formal case |
+| X02 | Exploratory | A banner covers the add-to-cart button on a narrow mobile width | exploratory observation | no formal case |
+| X03 | Exploratory | Product images have no alt text | exploratory observation | no formal case |
+
+### Formal cases (plain language, `cases/*.yaml`)
+
+About 8 cases with an id, title, plain-language steps, expected result, priority and the area
+they cover. One of them (the cart-count case) is **deliberately weakly written** to bait B05.
+Cases never name the seeded bugs.
+
+### Answer key (`evals/seeded_bugs.yaml`)
+
+Per issue: `id`, `kind`, `title`, `active_in` (profiles), `covered_by` (case ids or none),
+`expected_verdict`, `detectable_by` (`formal` or `exploratory`), and how it can be observed
+(route or element). The key is data, loaded and validated by code.
+
+### Scorer (`evals/scorer.py`)
+
+Input: a run result (list of verdicts: case or observation id, category, confidence, evidence
+reference) and the profile used. Output: the metrics table from the Scoring section, plus a
+per-issue found, missed or invented list. A pydantic model defines the run-result schema so
+P1.3 and P1.4 produce exactly what the scorer reads.
+
+### Offline tests (`tests/projects/autonomous_tester/`)
+
+- Each seeded issue is **really present** when its profile is active and **absent** under
+  `clean` (checked over HTTP). This keeps the answer key honest.
+- Every answer-key id exists in the shop code and every seeded bug has a key entry.
+- Generated data is deterministic for a given seed config.
+- Scorer: a perfect run scores full recall and zero false defects; a run that passes B05
+  counts one silent false pass; a defect raised under `clean` counts as a false defect; a
+  wrong category lowers classification accuracy.
+- Cases load and validate; none mention a seeded bug id.
+
+### Files (P1.1)
+
+- **New** `projects/README.md`, `projects/__init__.py`, `projects/autonomous_tester/README.md`.
+- **New** `projects/autonomous_tester/demo_shop/` (app, catalog generator, seed config,
+  profiles), `cases/`, `evals/` (answer key, scorer, run-result schema).
+- **New** `tests/projects/autonomous_tester/` (with `__init__.py`).
+- **Edit** `pyproject.toml`: include `projects*`; new optional extra `tester` (FastAPI, YAML
+  parsing; Playwright is added in P1.2).
+- **Edit** `README.md`: tree entry and a short "Projects" pointer.
+
+### Acceptance criteria (P1.1)
+
+- [ ] Shop runs locally under each of the four profiles; `clean` behaves correctly end to end.
+- [ ] All 13 seeded issues are observable over HTTP under their profiles and absent under `clean`.
+- [ ] Answer key validates and matches the shop code in both directions.
+- [ ] Scorer reports every metric and per-issue found, missed or invented.
+- [ ] Offline tests above pass; whole suite and ruff stay green; no model or browser needed.
+- [ ] No client names, systems or counts anywhere in the files.
+- [ ] `projects/README.md` explains how `projects/` differs from `levels/`, `architectures/`
+      and `reliability/`.
+
+---
+
 ## Open questions
 
 1. ~~Harness choice.~~ **Decided:** Codex SDK, no generic adapter. Still to verify from the
