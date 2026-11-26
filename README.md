@@ -75,6 +75,10 @@ You do not need all of it. Pick a depth.
 | **Advanced**     | R6–R9, governance and privacy (F15, F18–F20), fine-tuning (F21), MCP (F8), theme T1 | as needed |
 
 Each track has a spec in [`specs/`](specs/README.md) that states the goal and what to build.
+
+After the tracks, [`projects/`](projects/README.md) holds capstone projects that combine them. The first,
+**P1 Autonomous Tester**, is in progress: its demo shop with seeded bugs and its answer-key scorer already work
+(`pip install -e ".[tester]"`); the live tester agent is still to come.
 Time estimates are rough guides, not measured.
 
 ---
@@ -291,7 +295,7 @@ Try different CVEs to see how the outputs vary:
 | `401` or `403` from the API                                     | `VIGIL_API_KEYS` is set. Send `X-API-Key` (UI: set `VIGIL_UI_API_KEY`); `403` means the key's scope is too low. Leave keys empty with `VIGIL_ENV=dev` for local use. |
 | L4 returns no NVD or EPSS data                                  | Those are live public APIs. Check your network connection and retry, since they can rate-limit or time out.  |
 | `pip install` fails with `No such file or directory` on a very long path (Windows) | Windows limits paths to 260 characters. Clone into a short folder such as `C:\src\vigil`. |
-| Tests are slow or fail on optional features                     | Install the extras CI uses: `pip install -e ".[full,dev,foundations]"`. Skipped tests mean an extra is absent. |
+| Tests are slow or fail on optional features                     | Install the extras CI uses: `pip install -e ".[full,dev,foundations,tester]"`. Skipped tests mean an extra is absent. |
 
 Still stuck? Run `python -m pytest -q` first. If it fails on a clean checkout, that is a repo bug worth reporting.
 
@@ -307,6 +311,7 @@ vigil/
 │   └── themes/       T-series domain tracks (incident ops)
 ├── architectures/    A1–A4 orchestration patterns (+ frameworks/ bridge)
 ├── reliability/      R1–R9: guardrails, eval, observability, resilience, cost, drift, governance, supply chain, release safety
+├── projects/         Capstone projects built from the tracks above (P1 autonomous tester); see projects/README.md
 ├── vigil_mcp/        MCP tool server + client path (see vigil_mcp/README.md)
 ├── ui/               Streamlit learning UI (app.py entrypoint, common.py, views/ one module per page group)
 ├── specs/            One spec per feature + progress board

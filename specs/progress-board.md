@@ -50,7 +50,7 @@ systems or counts. A realistic use case from the owner's own experience will be 
 
 | Phase | Deliverable | Status |
 | ----- | ----------- | ------ |
-| P1.1 | Demo shop, seeded bugs, answer key, scorer, offline tests | In progress |
+| P1.1 | Demo shop, seeded bugs, answer key, scorer, offline tests | Done |
 | P1.2 | Scope contract, heuristics v1, observation-only scan (adds Playwright) | Not started |
 | P1.3 | Validation strategy, classifier with confidence, re-triage, review queue, first live evaluation | Not started |
 | P1.4 | Codex integration, guard, agency modes, audit (verify Codex auth and capabilities first) | Not started |

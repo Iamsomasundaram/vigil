@@ -1,0 +1,63 @@
+# Seed config for the demo shop. Products and profiles are generated from this file, so the
+# data and the answer key cannot drift. Money is in cents.
+version: 1
+
+# How long product pages take to respond when the slow-response issue is active (seconds).
+slow_seconds: 8.0
+
+profiles:
+  clean:     { shop_version: 1 }   # no seeded issues: the correct shop
+  all_bugs:  { shop_version: 1 }   # app defects, data issues and exploratory issues switched on
+  env_down:  { shop_version: 1 }   # environment issues switched on
+  v2_markup: { shop_version: 2 }   # same behaviour, renamed markup
+
+# Which product each issue touches.
+targets:
+  B01: SKU-002   # cart price off by one cent
+  B02: SKU-001   # variant price not updated on the page
+  B05: SKU-005   # badge counts it, cart does not
+  D01: SKU-004   # out of stock
+  D02: SKU-006   # no image
+
+products:
+  - sku: SKU-001
+    name: Trail Backpack
+    price_cents: 8999
+    stock: 25
+    image: backpack.svg
+    variants: [{ name: M, delta_cents: 0 }, { name: L, delta_cents: 200 }]
+
+  - sku: SKU-002
+    name: Insulated Bottle
+    price_cents: 2499
+    stock: 40
+    image: bottle.svg
+    variants: [{ name: 500ml, delta_cents: 0 }, { name: 750ml, delta_cents: 300 }]
+
+  - sku: SKU-003
+    name: Camp Mug
+    price_cents: 1299
+    stock: 60
+    image: mug.svg
+    variants: [{ name: default, delta_cents: 0 }]
+
+  - sku: SKU-004
+    name: Headlamp
+    price_cents: 3499
+    stock: 12
+    image: headlamp.svg
+    variants: [{ name: default, delta_cents: 0 }]
+
+  - sku: SKU-005
+    name: Trail Socks
+    price_cents: 1599
+    stock: 80
+    image: socks.svg
+    variants: [{ name: M, delta_cents: 0 }, { name: L, delta_cents: 0 }]
+
+  - sku: SKU-006
+    name: Water Filter
+    price_cents: 4599
+    stock: 18
+    image: filter.svg
+    variants: [{ name: default, delta_cents: 0 }]

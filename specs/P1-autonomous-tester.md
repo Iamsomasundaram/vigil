@@ -1,6 +1,6 @@
 # P1 — Autonomous Tester (capstone project)
 
-- **Status:** Approved 2026-11-26; P1.1 in progress (harness and default modes decided by the project owner)
+- **Status:** Approved 2026-11-26; P1.1 done, P1.2 next (harness and default modes decided by the project owner)
 - **Axis:** Projects (a small, real, extensible application built from the learning axes)
 - **Target folder:** `projects/autonomous_tester/` (new top-level `projects/`)
 - **Depends on:** R1 guardrails, R2 evaluation, R3 observability, R5 cost control, R8 action governance, F18 permissions; finding #2 (Docker) is independent
@@ -264,7 +264,7 @@ none), so data and answer key cannot drift.
 
 ### Formal cases (plain language, `cases/*.yaml`)
 
-About 8 cases with an id, title, plain-language steps, expected result, priority and the area
+Ten cases (TC-01 to TC-10) with an id, title, plain-language steps, expected result, priority and the area
 they cover. One of them (the cart-count case) is **deliberately weakly written** to bait B05.
 Cases never name the seeded bugs.
 
@@ -304,14 +304,20 @@ P1.3 and P1.4 produce exactly what the scorer reads.
 
 ### Acceptance criteria (P1.1)
 
-- [ ] Shop runs locally under each of the four profiles; `clean` behaves correctly end to end.
-- [ ] All 13 seeded issues are observable over HTTP under their profiles and absent under `clean`.
-- [ ] Answer key validates and matches the shop code in both directions.
-- [ ] Scorer reports every metric and per-issue found, missed or invented.
-- [ ] Offline tests above pass; whole suite and ruff stay green; no model or browser needed.
-- [ ] No client names, systems or counts anywhere in the files.
-- [ ] `projects/README.md` explains how `projects/` differs from `levels/`, `architectures/`
+- [x] Shop runs locally under each of the four profiles; `clean` behaves correctly end to end.
+- [x] All 13 seeded issues are observable over HTTP under their profiles and absent under `clean`
+      (13 issues x 4 profiles, checked by test; a deliberate break of B03 made exactly that case fail).
+- [x] Answer key validates and matches the shop code in both directions.
+- [x] Scorer reports every metric and per-issue found, missed or invented.
+- [x] Offline tests above pass; whole suite and ruff stay green (297 passed, 7 skipped); no model or browser needed.
+- [x] No client names, systems or counts anywhere in the files (searched).
+- [x] `projects/README.md` explains how `projects/` differs from `levels/`, `architectures/`
       and `reliability/`.
+
+**Delivered 2026-11-26.** Notes: profile-to-issue mapping lives in the answer key (`active_in`), so
+the shop and scorer share one source; verdicts must carry an evidence reference (except
+skipped); exploratory matching is deterministic term matching, to be replaced or backed by a
+semantic judge when the live tester exists; the answer key must not be shown to the tester.
 
 ---
 

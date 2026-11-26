@@ -1,0 +1,132 @@
+# Answer key v1: the ground truth for every issue seeded into the demo shop.
+#
+# The tester must never read this file. Only the shop (to switch issues on) and the scorer use it.
+# kind -> expected_verdict is fixed by code: app_defect=fail_app_defect, data_issue=fail_test_data_issue,
+# environment=blocked_environment, automation=fail_automation_issue, exploratory=exploratory_observation.
+version: 1
+issues:
+  - id: B01
+    kind: app_defect
+    title: Cart shows the price 1 cent lower than the product page
+    active_in: [all_bugs]
+    covered_by: [TC-03]
+    expected_verdict: fail_app_defect
+    detectable_by: formal
+    observe: "Cart line price differs from the product page price for the Insulated Bottle"
+
+  - id: B02
+    kind: app_defect
+    title: Choosing the larger variant does not update the displayed price
+    active_in: [all_bugs]
+    covered_by: [TC-02]
+    expected_verdict: fail_app_defect
+    detectable_by: formal
+    observe: "Option L on the Trail Backpack carries the base price, so the page shows $89.99, not $91.99"
+
+  - id: B03
+    kind: app_defect
+    title: Adding quantity 3 adds only 2
+    active_in: [all_bugs]
+    covered_by: [TC-05]
+    expected_verdict: fail_app_defect
+    detectable_by: formal
+    observe: "Camp Mug added with quantity 3 shows quantity 2 in the cart"
+
+  - id: B04
+    kind: app_defect
+    title: Removing a line leaves the subtotal stale
+    active_in: [all_bugs]
+    covered_by: [TC-06]
+    expected_verdict: fail_app_defect
+    detectable_by: formal
+    observe: "After removing the only line, the response still shows the old subtotal"
+
+  - id: B05
+    kind: app_defect
+    title: The header count rises but no line appears in the cart (silent-pass trap)
+    active_in: [all_bugs]
+    covered_by: [TC-04]
+    expected_verdict: fail_app_defect
+    detectable_by: formal
+    observe: "Trail Socks: badge shows 1, cart has no line. TC-04 checks only the badge, so it passes."
+    notes: >
+      TC-04 is deliberately weak. A tester that only follows the case passes it and commits a
+      silent false pass. A good tester checks that the cart contents match the count.
+
+  - id: D01
+    kind: data_issue
+    title: A listed product is out of stock
+    active_in: [all_bugs]
+    covered_by: [TC-07]
+    expected_verdict: fail_test_data_issue
+    detectable_by: formal
+    observe: "Headlamp cannot be added (409) because stock is 0; the shop correctly refuses"
+
+  - id: D02
+    kind: data_issue
+    title: A product has no image
+    active_in: [all_bugs]
+    covered_by: [TC-01]
+    expected_verdict: fail_test_data_issue
+    detectable_by: formal
+    observe: "The Water Filter page has no product image"
+
+  - id: E01
+    kind: environment
+    title: The cart returns 503
+    active_in: [env_down]
+    covered_by: [TC-03, TC-04, TC-05, TC-06, TC-07, TC-08, TC-10]
+    expected_verdict: blocked_environment
+    detectable_by: formal
+    observe: "GET /cart and the cart POST routes return 503"
+
+  - id: E02
+    kind: environment
+    title: Product pages respond very slowly
+    active_in: [env_down]
+    covered_by: [TC-09]
+    expected_verdict: blocked_environment
+    detectable_by: formal
+    observe: "Product page response takes longer than the 3 second limit"
+
+  - id: A01
+    kind: automation
+    title: Markup renamed in shop version 2 (behaviour unchanged)
+    active_in: [v2_markup]
+    covered_by: [TC-10]
+    expected_verdict: fail_automation_issue
+    detectable_by: formal
+    observe: "add-to-cart test id is btn-add, price test id is product-price"
+    notes: >
+      Applies when scripts written against version 1 markup run against version 2. A freshly
+      generated script for version 2 passes.
+
+  - id: X01
+    kind: exploratory
+    title: Console error on product page load
+    active_in: [all_bugs]
+    covered_by: []
+    expected_verdict: exploratory_observation
+    detectable_by: exploratory
+    observe: "Product pages log a console error"
+    match_terms: [console]
+
+  - id: X02
+    kind: exploratory
+    title: A banner covers the add-to-cart button on a narrow mobile width
+    active_in: [all_bugs]
+    covered_by: []
+    expected_verdict: exploratory_observation
+    detectable_by: exploratory
+    observe: "Below 420px wide, a fixed promo banner covers the main button"
+    match_terms: [banner, overlay, obscur, covers, blocked button]
+
+  - id: X03
+    kind: exploratory
+    title: Product images have no alt text
+    active_in: [all_bugs]
+    covered_by: []
+    expected_verdict: exploratory_observation
+    detectable_by: exploratory
+    observe: "img elements have no alt attribute"
+    match_terms: [alt text, alt attribute, missing alt, no alt]

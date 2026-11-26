@@ -1,0 +1,94 @@
+# Formal test cases for the demo shop, written the way a manual tester would write them.
+# Plain language only: no selectors, no code, and never a mention of how the shop is seeded.
+version: 1
+cases:
+  - id: TC-01
+    title: Product page shows the basics
+    area: product-page
+    priority: P1
+    steps:
+      - Open the product page for "Water Filter".
+    expected: The page shows the product name, a price and a product image.
+
+  - id: TC-02
+    title: Choosing a variant updates the displayed price
+    area: product-page
+    priority: P1
+    steps:
+      - Open the product page for "Trail Backpack".
+      - Choose size L.
+    expected: The displayed price is $91.99.
+
+  - id: TC-03
+    title: Cart price matches the product page
+    area: cart
+    priority: P0
+    steps:
+      - Open the product page for "Insulated Bottle" and note the price.
+      - Add one to the cart.
+      - Open the cart.
+    expected: The cart line shows the same price that the product page showed.
+
+  - id: TC-04
+    title: Adding an item raises the cart count
+    area: cart
+    priority: P2
+    steps:
+      - Open the product page for "Trail Socks".
+      - Add one to the cart.
+    expected: The cart count in the page header shows 1.
+
+  - id: TC-05
+    title: Quantity is respected
+    area: cart
+    priority: P1
+    steps:
+      - Open the product page for "Camp Mug".
+      - Set the quantity to 3 and add to the cart.
+      - Open the cart.
+    expected: The cart line shows quantity 3.
+
+  - id: TC-06
+    title: Removing the last item empties the cart
+    area: cart
+    priority: P1
+    steps:
+      - Add one "Camp Mug" to the cart.
+      - Open the cart and remove it.
+    expected: The cart is empty and the subtotal is $0.00.
+
+  - id: TC-07
+    title: A listed product can be added to the cart
+    area: cart
+    priority: P1
+    steps:
+      - Open the product page for "Headlamp".
+      - Add one to the cart.
+      - Open the cart.
+    expected: The Headlamp appears in the cart.
+
+  - id: TC-08
+    title: The cart page is available
+    area: cart
+    priority: P0
+    steps:
+      - Open the cart page.
+    expected: The page loads and shows the cart contents or an empty-cart message.
+
+  - id: TC-09
+    title: Product pages load promptly
+    area: product-page
+    priority: P2
+    steps:
+      - Open the product page for "Trail Backpack".
+    expected: The page finishes loading within 3 seconds.
+
+  - id: TC-10
+    title: Add to cart from the product page
+    area: cart
+    priority: P0
+    steps:
+      - Open the product page for "Trail Backpack".
+      - Press the add to cart button.
+      - Open the cart.
+    expected: The Trail Backpack appears in the cart.
