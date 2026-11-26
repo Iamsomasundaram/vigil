@@ -82,6 +82,7 @@ implementation stops short of production patterns.
 | [F23](F23-responsible-ai-eval.md)          | `levels/foundations/responsible_ai.py`    | Responsible-AI eval: moderation + fairness            | done     |
 | [F24](F24-semantic-caching.md)             | `levels/foundations/semantic_cache.py`    | Semantic caching for cost/latency reuse               | done     |
 | [G1](G1-genai-coverage-gaps.md)            | (planning only)                           | Coverage gaps and proposed tracks (developer + architect) | proposed |
+| [P1](P1-autonomous-tester.md)              | `projects/autonomous_tester/` (planned)   | Capstone: autonomous tester on a seeded-bug demo shop, built on an existing agent harness | proposed |
 
 ---
 
