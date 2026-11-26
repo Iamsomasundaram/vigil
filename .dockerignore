@@ -25,6 +25,14 @@ env/
 .mypy_cache/
 .ruff_cache/
 
+# Not needed inside the images (the test service mounts what it needs)
+docs/
+notebooks/
+exercises/
+specs/
+tests/
+projects/
+
 # Editor files
 .vscode/
 .idea/

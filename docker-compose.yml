@@ -11,7 +11,8 @@ services:
       dockerfile: Dockerfile
     container_name: vigil-api
     ports:
-      - "8000:8000"
+      # Localhost only: the dev API is open (no keys) unless VIGIL_API_KEYS is set.
+      - "127.0.0.1:8000:8000"
     environment:
       # Docker Compose reads .env automatically — no need to hardcode keys here.
       # The ${VAR} syntax substitutes from your .env file.
@@ -55,7 +56,8 @@ services:
       POSTGRES_USER: vigil
       POSTGRES_PASSWORD: vigil
     ports:
-      - "5432:5432"
+      # Localhost only: the demo password is vigil/vigil.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -74,7 +76,8 @@ services:
     image: redis:7-alpine
     container_name: vigil-redis
     ports:
-      - "6379:6379"
+      # Localhost only: Redis has no password here.
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -131,7 +134,7 @@ services:
       dockerfile: ui/Dockerfile
     container_name: vigil-ui
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     environment:
       # Point the UI at the API container by its service name, not localhost
       - VIGIL_API_URL=http://api:8000

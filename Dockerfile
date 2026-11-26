@@ -42,5 +42,6 @@ COPY data/    ./data/
 # FastAPI on port 8000
 EXPOSE 8000
 
-# --reload makes code changes reflect without rebuilding (for dev)
+# No --reload here. For live code edits, run: docker compose up (source folders are mounted)
+# and restart the api container after a change: docker compose restart api
 CMD ["uvicorn", "vigil.api:app", "--host", "0.0.0.0", "--port", "8000"]
