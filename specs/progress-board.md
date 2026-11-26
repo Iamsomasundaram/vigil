@@ -1,6 +1,28 @@
 # Vigil Progress Board
 
-Last updated: 2026-08-31
+Last updated: 2026-11-26
+
+## Where we stopped (2026-11-26) and what comes next
+
+**State:** everything is committed and pushed. The Docker stack (api, ui, db, redis, docs, demo-shop) was
+stopped, not removed; `docker compose up -d` brings it back. Suite: 349 passed, 3 skipped; ruff clean.
+
+**Order agreed with the owner:**
+1. **P1 Autonomous Tester**: P1.1 is done. Next is P1.2 (scope contract, heuristics v1, observation-only scan,
+   adds Playwright). Write P1.2's detailed plan into `P1-autonomous-tester.md` and get it approved first.
+2. **UI rework** after P1 (finding #9 below). Do not start it before P1 is done.
+3. Remaining original findings: #3, #4, #7, #8.
+
+**Decisions already made (do not reopen without the owner):** Codex SDK only, no generic harness adapter; build our own
+orchestration only where Codex has no native capability; the tester agent is live (mocks only in unit tests);
+bundled demo shop with seeded bugs is the only target; `execute` is the default mode on the demo shop, `observe` on any
+other URL; `dev` is the default API mode; everything generic (no client names, systems or counts).
+
+**Needs the owner's input:** a realistic use case from their own testing experience (F8 below); an OpenAI key run for
+findings #3/#4/P1 live evaluation (cost shown first).
+
+**Where the open items live:** the Review Findings Tracker (#1 to #9), "Known gaps", "Stack and UI updates" and
+"P1 follow-ups" below. If something is not on this board, it is not tracked.
 
 ## Done
 
@@ -72,6 +94,7 @@ systems or counts. A realistic use case from the owner's own experience will be 
 | 6   | Split `vigil/api.py` and `ui/app.py`                            | Done   |
 | 7   | Quality tooling (coverage, type checking, stronger lint)        | Open   |
 | 8   | Housekeeping (line endings, CONTRIBUTING, changelog)            | Open   |
+| 9   | UI quality: owner reports the Streamlit UI is basic and not working properly | Open   |
 
 ### Open items in detail
 
@@ -83,6 +106,15 @@ systems or counts. A realistic use case from the owner's own experience will be 
 - Test service: found it ran a stale image and lacked `docs/`, `exercises/`, `notebooks/`, `projects/` and `reliability/`; fixed the mounts and the docs copy. Whole suite passes in Docker: 301 passed, 3 skipped.
 - Not verified: any call that uses a paid model (no model calls were made); the Streamlit pages beyond the health and index responses (the UI renders over a websocket, so curl cannot exercise it); `prod` default for CORS (Compose supplies the Streamlit origin as a default, now commented).
 - Known: the UI image is 845 MB (Streamlit and its dependencies); not optimised. Fixed container names (`vigil-api`, ...) can clash with other projects.
+
+**#9 UI quality** (reported by the owner 2026-11-26, after P1)
+- Reported: "very basic and not working". The specific failures were not captured yet; first step is to open every page in a real
+  browser against the running stack and list what fails (the render test only proves pages do not raise, and a headless screenshot
+  could not show Streamlit's websocket-rendered content).
+- Known so far: no dedicated pages for F1, F5, F9, F10; pages depend on the API being up and on the right key in `VIGIL_UI_API_KEY`
+  when keys are set; the UI image is 845 MB; the R5 and F8 pages and the sidebar regrouping (done 2026-11-26) have not been used
+  in a browser by anyone.
+- Decide then: keep patching Streamlit, or redesign the learning UI as a whole.
 
 **#3 Ollama / local-model route**
 - The README "Cost and Offline Options" route is unverified. Run one level against a local Ollama model and record what works.
