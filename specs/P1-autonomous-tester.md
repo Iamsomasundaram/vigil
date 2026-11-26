@@ -1,6 +1,6 @@
 # P1 — Autonomous Tester (capstone project)
 
-- **Status:** Proposed (concept approved by the project owner; nothing built; harness choice parked)
+- **Status:** Proposed (concept, harness and default modes decided by the project owner; nothing built)
 - **Axis:** Projects (a small, real, extensible application built from the learning axes)
 - **Target folder:** `projects/autonomous_tester/` (new top-level `projects/`)
 - **Depends on:** R1 guardrails, R2 evaluation, R3 observability, R5 cost control, R8 action governance, F18 permissions; finding #2 (Docker) is independent
@@ -55,8 +55,11 @@ trust against a known answer key.**
   The design is generic; any proprietary source material stays out of the repo.
 - No large-scale test-asset index, cross-site correlation, visual testing, or integration
   with a real test-management system in the first version (see Deferred).
-- Building our own agent loop. The harness provides it (tool choice is parked, see Open
-  questions).
+- Building our own agent loop. The Codex harness provides it.
+- A generic harness-adapter layer. **Decided:** this project uses the Codex SDK only; it does
+  not abstract over other harnesses (Claude Agent SDK, Copilot SDK, etc.). Where Codex has no
+  native capability, we build our own orchestration around it (see below). No partner status
+  or endorsement is implied.
 
 ---
 
@@ -84,8 +87,11 @@ site observation┘   (run/skip/block/       evidence + trace     category +    
 | | Agency modes and kill switch |
 | | Audit trail, cost ceiling, answer-key scoring |
 
-How each row maps to a specific harness feature is decided after the tool is chosen and
-verified against current documentation. This table is the requirement, not the mapping.
+**Rule:** use a native Codex capability when one exists; build our own orchestration layer
+only for the right-hand column. Each right-hand row is checked against current Codex
+documentation before it is built, because some may be partly covered (for example by Codex
+hooks or configuration). The mapping from each row to a Codex feature is written in the guide
+as it is verified; this table is the requirement.
 
 ### Failure taxonomy (reused from the review of the original idea, generalised)
 
@@ -160,7 +166,7 @@ projects/
     cases/                       plain-language test cases (YAML)
     heuristics/                  heuristics library v1 (versioned, with owner and status)
     agent/                       our layer: scope, strategy, classify, review, modes, guard, audit
-    harness/                     thin adapter to the chosen harness (swappable; tool parked)
+    codex/                       our orchestration around the Codex SDK (Codex-specific, not a generic adapter)
     evals/                       seeded_bugs.yaml answer key and the scorer
 tests/projects/autonomous_tester/   offline tests (fake model, no browser)
 docs/src/                        new guide section "Projects" (concept page + walkthrough)
@@ -176,7 +182,7 @@ optional extras, so the base install and the test suite stay light.
 | P1.1 | Demo shop, seeded bugs, answer key, scorer, offline tests | No |
 | P1.2 | Scope contract, heuristics v1, observation-only scan | Browser (optional extra) |
 | P1.3 | Validation strategy, classifier with confidence, re-triage, review queue; live model calls, first live evaluation against the answer key | Live model and browser (mocks in unit tests only) |
-| P1.4 | Harness adapter: generate, run and repair scripts; guard; agency modes; audit | Harness (parked choice) |
+| P1.4 | Codex integration: generate, run and repair scripts; guard; agency modes; audit | Codex SDK (live) |
 | P1.5 | Guide section, UI page and API route, README links | No |
 
 ## Files (planned)
@@ -189,18 +195,29 @@ optional extras, so the base install and the test suite stay light.
 
 ## Open questions
 
-1. **Harness choice and SDK vs CLI.** Preference is the OpenAI Codex SDK or CLI. Parked by
-   the owner until the project is final. Before choosing, verify current capabilities from
-   the official docs, and keep the adapter swappable so the track is not tied to one vendor.
-   Do not imply any partner status or endorsement.
+1. ~~Harness choice.~~ **Decided:** Codex SDK, no generic adapter. Still to verify from the
+   official docs before P1.4 (checked 2026-11-26 against OpenAI's authentication and
+   non-interactive pages):
+   - Auth: Codex supports sign-in with ChatGPT or with an API key. API-key use is billed
+     through the OpenAI Platform at standard API rates. The documented variable for
+     non-interactive use and the TypeScript SDK is `CODEX_API_KEY`, not `OPENAI_API_KEY`.
+     A key is loaded with `codex login --with-api-key`.
+   - **Billing risk:** community reports say some versions silently used an `OPENAI_API_KEY`
+     found in the environment or a project `.env`. Set the auth method explicitly, keep the
+     key out of the repo, and check the installed version's behaviour before the first live run.
+   - There is also a Python SDK in the Codex repo (`sdk/python`). Since Vigil is Python, decide
+     between it and the TypeScript SDK after checking maturity and feature parity.
+   - Known open report: overlapping runs on one new TypeScript thread can split into separate
+     conversations. Design for one turn at a time per thread.
+   - Capabilities still to confirm: hooks, subagents, MCP, `codex exec` output format, usage
+     events and any built-in spend limit.
 2. ~~Browser extra.~~ **Decided:** Playwright is the only browser dependency, and CI can
    install it.
 3. ~~Demo shop data.~~ **Decided:** generated from the seed config, so the answer key and the
    data cannot drift.
-4. **Default agency mode.** `observe` looks and reports without changing any state; `execute`
-   runs the tests. Proposed: `execute` for the bundled demo shop (harmless), `observe` for any
-   other URL, and `execute` always needs an explicit flag on a non-bundled target. Pending
-   the owner's confirmation.
+4. ~~Default agency mode.~~ **Decided:** `observe` looks and reports without changing any
+   state; `execute` runs the tests. The bundled demo shop defaults to `execute` (harmless).
+   Any other URL defaults to `observe`, and `execute` there needs an explicit flag.
 5. **Cost of live evaluation.** Set a per-run and per-evaluation ceiling before the first
    live run; record cost and variance in the report.
 
@@ -208,5 +225,6 @@ optional extras, so the base install and the test suite stay light.
 
 - [x] Concept, scope, target, placement and confidentiality rule agreed with the owner.
 - [ ] Phase list and folder structure approved.
-- [ ] Harness choice made (separate decision, after this spec is approved).
+- [x] Harness choice made: Codex SDK only; own orchestration where Codex has no native capability.
+- [ ] Codex auth, cost and capability checks verified against the installed version (before P1.4).
 - [ ] Each phase gets its own acceptance checklist before code is written.

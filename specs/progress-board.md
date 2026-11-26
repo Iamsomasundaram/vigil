@@ -46,7 +46,7 @@ None.
 ## Proposed (not approved)
 
 - G1 — GenAI Coverage Gaps and Proposed Tracks ([spec](G1-genai-coverage-gaps.md)). Planning only; to be revisited after the original review findings are closed.
-- P1 — Autonomous Tester capstone project ([spec](P1-autonomous-tester.md)). Concept, scope, demo-shop target, folder structure and phases agreed with the owner; harness choice (Codex SDK/CLI preferred) deliberately parked; no code until the phase list is approved. Generic by rule: no client names, systems or counts.
+- P1 — Autonomous Tester capstone project ([spec](P1-autonomous-tester.md)). Concept, scope, demo-shop target, folder structure and phases agreed with the owner; harness decided (Codex SDK only, own orchestration where Codex has no native capability), default modes decided; no code until the phase list is approved. Generic by rule: no client names, systems or counts.
 
 ## Review Findings Tracker
 
