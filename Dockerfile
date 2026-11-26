@@ -19,7 +19,7 @@ COPY pyproject.toml .
 # Create a minimal package stub so `pip install -e .` works without full source
 RUN mkdir -p vigil && touch vigil/__init__.py
 
-RUN pip install --no-cache-dir ".[api]"
+RUN pip install --no-cache-dir ".[api,tester]"
 
 
 # ── Stage 2: Runtime ───────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ COPY levels/  ./levels/
 COPY reliability/ ./reliability/
 COPY architectures/ ./architectures/
 COPY vigil_mcp/ ./vigil_mcp/
+COPY projects/ ./projects/
 COPY data/    ./data/
 
 # FastAPI on port 8000

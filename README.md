@@ -175,13 +175,19 @@ cp .env.example .env            # Windows PowerShell: Copy-Item .env.example .en
 docker compose up --build
 ```
 
-| Service | URL                           |
-| ------- | ----------------------------- |
-| API     | http://localhost:8000/docs    |
-| UI      | http://localhost:8501         |
+| Service    | URL                           | What it is                                              |
+| ---------- | ----------------------------- | ------------------------------------------------------- |
+| UI         | http://localhost:8501         | One page per topic; links to the guide and the demo shop |
+| API        | http://localhost:8000/docs    | Swagger for every endpoint                              |
+| Guide      | http://localhost:8090         | The learning guide (the static site in `docs/`)         |
+| Demo shop  | http://localhost:8100         | The P1 test target, deliberately broken (see below)     |
 
-All four published ports (API, UI, PostgreSQL, Redis) are bound to `127.0.0.1`, so nothing is reachable from
+Every published port (UI, API, guide, demo shop, PostgreSQL, Redis) is bound to `127.0.0.1`, so nothing is reachable from
 your network. The dev API is open unless you set `VIGIL_API_KEYS`; see the guide page *API security defaults*.
+
+The demo shop starts with `SHOP_PROFILE=all_bugs`. Switch it with e.g. `SHOP_PROFILE=clean docker compose up -d demo-shop`
+(profiles: `clean`, `all_bugs`, `env_down`, `v2_markup`). Without Docker, serve the guide with
+`python -m http.server 8090 --directory docs` and the shop with `python -m projects.autonomous_tester.demo_shop`.
 
 Run the test suite inside Docker: `docker compose --profile test run --rm test`. The test image is
 profile-gated, so after changing the `Dockerfile` or `pyproject.toml` rebuild it with

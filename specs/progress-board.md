@@ -110,6 +110,14 @@ systems or counts. A realistic use case from the owner's own experience will be 
 | Security: rate limit and concurrency cap are per process; keys have no expiry or revocation; OIDC only documented | `vigil/hardening.py` | G1 (deployment reference) |
 | Leftover clean-room folders `D:\vigil-cr`, `D:\vigil-cr-log.txt` | outside the repo | user to delete |
 
+### Stack and UI updates (2026-11-26)
+
+- UI completeness check found two features with an API but no page: **R5 Cost Control** and **F8 Tool Discovery & MCP**; both pages added. Sidebar regrouped to mirror the guide (Start, Levels, Architectures, Reliability R1 to R9, Foundations, Extensions, Themes, Projects); R6 to R9 now carry their guide names alongside F17 to F20.
+- Every page links to its guide page; the sidebar links the guide pages that have no UI page. A test keeps navigation, page registry, guide pages and rendering in step.
+- Docker Compose now also runs the learning guide (`docs`, port 8090) and the demo shop (`demo-shop`, port 8100), both localhost-only.
+- Finding for #3: the MCP "client" in `vigil_mcp/` runs in-process and calls the tool functions directly; it is not a separate MCP server process. The F8 page says so.
+- Still without a dedicated UI page: F1 (embeddings), F5 (context window), F9 (learning scaffolding), F10 (hardening; see the guide's API security page) and the `/admin/ratelimit` diagnostic. Their topics are covered in the guide and, for F1/F5, inside the L5 page.
+
 ### P1 follow-ups carried forward (action items, do not lose)
 
 | # | Follow-up | Must be handled in |

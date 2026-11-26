@@ -44,6 +44,49 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Demo shop (P1 autonomous tester target) ──────────────────────────────────
+  # A tiny storefront with seeded bugs. It is DELIBERATELY BROKEN, so it is published on
+  # localhost only. Pick what is broken with SHOP_PROFILE:
+  #   clean | all_bugs (default) | env_down | v2_markup
+  #   SHOP_PROFILE=clean docker compose up -d demo-shop
+  # Open http://localhost:8100
+  demo-shop:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vigil-demo-shop
+    command: >
+      python -m projects.autonomous_tester.demo_shop
+      --profile ${SHOP_PROFILE:-all_bugs} --host 0.0.0.0 --port 8100
+    ports:
+      - "127.0.0.1:8100:8100"
+    volumes:
+      - ./projects:/app/projects
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8100/health', timeout=3)" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Learning guide ───────────────────────────────────────────────────────────
+  # The static guide in docs/ (open http://localhost:8090). The UI links to it.
+  # Rebuild after editing docs/src:  python docs/build_site.py
+  docs:
+    image: python:3.11-slim
+    container_name: vigil-docs
+    command: [ "python", "-m", "http.server", "8090", "--bind", "0.0.0.0", "--directory", "/docs" ]
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ./docs:/docs:ro
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8090/index.html', timeout=3)" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
   # Used from L5 onwards for persistent memory:
   #   - remediation tracking
@@ -154,6 +197,11 @@ services:
       - VIGIL_API_URL=http://api:8000
       # Needed only when the API has VIGIL_API_KEYS set: a key with run scope.
       - VIGIL_UI_API_KEY=${VIGIL_UI_API_KEY:-}
+      # Browser-facing links in the sidebar and on the Projects page.
+      - VIGIL_DOCS_URL=http://localhost:8090
+      - VIGIL_DEMO_SHOP_URL=http://localhost:8100
+      # How the UI container itself checks that the shop is up.
+      - VIGIL_DEMO_SHOP_HEALTH_URL=http://demo-shop:8100
     volumes:
       # Hot-reload: edit ui/app.py on the host → reflected immediately
       - ./ui:/app/ui

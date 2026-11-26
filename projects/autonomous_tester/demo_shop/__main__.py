@@ -14,7 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Vigil demo shop with seeded bugs")
     parser.add_argument("--profile", default="clean", choices=profile_names())
     parser.add_argument("--port", type=int, default=8100)
-    parser.add_argument("--host", default="127.0.0.1", help="keep 127.0.0.1: the shop is deliberately buggy")
+    parser.add_argument("--host", default="127.0.0.1", help="keep 127.0.0.1 (the shop is deliberately buggy); Docker uses 0.0.0.0 but publishes the port on localhost only")
     args = parser.parse_args()
     uvicorn.run(create_app(args.profile), host=args.host, port=args.port)
 

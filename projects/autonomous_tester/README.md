@@ -22,6 +22,9 @@ only in unit tests of our own code.
 
 ## Try the shop
 
+With Docker Compose it is already running at http://localhost:8100 (profile `all_bugs`; change it with
+`SHOP_PROFILE=clean docker compose up -d demo-shop`). Without Docker:
+
 ```bash
 pip install -e ".[tester]"
 python -m projects.autonomous_tester.demo_shop --profile all_bugs --port 8100
