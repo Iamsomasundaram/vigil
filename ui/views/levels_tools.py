@@ -551,3 +551,52 @@ async def stop_monitor():
                         "The event-based approach means stop() takes effect in milliseconds, "
                         "not at the end of the next hour-long sleep.",
         )
+
+
+# ─── F8 ───────────────────────────────────────────────────────────────────────
+
+def render_f8() -> None:
+    st.title("F8 — Tool Discovery & MCP")
+
+    concept_box(
+        title="Tools described as data, so any client can find and use them",
+        what="L4's tools can come from inline definitions or from an MCP-style tool server. Either way a tool is "
+             "a name, a description and a JSON schema that the model reads to decide when to call it.",
+        why="Describing tools as data decouples the agent from the code behind them. Add or change a tool "
+            "without rewriting the agent, and let different clients share one set of tools.",
+        key_idea="tool = name + description + input schema; the client discovers, then calls",
+    )
+    st.info(
+        "Honest note: in Vigil the MCP client runs **in the same process** as the API and calls the tool functions "
+        "directly. It teaches the message shapes and the loop, not a real separate MCP server process. "
+        "The tool loop calls the public NVD and EPSS services; it uses no paid model."
+    )
+
+    tabs = st.tabs(["Discover tools", "Run a tool loop"])
+
+    with tabs[0]:
+        source = st.radio("Tool source", ["inline", "mcp"], horizontal=True, key="f8_source")
+        if st.button("Discover", type="primary", key="f8_discover"):
+            tools = api("GET", f"/l4/tools?source={source}")
+            if tools:
+                st.dataframe(
+                    [{"name": t["name"], "source": t["source"], "description": t["description"]} for t in tools],
+                    use_container_width=True,
+                )
+                for t in tools:
+                    with st.expander(f"Input schema: {t['name']}"):
+                        st.json(t["input_schema"])
+
+    with tabs[1]:
+        cve_id = cve_input("vigil_cve")
+        if st.button("Run tool loop", type="primary", key="f8_loop"):
+            with st.spinner("Calling NVD and EPSS through the tool loop…"):
+                data = api("POST", "/mcp/tool-loop", json={"cve_id": cve_id})
+            if data:
+                st.success(f"{data.get('tool_calls', 0)} tool calls · stop reason: {data.get('stop_reason', '?')}")
+                for step in data.get("transcript", []):
+                    with st.expander(f"Tool: {step.get('tool', '?')}", expanded=False):
+                        st.markdown("**Arguments**")
+                        st.json(step.get("arguments", {}))
+                        st.markdown("**Result**")
+                        st.json(step.get("result", {}))

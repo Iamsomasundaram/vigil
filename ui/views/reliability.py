@@ -439,3 +439,66 @@ health = api("GET", "/r4/health")
         explanation="R4 makes failure handling explicit. Instead of hiding outages, "
                     "the system degrades gracefully and tells you exactly what was missing.",
     )
+
+
+# ─── R5 ───────────────────────────────────────────────────────────────────────
+
+def render_r5() -> None:
+    st.title("R5 — Cost Control")
+
+    concept_box(
+        title="Know what a run costs, and stop it before it costs too much",
+        what="R5 keeps a ledger of every model call (feature, model, tokens, estimated cost, cache hit) and "
+             "enforces per-request and per-session budget caps with an early warning.",
+        why="An agent that loops or retries can spend money quickly. A budget turns an open-ended bill into a "
+            "bounded one, and the ledger shows where the money went.",
+        key_idea="budget cap + spend ledger + cache savings -> a bounded, explainable bill",
+    )
+    st.caption(COST_NOTE)
+
+    tabs = st.tabs(["Budget caps", "Spend report"])
+
+    with tabs[0]:
+        c1, c2, c3 = st.columns(3)
+        request_cap = c1.number_input("Per-request cap (USD)", min_value=0.0, value=0.01, step=0.005,
+                                      format="%.4f", key="r5_request_cap")
+        session_cap = c2.number_input("Session cap (USD)", min_value=0.0, value=1.0, step=0.1,
+                                      format="%.2f", key="r5_session_cap")
+        warn_ratio = c3.slider("Warn at this share of a cap", 0.0, 1.0, 0.8, key="r5_warn")
+
+        if st.button("Set budget", type="primary", key="r5_set"):
+            data = api("POST", "/r5/budget", json={
+                "request_cap_usd": request_cap,
+                "session_cap_usd": session_cap,
+                "warn_ratio": warn_ratio,
+            })
+            if data:
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Limit (USD)", f"{data.get('limit_usd', 0):.4f}")
+                m2.metric("Spent so far", f"{data.get('spent_usd', 0):.4f}")
+                m3.metric("Remaining", f"{data.get('remaining_usd', 0):.4f}")
+                if data.get("exceeded"):
+                    st.error("Budget exceeded: further model calls would be refused.")
+                else:
+                    st.success("Budget set. Calls that would pass the cap are stopped.")
+        st.caption("Needs an admin-scope API key when the API runs with keys (VIGIL_UI_API_KEY).")
+
+    with tabs[1]:
+        if st.button("Refresh report", key="r5_report"):
+            data = api("GET", "/r5/report")
+            if data:
+                m1, m2 = st.columns(2)
+                m1.metric("Total (estimate)", f"${data.get('total_usd', 0):.4f}")
+                m2.metric("Saved by cache (estimate)", f"${data.get('cache_savings_usd', 0):.4f}")
+                if not data.get("entries"):
+                    st.info("No model calls recorded yet. Run a level, then refresh.")
+                else:
+                    left, right = st.columns(2)
+                    left.markdown("**By feature**")
+                    left.dataframe([{"feature": k, "usd": v} for k, v in data.get("by_feature", {}).items()],
+                                   use_container_width=True)
+                    right.markdown("**By model**")
+                    right.dataframe([{"model": k, "usd": v} for k, v in data.get("by_model", {}).items()],
+                                    use_container_width=True)
+                    st.markdown("**Ledger**")
+                    st.dataframe(data["entries"], use_container_width=True)

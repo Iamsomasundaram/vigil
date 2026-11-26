@@ -27,21 +27,9 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from common import API_BASE, api  # noqa: E402
-from views import (  # noqa: E402
-    home,
-    reference,
-    checklist,
-    levels_core,
-    levels_tools,
-    reliability,
-    extensions,
-    foundations,
-    foundations_models,
-    governance,
-    themes,
-    architectures,
-)
+from common import API_BASE, DEMO_SHOP_URL, DOCS_URL, api, guide_url  # noqa: E402
+from nav import GUIDE_LINKS, GUIDE_PAGES, NAV_GROUPS  # noqa: E402
+from registry import PAGES  # noqa: E402
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
@@ -93,70 +81,11 @@ with st.sidebar:
 
     st.divider()
 
-    NAV_GROUPS = {
-        "1) Start": {
-            "🏠 Home":                  "home",
-            "📖 Glossary":              "glossary",
-            "📋 Prod Readiness":        "checklist",
-        },
-        "2) Core Levels": {
-            "L0 — Single LLM Call":     "l0",
-            "L1 — Prompt Chain":        "l1",
-            "L2 — Parallel Fan-out":    "l2",
-            "L3 — Conditional Routing": "l3",
-            "L4 — Tool Use":            "l4",
-            "L4b — Multimodal":         "l4b",
-            "L5 — Memory & Feedback":   "l5",
-            "L6 — Autonomous Monitor":  "l6",
-        },
-        "3) Reliability": {
-            "R1 — Guardrails":          "r1",
-            "R2 — Evaluation":          "r2",
-            "R3 — Observability":       "r3",
-            "R4 — Resilience":          "r4",
-        },
-        "4) Foundations": {
-            "F4 — Tokenization":        "f4",
-            "F6 — Prompt Techniques":   "f6",
-            "F11 — Retrieval Quality":  "f11",
-            "F12 — Retrieval Metrics":  "f12",
-            "F13 — Factuality":         "f13",
-            "F14 — Prompt Lifecycle":   "f14",
-            "F15 — Privacy":            "f15",
-            "F16 — Hybrid Retrieval":   "f16",
-            "F21 — Fine-tune Advisor":  "f21",
-            "F22 — Claude Model Select": "f22",
-        },
-        "5) Extensions": {
-            "E1 — Semantic Memory":     "e1",
-            "E2 — Human-in-the-Loop":   "e2",
-            "E3 — Agent Communication": "e3",
-            "E4 — Inference Layer":     "e4",
-        },
-        "6) Architectures": {
-            "A1 — ReAct":               "a1",
-            "A2 — Plan-and-Execute":    "a2",
-            "A3 — Reflection":          "a3",
-            "A4 — Multi-Agent":         "a4",
-        },
-        "7) Themes": {
-            "T1 — Incident Response Ops": "t1_incident",
-        },
-        "8) Governance & Ops": {
-            "F17 — Drift Monitoring":   "f17",
-            "F18 — Action Governance":  "f18",
-            "F19 — Supply Chain":       "f19",
-            "F20 — Release Safety":     "f20",
-            "F23 — Responsible AI":     "f23",
-            "F24 — Semantic Cache":     "f24",
-        },
-    }
-
     group = st.selectbox(
         "Section",
         list(NAV_GROUPS.keys()),
         key="nav_group",
-        help="If new: Start -> Core Levels (L0-L6) -> Reliability -> Extensions/Architectures.",
+        help="The sections follow the learning guide. New here: Start, then Levels L0-L6.",
     )
     items = NAV_GROUPS[group]
     # No key on this radio: when the group changes its options change, so it
@@ -166,7 +95,7 @@ with st.sidebar:
 
     st.divider()
     st.caption("Suggested sequence")
-    st.caption("Start -> L0-L6 -> R1-R4 -> F4/F6/F11/F12/F13/F14/F15 -> E1-E4 -> A1-A4")
+    st.caption("Start -> Levels L0-L6 -> Architectures A1-A4 -> Reliability R1-R9 -> Foundations -> Extensions")
 
     st.divider()
     st.caption("Active CVE")
@@ -174,54 +103,22 @@ with st.sidebar:
     st.caption("Set it on any page — it follows you everywhere.")
 
     st.divider()
-    st.caption("Docs → [Swagger UI](%s/docs)  ·  [ReDoc](%s/redoc)" % (API_BASE, API_BASE))
+    st.caption("API docs → [Swagger UI](%s/docs)  ·  [ReDoc](%s/redoc)" % (API_BASE, API_BASE))
+
+    with st.expander("📚 Learning guide", expanded=False):
+        for label, slug in GUIDE_LINKS:
+            st.markdown(f"- [{label}]({guide_url(slug)})")
+        st.caption("The guide is a separate site. Under Docker Compose it runs at " + DOCS_URL + ".")
+    st.caption("🛍️ [Demo shop](%s) (target for P1)" % DEMO_SHOP_URL)
 
 
 # ─── PAGE DISPATCH ────────────────────────────────────────────────────────────
-# Each page lives in ui/views/<module>.py as a render_<page>() function.
+# Each page lives in ui/views/<module>.py as a render_<page>() function; ui/registry.py maps
+# page keys to them and ui/nav.py maps the same keys to the sidebar and to guide pages.
 
-PAGES = {
-    "home": home.render_home,
-    "glossary": reference.render_glossary,
-    "checklist": checklist.render_checklist,
-    "l0": levels_core.render_l0,
-    "l1": levels_core.render_l1,
-    "l2": levels_core.render_l2,
-    "l3": levels_core.render_l3,
-    "l4": levels_tools.render_l4,
-    "l4b": levels_tools.render_l4b,
-    "l5": levels_tools.render_l5,
-    "l6": levels_tools.render_l6,
-    "r1": reliability.render_r1,
-    "r2": reliability.render_r2,
-    "r3": reliability.render_r3,
-    "r4": reliability.render_r4,
-    "e1": extensions.render_e1,
-    "e2": extensions.render_e2,
-    "e3": extensions.render_e3,
-    "e4": extensions.render_e4,
-    "f4": foundations.render_f4,
-    "f6": foundations.render_f6,
-    "f11": foundations.render_f11,
-    "f12": foundations.render_f12,
-    "f13": foundations.render_f13,
-    "f14": foundations.render_f14,
-    "f15": foundations.render_f15,
-    "f16": foundations.render_f16,
-    "f21": foundations_models.render_f21,
-    "f22": foundations_models.render_f22,
-    "f17": governance.render_f17,
-    "f18": governance.render_f18,
-    "f19": governance.render_f19,
-    "f20": governance.render_f20,
-    "f23": governance.render_f23,
-    "f24": governance.render_f24,
-    "t1_incident": themes.render_t1_incident,
-    "a1": architectures.render_a1,
-    "a2": architectures.render_a2,
-    "a3": architectures.render_a3,
-    "a4": architectures.render_a4,
-}
+slug = GUIDE_PAGES.get(page)
+if slug:
+    st.caption(f"📚 Read the guide page for this topic: [{slug}]({guide_url(slug)})")
 
 renderer = PAGES.get(page)
 if renderer is not None:

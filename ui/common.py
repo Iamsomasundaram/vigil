@@ -7,6 +7,12 @@ import streamlit as st
 
 
 API_BASE = os.getenv("VIGIL_API_URL", "http://localhost:8000")
+# Browser-facing URLs for the learning guide and the demo shop (both are separate services under
+# Docker Compose). Outside Docker, serve the guide with: python -m http.server 8090 --directory docs
+DOCS_URL = os.getenv("VIGIL_DOCS_URL", "http://localhost:8090").rstrip("/")
+DEMO_SHOP_URL = os.getenv("VIGIL_DEMO_SHOP_URL", "http://localhost:8100").rstrip("/")
+# Where this process reaches the shop to check it is up (inside Compose that is the service name).
+DEMO_SHOP_HEALTH_URL = os.getenv("VIGIL_DEMO_SHOP_HEALTH_URL", DEMO_SHOP_URL).rstrip("/")
 # Key the UI sends as X-API-Key when the API has VIGIL_API_KEYS set (give it a run-scope key).
 AUTH_HEADERS = {"x-api-key": os.environ["VIGIL_UI_API_KEY"]} if os.getenv("VIGIL_UI_API_KEY") else {}
 # The UI image does not ship the vigil package, so this mirrors vigil.pricing.PRICING_NOTE.
@@ -17,6 +23,11 @@ TIMEOUT = httpx.Timeout(180.0)
 
 
 # ─── SHARED HELPERS ───────────────────────────────────────────────────────────
+
+def guide_url(slug: str) -> str:
+    """URL of a learning-guide page. ``index`` is the guide home."""
+    return f"{DOCS_URL}/index.html" if slug == "index" else f"{DOCS_URL}/pages/{slug}.html"
+
 
 def api(method: str, path: str, **kwargs) -> dict | None:
     """
